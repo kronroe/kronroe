@@ -9,3 +9,10 @@
 .idea/
 .vscode/
 *.swp
+
+# Local planning docs — personal notes, not part of the public repo
+/planning/
+
+# Claude Code and Playwright session data — local tooling only
+.claude/
+.playwright-mcp/
