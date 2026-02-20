@@ -2,6 +2,7 @@
 members = [
     "crates/core",
     "crates/agent-memory",
+    "crates/wasm",
 ]
 resolver = "2"
 

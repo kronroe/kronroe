@@ -262,6 +262,20 @@ impl TemporalGraph {
     /// extension is conventional but not enforced.
     pub fn open(path: &str) -> Result<Self> {
         let db = Database::create(path)?;
+        Self::init(db)
+    }
+
+    /// Create an in-memory Kronroe database (no file I/O).
+    ///
+    /// Useful for WASM targets, testing, and ephemeral workloads where
+    /// persistence is not needed. Data is lost when the instance is dropped.
+    pub fn open_in_memory() -> Result<Self> {
+        let backend = redb::backends::InMemoryBackend::new();
+        let db = Database::builder().create_with_backend(backend)?;
+        Self::init(db)
+    }
+
+    fn init(db: Database) -> Result<Self> {
         {
             let write_txn = db.begin_write()?;
             write_txn.open_table(FACTS)?;
