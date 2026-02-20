@@ -17,3 +17,6 @@
 .claude/
 !.claude/skills/
 .playwright-mcp/
+
+# Python build artifacts
+crates/python/dist/

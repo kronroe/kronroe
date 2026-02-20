@@ -457,6 +457,37 @@ impl TemporalGraph {
         Ok(())
     }
 
+    /// Retrieve a fact by its id.
+    ///
+    /// Phase 0 implementation performs a linear scan.
+    pub fn fact_by_id(&self, fact_id: &FactId) -> Result<Fact> {
+        let read_txn = self.db.begin_read()?;
+        let table = read_txn.open_table(FACTS)?;
+        for entry in table.iter()? {
+            let (_k, v) = entry?;
+            let fact: Fact = serde_json::from_str(v.value())?;
+            if fact.id == *fact_id {
+                return Ok(fact);
+            }
+        }
+        Err(KronroeError::NotFound(format!("fact id {fact_id}")))
+    }
+
+    /// Correct a fact by id while preserving history.
+    ///
+    /// The old fact is invalidated at `at`, and a replacement fact is asserted
+    /// with the same subject/predicate and a new object value.
+    pub fn correct_fact(
+        &self,
+        fact_id: &FactId,
+        new_value: impl Into<Value>,
+        at: DateTime<Utc>,
+    ) -> Result<FactId> {
+        let old = self.fact_by_id(fact_id)?;
+        self.invalidate_fact(fact_id, at)?;
+        self.assert_fact(&old.subject, &old.predicate, new_value, at)
+    }
+
     // Internal: scan facts table, filter by prefix, apply predicate.
     fn scan_prefix(&self, prefix: &str, predicate: impl Fn(&Fact) -> bool) -> Result<Vec<Fact>> {
         let read_txn = self.db.begin_read()?;
@@ -685,6 +716,27 @@ mod tests {
         let bool_facts = db.current_facts("alice", "is_active").unwrap();
         assert_eq!(bool_facts.len(), 1);
         assert!(matches!(bool_facts[0].object, Value::Boolean(true)));
+    }
+
+    #[test]
+    fn correct_fact_preserves_history_and_creates_replacement() {
+        let (db, _tmp) = open_temp_db();
+        let jan = dt("2024-01-01T00:00:00Z");
+        let feb = dt("2024-02-01T00:00:00Z");
+
+        let old_id = db.assert_fact("alice", "works_at", "Acme", jan).unwrap();
+        let new_id = db.correct_fact(&old_id, "BetaCorp", feb).unwrap();
+
+        let old = db.fact_by_id(&old_id).unwrap();
+        assert_eq!(old.valid_to, Some(feb));
+
+        let new_fact = db.fact_by_id(&new_id).unwrap();
+        assert_eq!(new_fact.subject, "alice");
+        assert_eq!(new_fact.predicate, "works_at");
+        match new_fact.object {
+            Value::Text(ref s) => assert_eq!(s, "BetaCorp"),
+            ref other => panic!("expected Text, got {other:?}"),
+        }
     }
 
     #[test]

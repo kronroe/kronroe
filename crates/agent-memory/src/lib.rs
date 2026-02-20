@@ -93,6 +93,11 @@ impl AgentMemory {
         self.graph.search(query, limit)
     }
 
+    /// Correct an existing fact by id, preserving temporal history.
+    pub fn correct_fact(&self, fact_id: &FactId, new_value: impl Into<Value>) -> Result<FactId> {
+        self.graph.correct_fact(fact_id, new_value, Utc::now())
+    }
+
     // -----------------------------------------------------------------------
     // Phase 1 stubs — require NLP extraction pipeline + vector index
     // -----------------------------------------------------------------------

@@ -481,6 +481,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kronroe-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "kronroe",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "kronroe-py"
 version = "0.1.0"
 dependencies = [
