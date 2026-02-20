@@ -41,8 +41,15 @@ if an earlier one fails, so the user gets the full picture in one go.
 cargo test --all 2>&1
 ```
 
-This runs the full test suite across all crates (core, agent-memory, wasm).
-Look at the exit code and the summary line (e.g., "test result: ok. 11 passed").
+This runs the full test suite across all crates (core, agent-memory, python, wasm).
+The `fulltext` feature is on by default, so tantivy-gated tests run automatically.
+Look at the exit code and the summary line (e.g., "test result: ok. N passed").
+
+If you need to test without tantivy (e.g., checking WASM compatibility):
+
+```bash
+cargo test -p kronroe --no-default-features 2>&1
+```
 
 ### Step 2: Clippy
 
@@ -76,7 +83,7 @@ After running all three steps, present a clear summary like this:
 | Format      | FAIL   |
 
 ### Details
-- **Tests**: 11 passed, 0 failed
+- **Tests**: 14 passed, 0 failed
 - **Clippy**: Clean — no warnings
 - **Format**: 2 files need formatting (run `cargo fmt --all` to fix)
 ```
