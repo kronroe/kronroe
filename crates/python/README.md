@@ -24,9 +24,20 @@ maturin develop
 ## Publish flow
 
 ```bash
-# TestPyPI
-maturin publish --repository testpypi
+# Build wheel(s)
+python3 -m maturin build --release -o dist
 
-# PyPI
-maturin publish
+# Upload to TestPyPI (token auth)
+python3 -m pip install twine
+TWINE_USERNAME=__token__ \
+TWINE_PASSWORD="pypi-your-testpypi-token" \
+python3 -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+
+# Upload to PyPI (token auth)
+TWINE_USERNAME=__token__ \
+TWINE_PASSWORD="pypi-your-pypi-token" \
+python3 -m twine upload dist/*
 ```
+
+Recommended for CI/release automation: configure PyPI Trusted Publisher for this
+repository and publish from GitHub Actions without storing long-lived API tokens.
