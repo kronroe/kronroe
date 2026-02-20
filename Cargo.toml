@@ -14,7 +14,7 @@ repository = "https://github.com/kronroe/kronroe"
 
 [workspace.dependencies]
 # Storage
-redb = "2"
+redb = "3.1"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

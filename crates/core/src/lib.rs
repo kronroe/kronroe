@@ -28,7 +28,7 @@
 //! ```
 
 use chrono::{DateTime, Utc};
-use redb::{Database, ReadableTable, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
