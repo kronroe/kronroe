@@ -24,6 +24,7 @@ kronroe/
 ├── crates/
 │   ├── core/           # `kronroe` crate — TemporalGraph engine
 │   ├── agent-memory/   # `kronroe-agent-memory` crate — AgentMemory API
+│   ├── ios/            # `kronroe-ios` crate — C FFI staticlib + cbindgen header + Swift Package
 │   ├── mcp-server/     # `kronroe-mcp` binary — stdio MCP server (remember/recall tools)
 │   ├── python/         # `kronroe-python` crate — PyO3 bindings
 │   └── wasm/           # `kronroe-wasm` crate — WebAssembly bindings (browser)
@@ -70,6 +71,9 @@ cargo test -p kronroe-mcp test_name
 
 # Run the MCP server locally (reads/writes ./kronroe-mcp.kronroe by default)
 KRONROE_MCP_DB_PATH=./my.kronroe cargo run -p kronroe-mcp
+
+# Build the iOS XCFramework (requires macOS + Xcode CLT)
+bash crates/ios/build-xcframework.sh
 ```
 
 ## Architecture
@@ -127,11 +131,12 @@ kronroe-agent-memory   ← agent ergonomics, Phase 1 NLP/vector stubs
 kronroe-python         ← Python/PyO3 bindings
 kronroe-wasm           ← browser WASM bindings (in-memory only)
 kronroe-mcp            ← stdio MCP server (remember/recall tools)
+kronroe-ios            ← C FFI staticlib + cbindgen header + Swift Package
         ↓
    kronroe (core)      ← TemporalGraph, bi-temporal storage, redb 3.1, tantivy full-text
 ```
 
-Future crates will layer on top: `crates/ios/`, `crates/android/`.
+Future crates will layer on top: `crates/android/`.
 
 ### WASM Notes (`crates/wasm`)
 
@@ -143,12 +148,17 @@ Future crates will layer on top: `crates/ios/`, `crates/android/`.
   already gated with `#[cfg(feature = "fulltext")]`
 - Generated `pkg/` directory is gitignored; rebuilt each `wasm-pack build`
 
-### iOS Notes (`crates/core`)
+### iOS Notes (`crates/ios`)
 
-- Cross-compiles to `aarch64-apple-ios` and `aarch64-apple-ios-sim` on stable rustc (verified 1.93.1)
-- `crate-type = ["rlib", "staticlib"]` produces `libkronroe.a` for XCFramework linking
-- No nightly workaround needed — stable toolchain builds iOS targets cleanly
-- Full test suite passes after adding `staticlib`
+- `crates/ios` is a thin C FFI crate (`kronroe-ios`) wrapping the core `TemporalGraph` API
+- `crate-type = ["staticlib"]` — produces `libkronroe_ios.a` for XCFramework linking
+- `cbindgen` generates `KronroeFFI.h` — the C header consumed by the Swift Package
+- `build-xcframework.sh` compiles for `aarch64-apple-ios` + `aarch64-apple-ios-sim`, then runs
+  `xcodebuild -create-xcframework` to produce `KronroeFFI.xcframework`
+- Size budget: ≤ 6 MB for the XCFramework (verified in CI)
+- Stable toolchain builds iOS targets cleanly — no nightly workaround needed (verified rustc 1.93.1)
+- XCFramework build artifacts (`crates/ios/build/`, `crates/ios/swift/KronroeFFI.xcframework/`)
+  are gitignored — run `build-xcframework.sh` locally
 
 ### Python Notes (`crates/python`)
 
@@ -181,11 +191,11 @@ Snapshot as of 2026-02-20. See GitHub milestones/issues for source of truth.
 | 0.3 | Full-text index (tantivy) | ✅ Done | — |
 | 0.4 | Python bindings (PyO3) | ✅ Done | — |
 | 0.5 | MCP server | ✅ Done — stdio server + npm/pip shims merged | — |
-| 0.6 | iOS XCFramework | ⬜ Not started | Claude can help (Rust side) |
+| 0.6 | iOS XCFramework | ✅ Done — `crates/ios` C FFI + cbindgen header + Swift Package + build script merged | — |
 | 0.7 | Kindly Roe integration | ⬜ Not started | Rebekah (local) |
 | 0.8 | Vector index (hnswlib-rs) | ⬜ Not started | Claude can help |
 | 0.9 | Android AAR (UniFFI) | ⬜ Not started | Claude can help |
-| 0.10 | WASM playground | 🟡 Scaffold done — npm publish + demo page remain | Claude can help |
+| 0.10 | WASM playground | 🟡 Site scaffold + Firebase Hosting config merged — need service account secret + custom domains | Claude can help |
 | 0.11 | CI pipeline | 🟡 Core CI + iOS CI green; Python wheel CI Linux-only (macOS TBD) | Claude can help |
 | 0.12 | Storage format commitment | ⬜ Not started | Rebekah decision |
 
