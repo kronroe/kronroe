@@ -24,8 +24,13 @@ kronroe/
 ├── crates/
 │   ├── core/           # `kronroe` crate — TemporalGraph engine
 │   ├── agent-memory/   # `kronroe-agent-memory` crate — AgentMemory API
+│   ├── mcp-server/     # `kronroe-mcp` binary — stdio MCP server (remember/recall tools)
 │   ├── python/         # `kronroe-python` crate — PyO3 bindings
 │   └── wasm/           # `kronroe-wasm` crate — WebAssembly bindings (browser)
+├── packages/
+│   └── kronroe-mcp/    # npm shim — delegates to `kronroe-mcp` binary on PATH
+├── python/
+│   └── kronroe-mcp/    # pip shim — `kronroe-mcp` CLI entry point, delegates to binary
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml             # cargo test + clippy + fmt on every PR
@@ -61,6 +66,10 @@ cargo fmt --all
 cargo test -p kronroe test_name
 cargo test -p kronroe-agent-memory test_name
 cargo test -p kronroe-python test_name
+cargo test -p kronroe-mcp test_name
+
+# Run the MCP server locally (reads/writes ./kronroe-mcp.kronroe by default)
+KRONROE_MCP_DB_PATH=./my.kronroe cargo run -p kronroe-mcp
 ```
 
 ## Architecture
@@ -117,11 +126,12 @@ Phase 1 methods (`remember`, `recall`, `assemble_context`) are currently `unimpl
 kronroe-agent-memory   ← agent ergonomics, Phase 1 NLP/vector stubs
 kronroe-python         ← Python/PyO3 bindings
 kronroe-wasm           ← browser WASM bindings (in-memory only)
+kronroe-mcp            ← stdio MCP server (remember/recall tools)
         ↓
    kronroe (core)      ← TemporalGraph, bi-temporal storage, redb 3.1, tantivy full-text
 ```
 
-Future crates will layer on top: `crates/ios/`, `crates/mcp-server/`, `crates/android/`.
+Future crates will layer on top: `crates/ios/`, `crates/android/`.
 
 ### WASM Notes (`crates/wasm`)
 
@@ -149,6 +159,17 @@ Future crates will layer on top: `crates/ios/`, `crates/mcp-server/`, `crates/an
 - macOS wheel build temporarily disabled in CI — add macOS runner to `python-wheels.yml` when needed
 - `fact_to_dict()` serialises all `Fact` fields (including all four timestamps) to Python dicts
 
+### MCP Server Notes (`crates/mcp-server`)
+
+- Stdio transport with LSP-style `Content-Length` framing — works with any MCP client
+- Tools: `remember` (stores free-text as facts via tantivy parse), `recall` (full-text search,
+  returns structured fact list)
+- Database path: `KRONROE_MCP_DB_PATH` env var (default: `./kronroe-mcp.kronroe`)
+- Install binary: `cargo install --path crates/mcp-server`
+- **npm shim** (`packages/kronroe-mcp`): `npx kronroe-mcp` — delegates to binary on PATH
+- **pip shim** (`python/kronroe-mcp`): `pip install .` then `kronroe-mcp`; respects
+  `KRONROE_MCP_BIN` env var to point at a custom binary location
+
 ## Phase 0 Milestone Status
 
 Snapshot as of 2026-02-20. See GitHub milestones/issues for source of truth.
@@ -159,7 +180,7 @@ Snapshot as of 2026-02-20. See GitHub milestones/issues for source of truth.
 | 0.2 | iOS compilation spike | ✅ Done locally (aarch64-apple-ios + aarch64-apple-ios-sim compile) | Rebekah (local) |
 | 0.3 | Full-text index (tantivy) | ✅ Done | — |
 | 0.4 | Python bindings (PyO3) | ✅ Done | — |
-| 0.5 | MCP server | ⬜ Not started | Claude can help |
+| 0.5 | MCP server | ✅ Done — stdio server + npm/pip shims merged | — |
 | 0.6 | iOS XCFramework | ⬜ Not started | Claude can help (Rust side) |
 | 0.7 | Kindly Roe integration | ⬜ Not started | Rebekah (local) |
 | 0.8 | Vector index (hnswlib-rs) | ⬜ Not started | Claude can help |
