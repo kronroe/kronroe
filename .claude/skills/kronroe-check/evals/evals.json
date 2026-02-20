@@ -1,0 +1,43 @@
+{
+  "skill_name": "kronroe-check",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "check",
+      "expected_output": "A summary table showing pass/fail for Tests, Clippy, and Format steps, with details for any failures",
+      "files": [],
+      "assertions": [
+        "Sets PATH to include $HOME/.cargo/bin before running commands",
+        "Runs cargo test --all",
+        "Runs cargo clippy --all -- -D warnings",
+        "Runs cargo fmt --all -- --check",
+        "Runs all three steps even if an earlier step fails",
+        "Produces a summary table with Tests, Clippy, and Format rows"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "before I commit, can you make sure everything is clean?",
+      "expected_output": "All three pipeline steps run and a clear pass/fail summary is presented; if all pass gives a short confirmation it is safe to commit",
+      "files": [],
+      "assertions": [
+        "Triggers the full three-step pipeline (tests, clippy, fmt)",
+        "Produces a summary table with Tests, Clippy, and Format rows",
+        "If all pass, gives a short confirmation that it is good to commit",
+        "If any step fails, shows the relevant error output so the issue can be fixed"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "run tests and lint",
+      "expected_output": "Runs all three steps including the format check (not just tests and clippy), reports results in table form",
+      "files": [],
+      "assertions": [
+        "Runs cargo test --all",
+        "Runs cargo clippy --all -- -D warnings",
+        "Also runs the format check even though it was not explicitly requested",
+        "Reports results clearly in summary table format"
+      ]
+    }
+  ]
+}
