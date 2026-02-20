@@ -27,4 +27,9 @@ crates/ios/swift/KronroeFFI.xcframework/
 
 # Firebase debug logs
 firebase-debug.log
-.firebaserc
+firestore-debug.log
+
+# Site build artifacts
+site/dist/
+site/node_modules/
+site/public/pkg/

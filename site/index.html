@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Kronroe — embedded temporal property graph database. Try it live in your browser." />
+    <title>Kronroe — Temporal Graph Playground</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script type="module" src="/src/main.ts"></script>
+    <style>
+      :root {
+        --bg: #0d0d0d;
+        --surface: #161616;
+        --border: #2a2a2a;
+        --accent: #7c6af7;
+        --accent-dim: #4f46a8;
+        --text: #e8e8e8;
+        --text-muted: #888;
+        --green: #4ade80;
+        --red: #f87171;
+        --mono: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        border-bottom: 1px solid var(--border);
+        padding: 1rem 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .logo {
+        font-size: 1.25rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--text);
+      }
+
+      .logo span { color: var(--accent); }
+
+      .badge {
+        font-size: 0.7rem;
+        font-family: var(--mono);
+        background: var(--accent-dim);
+        color: #c4bfff;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        letter-spacing: 0.05em;
+      }
+
+      .header-links {
+        margin-left: auto;
+        display: flex;
+        gap: 1.25rem;
+        font-size: 0.875rem;
+      }
+
+      .header-links a {
+        color: var(--text-muted);
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+
+      .header-links a:hover { color: var(--text); }
+
+      main {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto 1fr;
+        gap: 0;
+        max-width: 1400px;
+        margin: 0 auto;
+        width: 100%;
+        padding: 2rem;
+        gap: 1.5rem;
+      }
+
+      .hero {
+        grid-column: 1 / -1;
+      }
+
+      .hero h1 {
+        font-size: clamp(1.5rem, 3vw, 2.25rem);
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        margin-bottom: 0.5rem;
+      }
+
+      .hero h1 em {
+        font-style: normal;
+        color: var(--accent);
+      }
+
+      .hero p {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        max-width: 560px;
+        line-height: 1.6;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .panel-header {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.75rem;
+        font-family: var(--mono);
+        color: var(--text-muted);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .panel-header .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      .panel-body {
+        padding: 1rem;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .input-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 0.5rem;
+      }
+
+      input, textarea {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+        width: 100%;
+        outline: none;
+        transition: border-color 0.15s;
+      }
+
+      input:focus, textarea:focus {
+        border-color: var(--accent);
+      }
+
+      input::placeholder, textarea::placeholder {
+        color: var(--text-muted);
+      }
+
+      button {
+        background: var(--accent);
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+        transition: background 0.15s, opacity 0.15s;
+        white-space: nowrap;
+      }
+
+      button:hover { background: #6b59e8; }
+      button:active { opacity: 0.85; }
+      button.secondary {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+      }
+      button.secondary:hover {
+        border-color: var(--accent);
+        color: var(--text);
+        background: transparent;
+      }
+
+      .button-row {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .output {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-family: var(--mono);
+        font-size: 0.8rem;
+        flex: 1;
+        min-height: 180px;
+        overflow-y: auto;
+        padding: 0.75rem;
+        line-height: 1.6;
+      }
+
+      .fact-row {
+        padding: 0.3rem 0;
+        border-bottom: 1px solid var(--border);
+        display: grid;
+        grid-template-columns: auto auto auto 1fr;
+        gap: 0.5rem;
+        align-items: baseline;
+      }
+
+      .fact-row:last-child { border-bottom: none; }
+
+      .tag {
+        font-size: 0.7rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 3px;
+        font-weight: 600;
+      }
+
+      .tag-s { background: #1e3a5f; color: #7eb8f7; }
+      .tag-p { background: #1a3a2a; color: #6ee7a0; }
+      .tag-o { background: #3a1a3a; color: #d8a0f7; }
+
+      .fact-value { color: var(--text); }
+      .fact-time { color: var(--text-muted); font-size: 0.72rem; margin-left: auto; }
+
+      .status {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        font-family: var(--mono);
+        min-height: 1.5rem;
+      }
+
+      .status.ok { color: var(--green); }
+      .status.err { color: var(--red); }
+
+      .examples {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.25rem;
+      }
+
+      .example-btn {
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        font-weight: 400;
+        padding: 0.25rem 0.5rem;
+      }
+
+      .example-btn:hover {
+        background: transparent;
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: var(--bg);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        z-index: 100;
+        transition: opacity 0.3s;
+      }
+
+      .loading-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .spinner {
+        width: 32px;
+        height: 32px;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      .loading-text {
+        color: var(--text-muted);
+        font-family: var(--mono);
+        font-size: 0.85rem;
+      }
+
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 1rem 2rem;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+      }
+
+      footer a { color: var(--text-muted); text-decoration: none; }
+      footer a:hover { color: var(--text); }
+
+      @media (max-width: 768px) {
+        main { grid-template-columns: 1fr; padding: 1rem; }
+        .hero { grid-column: 1; }
+        .input-row { grid-template-columns: 1fr; }
+        header { padding: 0.75rem 1rem; }
+        .header-links { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="loading-overlay" id="loading">
+      <div class="spinner"></div>
+      <div class="loading-text">Loading WASM engine…</div>
+    </div>
+
+    <header>
+      <div class="logo">Kron<span>roe</span></div>
+      <div class="badge">WASM</div>
+      <nav class="header-links">
+        <a href="https://github.com/kronroe/kronroe" target="_blank">GitHub</a>
+        <a href="https://github.com/kronroe/kronroe#readme" target="_blank">Docs</a>
+        <a href="https://crates.io/crates/kronroe" target="_blank">crates.io</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1>Bi-temporal graph. <em>In your browser.</em></h1>
+        <p>Kronroe is an embedded temporal property graph database written in pure Rust — compiled to WebAssembly. Every fact carries four timestamps. No server required.</p>
+      </section>
+
+      <div class="panel">
+        <div class="panel-header"><div class="dot"></div>Assert facts</div>
+        <div class="panel-body">
+          <div class="input-row">
+            <input id="subject" placeholder="subject" />
+            <input id="predicate" placeholder="predicate" />
+            <input id="object" placeholder="object" />
+          </div>
+          <div class="button-row">
+            <button id="assert-btn">Assert</button>
+            <button class="secondary" id="clear-btn">Clear graph</button>
+          </div>
+          <div class="examples">
+            <span style="font-size:0.72rem;color:var(--text-muted);align-self:center">Try:</span>
+          </div>
+          <div class="status" id="assert-status"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><div class="dot"></div>Query facts</div>
+        <div class="panel-body">
+          <div style="display:flex;gap:0.5rem">
+            <input id="query-entity" placeholder="entity name (e.g. alice)" style="flex:1" />
+            <button id="query-btn">Query</button>
+          </div>
+          <div style="display:flex;gap:0.5rem">
+            <input id="search-text" placeholder="full-text search…" style="flex:1" />
+            <button id="search-btn">Search</button>
+          </div>
+          <div class="output" id="output">
+            <span style="color:var(--text-muted)">Results will appear here…</span>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <span>Kronroe — AGPL-3.0 / Commercial</span>
+      <a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank">Commercial licence</a>
+      <a href="https://github.com/kronroe/kronroe/blob/main/README.md" target="_blank">Docs</a>
+    </footer>
+  </body>
+</html>
