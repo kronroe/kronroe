@@ -120,14 +120,21 @@ Future crates will layer on top: `crates/python/`, `crates/ios/`, `crates/mcp-se
   full-text search lands in core, it must be gated with `#[cfg(not(target_arch = "wasm32"))]`
 - Generated `pkg/` directory is gitignored; rebuilt each `wasm-pack build`
 
+### iOS Notes (`crates/core`)
+
+- Cross-compiles to `aarch64-apple-ios` and `aarch64-apple-ios-sim` on stable rustc (verified 1.93.1)
+- `crate-type = ["rlib", "staticlib"]` produces `libkronroe.a` for XCFramework linking
+- No nightly workaround needed — stable toolchain builds iOS targets cleanly
+- Full test suite (5 unit + 2 doc tests) passes after adding `staticlib`
+
 ## Phase 0 Milestone Status
 
-**4 of 12 complete.** See GitHub milestones for tracked issues.
+**5 of 12 complete.** See GitHub milestones for tracked issues.
 
 | # | Milestone | Status | Who |
 |---|-----------|--------|-----|
 | 0.1 | Scaffold + bi-temporal data model | ✅ Done | — |
-| 0.2 | iOS compilation spike | ⬜ Not started | Rebekah (local) |
+| 0.2 | iOS compilation spike | ✅ Done | Rebekah (local) |
 | 0.3 | Full-text index (tantivy) | ⬜ Not started | Claude can help |
 | 0.4 | Python bindings (PyO3) | ⬜ Not started | Claude can help |
 | 0.5 | MCP server | ⬜ Not started | Claude can help |
@@ -171,7 +178,7 @@ any future relicensing.
 ## CLA
 
 External contributors must sign the [CLA](./CLA.md) before their PR can be merged.
-The CLA bot handles this automatically on PRs. `rebekahcole` is on the allowlist.
+The CLA bot handles this automatically on PRs. `rebekahcole` and `Becky9012` are on the allowlist.
 
 ## Owner
 
