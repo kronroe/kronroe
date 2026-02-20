@@ -91,4 +91,4 @@ Kronroe is dual-licensed:
 
 If embedding Kronroe in a closed-source product, a commercial licence is required. See [LICENCE-COMMERCIAL.md](./LICENCE-COMMERCIAL.md) for details and how to get in touch.
 
-Copyright © 2026 Rebekah Cole.
+Copyright © 2026 Kindly Roe Ltd

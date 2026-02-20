@@ -29,7 +29,7 @@ You need a commercial licence if you are:
 
 ---
 
-## Kindly Roe — Perpetual Exemption
+All external contributors to Kronroe must sign a Contributor Licence Agreement (CLA) before their pull requests are merged. The CLA grants Kindly Roe Ltd the right to relicence contributed code, which is necessary to offer this dual-licence model. The CLA does not affect contributors' rights to use their own contributions under the AGPL.
 
 **Kindly Roe** (the iOS and web application for SEND support coordination, developed by Rebekah Cole) is hereby granted a **perpetual, irrevocable, royalty-free commercial licence** to use, embed, and distribute Kronroe in any form, including proprietary builds, App Store releases, and any successor or related products under the Kindly Roe brand.
 
@@ -43,7 +43,7 @@ This exemption:
 
 ## How to obtain a commercial licence
 
-Contact: **rebekah@kindlyroe.com** (or the contact address listed at [github.com/kronroe/kronroe](https://github.com/kronroe/kronroe))
+Contact: **hi@kronroe.dev** (or the contact address listed at [github.com/kronroe/kronroe](https://github.com/kronroe/kronroe))(https://github.com/kronroe/kronroe))
 
 Please include:
 - A brief description of your product and how you intend to use Kronroe

@@ -76,4 +76,4 @@ Your signature is recorded against your GitHub username in this repository.
 
 ---
 
-*Questions about this CLA? Contact rebekah@kindlyroe.com*
+*Questions about this CLA? Contact hi@kronroe.dev*

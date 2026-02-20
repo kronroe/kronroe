@@ -120,6 +120,13 @@ Future crates will layer on top: `crates/python/`, `crates/ios/`, `crates/mcp-se
   full-text search lands in core, it must be gated with `#[cfg(not(target_arch = "wasm32"))]`
 - Generated `pkg/` directory is gitignored; rebuilt each `wasm-pack build`
 
+### iOS Notes (`crates/core`)
+
+- Cross-compiles to `aarch64-apple-ios` and `aarch64-apple-ios-sim` on stable rustc (verified 1.93.1)
+- `crate-type = ["rlib", "staticlib"]` produces `libkronroe.a` for XCFramework linking
+- No nightly workaround needed — stable toolchain builds iOS targets cleanly
+- Full test suite (5 unit + 2 doc tests) passes after adding `staticlib`
+
 ## Phase 0 Milestone Status
 
 Snapshot as of 2026-02-20. See GitHub milestones/issues for source of truth.
@@ -169,7 +176,7 @@ any future relicensing.
 ## CLA
 
 External contributors must sign the [CLA](./CLA.md) before their PR can be merged.
-The CLA bot handles this automatically on PRs. `rebekahcole` is on the allowlist.
+The CLA bot handles this automatically on PRs. `rebekahcole` and `Becky9012` are on the allowlist.
 
 ## Owner
 
