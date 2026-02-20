@@ -9,6 +9,9 @@ description = "Embedded temporal property graph database"
 keywords = ["graph", "database", "temporal", "embedded", "agent-memory"]
 categories = ["database-implementations", "data-structures"]
 
+[lib]
+crate-type = ["rlib", "staticlib"]
+
 [dependencies]
 redb = { workspace = true }
 serde = { workspace = true }
