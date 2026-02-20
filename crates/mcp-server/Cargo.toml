@@ -1,0 +1,23 @@
+[package]
+name = "kronroe-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "MCP server for Kronroe AgentMemory"
+keywords = ["mcp", "agent-memory", "kronroe", "memory", "tools"]
+
+[[bin]]
+name = "kronroe-mcp"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+kronroe = { path = "../core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
