@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kronroe-mcp"
+version = "0.1.0"
+description = "Python CLI wrapper for the kronroe-mcp Rust MCP server"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Rebekah Cole", email = "becky.cole@kindlyroe.com" }]
+license = { text = "AGPL-3.0-only OR Commercial" }
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: GNU Affero General Public License v3",
+]
+
+[project.scripts]
+kronroe-mcp = "kronroe_mcp.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

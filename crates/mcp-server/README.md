@@ -44,3 +44,8 @@ export KRONROE_MCP_DB_PATH=/path/to/memory.kronroe
 ```
 
 For production usage, replace `cargo run` with a compiled `kronroe-mcp` binary.
+
+## Distribution wrappers
+
+- npm wrapper (`npx kronroe-mcp`): `packages/kronroe-mcp/`
+- Python wrapper (`pip install kronroe-mcp`): `python/kronroe-mcp/`
