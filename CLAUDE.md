@@ -122,12 +122,12 @@ Future crates will layer on top: `crates/python/`, `crates/ios/`, `crates/mcp-se
 
 ## Phase 0 Milestone Status
 
-**4 of 12 complete.** See GitHub milestones for tracked issues.
+Snapshot as of 2026-02-20. See GitHub milestones/issues for source of truth.
 
 | # | Milestone | Status | Who |
 |---|-----------|--------|-----|
 | 0.1 | Scaffold + bi-temporal data model | ✅ Done | — |
-| 0.2 | iOS compilation spike | ⬜ Not started | Rebekah (local) |
+| 0.2 | iOS compilation spike | ✅ Done locally (aarch64-apple-ios + aarch64-apple-ios-sim compile) | Rebekah (local) |
 | 0.3 | Full-text index (tantivy) | ⬜ Not started | Claude can help |
 | 0.4 | Python bindings (PyO3) | ⬜ Not started | Claude can help |
 | 0.5 | MCP server | ⬜ Not started | Claude can help |
@@ -136,7 +136,7 @@ Future crates will layer on top: `crates/python/`, `crates/ios/`, `crates/mcp-se
 | 0.8 | Vector index (hnswlib-rs) | ⬜ Not started | Claude can help |
 | 0.9 | Android AAR (UniFFI) | ⬜ Not started | Claude can help |
 | 0.10 | WASM playground | 🟡 Scaffold done (PR #9, #10) — npm publish + demo page remain | Claude can help |
-| 0.11 | CI pipeline | 🟡 In progress | Claude can help |
+| 0.11 | CI pipeline | 🟡 Workflow live (`test` + `clippy` + `fmt`), mainline green confirmation pending | Claude can help |
 | 0.12 | Storage format commitment | ⬜ Not started | Rebekah decision |
 
 ## What Claude Can and Cannot Do in This Repo
@@ -147,8 +147,6 @@ Future crates will layer on top: `crates/python/`, `crates/ios/`, `crates/mcp-se
 - `rustup target add <target>` for cross-compilation
 
 **Cannot do:**
-- **iOS builds** — `cargo build --target aarch64-apple-ios*` requires macOS + Xcode.
-  Rebekah runs the iOS spike locally.
 - **Publish to crates.io / PyPI / npm** — requires registry credentials.
 
 ## Scope Discipline (Phase 0)
