@@ -1,0 +1,34 @@
+[workspace]
+members = [
+    "crates/core",
+    "crates/agent-memory",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Rebekah Cole <becky.cole@kindlyroe.com>"]
+repository = "https://github.com/kronroe/kronroe"
+
+[workspace.dependencies]
+# Storage
+redb = "2"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# IDs
+ulid = "1"
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# Testing
+tempfile = "3"

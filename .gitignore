@@ -1,0 +1,11 @@
+/target
+**/*.rs.bk
+.DS_Store
+
+# Test database files
+*.kronroe
+
+# IDE
+.idea/
+.vscode/
+*.swp
