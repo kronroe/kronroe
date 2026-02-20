@@ -216,8 +216,8 @@ impl Fact {
     /// Was this fact valid at the given point in time (valid time axis)?
     pub fn was_valid_at(&self, at: DateTime<Utc>) -> bool {
         self.valid_from <= at
-            && self.valid_to.map_or(true, |t| t > at)
-            && self.expired_at.map_or(true, |t| t > at)
+            && self.valid_to.is_none_or(|t| t > at)
+            && self.expired_at.is_none_or(|t| t > at)
     }
 }
 
