@@ -36,7 +36,7 @@ jobs:
           path-to-signatures: 'signatures/cla-v1.json'
 
           # Message shown on the PR when CLA has not been signed
-          message-before-signature: |
+          custom-notsigned-prcomment: |
             Thank you for contributing to Kronroe! 🎉
 
             Before your pull request can be merged, please sign our [Contributor Licence Agreement](https://github.com/kronroe/kronroe/blob/main/CLA.md).
@@ -48,7 +48,7 @@ jobs:
             ```
 
           # Message shown after signing
-          message-after-signature: |
+          custom-pr-sign-comment: |
             ✅ Thank you for signing the CLA! Your contribution can now be reviewed.
 
           # Allowlist — repo owner never needs to sign
