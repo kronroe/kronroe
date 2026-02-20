@@ -1,3 +1,5 @@
+#![allow(clippy::useless_conversion)]
+
 use ::chrono::Utc;
 use ::kronroe::{Fact, TemporalGraph, Value};
 use kronroe_agent_memory::AgentMemory;
