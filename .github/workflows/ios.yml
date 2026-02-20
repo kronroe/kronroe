@@ -1,0 +1,30 @@
+name: iOS Build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ios-sim-build:
+    name: iOS Simulator Build
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add iOS simulator target
+        run: rustup target add aarch64-apple-ios-sim
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build core crate for iOS simulator
+        run: cargo build --target aarch64-apple-ios-sim -p kronroe

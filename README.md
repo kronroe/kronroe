@@ -48,7 +48,7 @@ Pure Rust. No C dependencies in the core engine.
 | MCP server | Native MCP interface | ⬜ Phase 0 |
 | iOS XCFramework | `cbindgen` + Swift Package | ⬜ Phase 0 |
 | Android AAR | `uniffi` Kotlin bindings | ⬜ Phase 0 |
-| WASM / npm | `wasm32-unknown-unknown` | ⬜ Phase 0 |
+| WASM / npm | `wasm32-unknown-unknown` | 🟡 Phase 0 (bindings scaffolded) |
 
 ## Workspace
 
@@ -56,7 +56,8 @@ Pure Rust. No C dependencies in the core engine.
 kronroe/
 ├── crates/
 │   ├── core/           # The embedded database engine (crate: kronroe)
-│   └── agent-memory/   # High-level AgentMemory API (crate: kronroe-agent-memory)
+│   ├── agent-memory/   # High-level AgentMemory API (crate: kronroe-agent-memory)
+│   └── wasm/           # WebAssembly bindings (crate: kronroe-wasm)
 ├── examples/
 │   └── basic/          # Coming soon
 └── README.md
@@ -74,7 +75,8 @@ kronroe/
 - [ ] MCP server
 - [ ] iOS XCFramework
 - [ ] Android AAR (UniFFI)
-- [ ] WASM / npm package
+- [x] WASM bindings crate scaffold (`crates/wasm`)
+- [ ] WASM / npm package publish + demo page
 
 ## Contributing
 
