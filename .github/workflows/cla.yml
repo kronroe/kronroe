@@ -52,7 +52,7 @@ jobs:
             ✅ Thank you for signing the CLA! Your contribution can now be reviewed.
 
           # Allowlist — repo owner never needs to sign
-          allowlist: rebekahcole
+          allowlist: rebekahcole,Becky9012
 
           # Lock PRs from unsigned contributors
           lock-pullrequest-aftermerge: false
