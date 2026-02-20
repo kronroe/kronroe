@@ -1,7 +1,7 @@
 # Kronroe Commercial Licence
 
 **Version 1.0 — February 2026**
-Copyright © 2026 Rebekah Cole. All rights reserved.
+Copyright © 2026 Kindly Roe Ltd. All rights reserved.
 
 ---
 
