@@ -12,9 +12,13 @@ categories = ["database-implementations", "data-structures"]
 [lib]
 crate-type = ["rlib", "staticlib"]
 
+[features]
+default = ["fulltext"]
+fulltext = ["dep:tantivy"]
+
 [dependencies]
 redb = { workspace = true }
-tantivy = { workspace = true }
+tantivy = { workspace = true, optional = true, default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }

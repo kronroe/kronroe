@@ -30,10 +30,15 @@
 use chrono::{DateTime, Utc};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "fulltext")]
 use std::collections::HashMap;
+#[cfg(feature = "fulltext")]
 use tantivy::collector::TopDocs;
+#[cfg(feature = "fulltext")]
 use tantivy::query::{BooleanQuery, FuzzyTermQuery, Occur, QueryParser};
+#[cfg(feature = "fulltext")]
 use tantivy::schema::{Field, Schema, Value as TantivyValueTrait, STORED, STRING, TEXT};
+#[cfg(feature = "fulltext")]
 use tantivy::{doc, Index, Term};
 use ulid::Ulid;
 
@@ -78,11 +83,13 @@ impl From<redb::CommitError> for KronroeError {
         KronroeError::Storage(e.to_string())
     }
 }
+#[cfg(feature = "fulltext")]
 impl From<tantivy::TantivyError> for KronroeError {
     fn from(e: tantivy::TantivyError) -> Self {
         KronroeError::Search(e.to_string())
     }
 }
+#[cfg(feature = "fulltext")]
 impl From<tantivy::query::QueryParserError> for KronroeError {
     fn from(e: tantivy::query::QueryParserError) -> Self {
         KronroeError::Search(e.to_string())
@@ -358,45 +365,56 @@ impl TemporalGraph {
     /// Phase 0 implementation: builds an in-memory index at query time.
     /// This keeps search self-contained while we validate relevance behavior.
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<Fact>> {
-        if query.trim().is_empty() || limit == 0 {
-            return Ok(Vec::new());
+        #[cfg(not(feature = "fulltext"))]
+        {
+            let _ = (query, limit);
+            return Err(KronroeError::Search(
+                "fulltext feature is disabled for this build".to_string(),
+            ));
         }
 
-        let facts = self.scan_prefix("", |_| true)?;
-        if facts.is_empty() {
-            return Ok(Vec::new());
-        }
+        #[cfg(feature = "fulltext")]
+        {
+            if query.trim().is_empty() || limit == 0 {
+                return Ok(Vec::new());
+            }
 
-        let aliases_by_subject = self.alias_map(&facts);
-        let (index, id_field, content_field) =
-            Self::build_search_index(&facts, &aliases_by_subject)?;
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
+            let facts = self.scan_prefix("", |_| true)?;
+            if facts.is_empty() {
+                return Ok(Vec::new());
+            }
 
-        let parser = QueryParser::for_index(&index, vec![content_field]);
-        let parsed = parser.parse_query(query)?;
-        let mut top_docs = searcher.search(&parsed, &TopDocs::with_limit(limit))?;
+            let aliases_by_subject = self.alias_map(&facts);
+            let (index, id_field, content_field) =
+                Self::build_search_index(&facts, &aliases_by_subject)?;
+            let reader = index.reader()?;
+            let searcher = reader.searcher();
 
-        // Fuzzy fallback for typo-heavy short queries (e.g. "alcie").
-        if top_docs.is_empty() {
-            let fuzzy = Self::build_fuzzy_query(query, content_field);
-            top_docs = searcher.search(&fuzzy, &TopDocs::with_limit(limit))?;
-        }
+            let parser = QueryParser::for_index(&index, vec![content_field]);
+            let parsed = parser.parse_query(query)?;
+            let mut top_docs = searcher.search(&parsed, &TopDocs::with_limit(limit))?;
 
-        let facts_by_id: HashMap<String, Fact> =
-            facts.into_iter().map(|f| (f.id.0.clone(), f)).collect();
-        let mut results = Vec::new();
+            // Fuzzy fallback for typo-heavy short queries (e.g. "alcie").
+            if top_docs.is_empty() {
+                let fuzzy = Self::build_fuzzy_query(query, content_field);
+                top_docs = searcher.search(&fuzzy, &TopDocs::with_limit(limit))?;
+            }
 
-        for (_score, addr) in top_docs {
-            let retrieved = searcher.doc::<tantivy::schema::TantivyDocument>(addr)?;
-            if let Some(id_val) = retrieved.get_first(id_field).and_then(|v| v.as_str()) {
-                if let Some(fact) = facts_by_id.get(id_val) {
-                    results.push(fact.clone());
+            let facts_by_id: HashMap<String, Fact> =
+                facts.into_iter().map(|f| (f.id.0.clone(), f)).collect();
+            let mut results = Vec::new();
+
+            for (_score, addr) in top_docs {
+                let retrieved = searcher.doc::<tantivy::schema::TantivyDocument>(addr)?;
+                if let Some(id_val) = retrieved.get_first(id_field).and_then(|v| v.as_str()) {
+                    if let Some(fact) = facts_by_id.get(id_val) {
+                        results.push(fact.clone());
+                    }
                 }
             }
-        }
 
-        Ok(results)
+            Ok(results)
+        }
     }
 
     /// Invalidate a fact by setting its `valid_to` timestamp.
@@ -458,6 +476,7 @@ impl TemporalGraph {
         Ok(results)
     }
 
+    #[cfg(feature = "fulltext")]
     fn alias_map(&self, facts: &[Fact]) -> HashMap<String, Vec<String>> {
         let mut aliases_by_subject: HashMap<String, Vec<String>> = HashMap::new();
         for fact in facts {
@@ -476,6 +495,7 @@ impl TemporalGraph {
         aliases_by_subject
     }
 
+    #[cfg(feature = "fulltext")]
     fn build_search_index(
         facts: &[Fact],
         aliases_by_subject: &HashMap<String, Vec<String>>,
@@ -512,6 +532,7 @@ impl TemporalGraph {
         Ok((index, id_field, content_field))
     }
 
+    #[cfg(feature = "fulltext")]
     fn build_fuzzy_query(query: &str, content_field: Field) -> BooleanQuery {
         let terms: Vec<(Occur, Box<dyn tantivy::query::Query>)> = query
             .split_whitespace()
@@ -667,6 +688,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "fulltext")]
     fn search_returns_expected_facts() {
         let (db, _tmp) = open_temp_db();
         let now = Utc::now();
@@ -685,6 +707,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "fulltext")]
     fn search_supports_fuzzy_typo_matching() {
         let (db, _tmp) = open_temp_db();
         let now = Utc::now();
