@@ -24,11 +24,15 @@ kronroe/
 ├── crates/
 │   ├── core/           # `kronroe` crate — TemporalGraph engine
 │   ├── agent-memory/   # `kronroe-agent-memory` crate — AgentMemory API
+│   ├── python/         # `kronroe-python` crate — PyO3 bindings
 │   └── wasm/           # `kronroe-wasm` crate — WebAssembly bindings (browser)
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml      # cargo test + clippy + fmt on every PR
-│   │   └── cla.yml     # CLA assistant bot (contributors must sign CLA)
+│   │   ├── ci.yml             # cargo test + clippy + fmt on every PR
+│   │   ├── cla.yml            # CLA assistant bot (contributors must sign CLA)
+│   │   ├── ios.yml            # cross-compile check for aarch64-apple-ios targets
+│   │   ├── python-wheels.yml  # build Python wheels (Linux manylinux)
+│   │   └── python-publish.yml # publish to PyPI via trusted publisher on version tags
 │   └── ISSUE_TEMPLATE/
 ├── examples/
 ├── LICENSE             # AGPL-3.0
@@ -56,6 +60,7 @@ cargo fmt --all
 # Run a specific test
 cargo test -p kronroe test_name
 cargo test -p kronroe-agent-memory test_name
+cargo test -p kronroe-python test_name
 ```
 
 ## Architecture
@@ -75,7 +80,7 @@ Every `Fact` has four timestamps — the standard TSQL-2 bi-temporal model:
 
 | Type | Description |
 |------|-------------|
-| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `current_facts`, `facts_at`, `all_facts_about`, `invalidate_fact` |
+| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `current_facts`, `facts_at`, `all_facts_about`, `invalidate_fact`, `search` |
 | `Fact` | The fundamental unit of storage. Fully bi-temporal. |
 | `FactId` | ULID — lexicographically sortable, monotonic insertion order |
 | `Value` | `Text(String)` \| `Number(f64)` \| `Boolean(bool)` \| `Entity(String)` |
@@ -91,6 +96,13 @@ Every `Fact` has four timestamps — the standard TSQL-2 bi-temporal model:
 
 Phase 1 methods (`remember`, `recall`, `assemble_context`) are currently `unimplemented!()` stubs.
 
+### Key Types (`crates/python`)
+
+| Type | Description |
+|------|-------------|
+| `KronroeDb` | Python class wrapping `TemporalGraph` — exposes `assert_fact`, `search`, `facts_about`, `facts_about_at` |
+| `AgentMemory` | Python class wrapping `AgentMemory` — high-level agent API |
+
 ### Storage
 
 - **Engine:** `redb` 3.1 — pure Rust B-tree CoW ACID key-value store. No C deps. Supports
@@ -103,21 +115,22 @@ Phase 1 methods (`remember`, `recall`, `assemble_context`) are currently `unimpl
 
 ```
 kronroe-agent-memory   ← agent ergonomics, Phase 1 NLP/vector stubs
+kronroe-python         ← Python/PyO3 bindings
 kronroe-wasm           ← browser WASM bindings (in-memory only)
         ↓
-   kronroe (core)      ← TemporalGraph, bi-temporal storage, redb 3.1
+   kronroe (core)      ← TemporalGraph, bi-temporal storage, redb 3.1, tantivy full-text
 ```
 
-Future crates will layer on top: `crates/python/`, `crates/ios/`, `crates/mcp-server/`,
-`crates/android/`.
+Future crates will layer on top: `crates/ios/`, `crates/mcp-server/`, `crates/android/`.
 
 ### WASM Notes (`crates/wasm`)
 
 - Compiles to `wasm32-unknown-unknown` via `wasm-pack build --target web`
 - Uses `redb::backends::InMemoryBackend` — no file I/O in browser
 - `getrandom` with `wasm_js` feature provides `Crypto.getRandomValues` for ULID generation
-- tantivy does **not** compile to WASM (rayon dep, `std::time::Instant` panic) — when
-  full-text search lands in core, it must be gated with `#[cfg(not(target_arch = "wasm32"))]`
+- tantivy does **not** compile to WASM (rayon dep, `std::time::Instant` panic) — the `wasm`
+  crate builds with `--no-default-features` to exclude tantivy; full-text search in core is
+  already gated with `#[cfg(feature = "fulltext")]`
 - Generated `pkg/` directory is gitignored; rebuilt each `wasm-pack build`
 
 ### iOS Notes (`crates/core`)
@@ -125,7 +138,16 @@ Future crates will layer on top: `crates/python/`, `crates/ios/`, `crates/mcp-se
 - Cross-compiles to `aarch64-apple-ios` and `aarch64-apple-ios-sim` on stable rustc (verified 1.93.1)
 - `crate-type = ["rlib", "staticlib"]` produces `libkronroe.a` for XCFramework linking
 - No nightly workaround needed — stable toolchain builds iOS targets cleanly
-- Full test suite (5 unit + 2 doc tests) passes after adding `staticlib`
+- Full test suite passes after adding `staticlib`
+
+### Python Notes (`crates/python`)
+
+- PyO3 bindings exposing `KronroeDb` and `AgentMemory` Python classes
+- Built with `maturin` — `maturin develop -m crates/python/Cargo.toml` for local dev
+- `python-wheels.yml` builds Linux manylinux wheels on every push to `main`
+- `python-publish.yml` publishes to PyPI via trusted publisher on version tags (`v*.*.*`)
+- macOS wheel build temporarily disabled in CI — add macOS runner to `python-wheels.yml` when needed
+- `fact_to_dict()` serialises all `Fact` fields (including all four timestamps) to Python dicts
 
 ## Phase 0 Milestone Status
 
@@ -135,15 +157,15 @@ Snapshot as of 2026-02-20. See GitHub milestones/issues for source of truth.
 |---|-----------|--------|-----|
 | 0.1 | Scaffold + bi-temporal data model | ✅ Done | — |
 | 0.2 | iOS compilation spike | ✅ Done locally (aarch64-apple-ios + aarch64-apple-ios-sim compile) | Rebekah (local) |
-| 0.3 | Full-text index (tantivy) | ⬜ Not started | Claude can help |
-| 0.4 | Python bindings (PyO3) | ⬜ Not started | Claude can help |
+| 0.3 | Full-text index (tantivy) | ✅ Done | — |
+| 0.4 | Python bindings (PyO3) | ✅ Done | — |
 | 0.5 | MCP server | ⬜ Not started | Claude can help |
 | 0.6 | iOS XCFramework | ⬜ Not started | Claude can help (Rust side) |
 | 0.7 | Kindly Roe integration | ⬜ Not started | Rebekah (local) |
 | 0.8 | Vector index (hnswlib-rs) | ⬜ Not started | Claude can help |
 | 0.9 | Android AAR (UniFFI) | ⬜ Not started | Claude can help |
-| 0.10 | WASM playground | 🟡 Scaffold done (PR #9, #10) — npm publish + demo page remain | Claude can help |
-| 0.11 | CI pipeline | 🟡 Workflow live (`test` + `clippy` + `fmt`), mainline green confirmation pending | Claude can help |
+| 0.10 | WASM playground | 🟡 Scaffold done — npm publish + demo page remain | Claude can help |
+| 0.11 | CI pipeline | 🟡 Core CI + iOS CI green; Python wheel CI Linux-only (macOS TBD) | Claude can help |
 | 0.12 | Storage format commitment | ⬜ Not started | Rebekah decision |
 
 ## What Claude Can and Cannot Do in This Repo
@@ -152,6 +174,7 @@ Snapshot as of 2026-02-20. See GitHub milestones/issues for source of truth.
 - `cargo test --all`, `cargo clippy --all -- -D warnings`, `cargo fmt --all`
 - `wasm-pack build --target web` (wasm32-unknown-unknown target installed)
 - `rustup target add <target>` for cross-compilation
+- `maturin develop -m crates/python/Cargo.toml` for Python bindings dev
 
 **Cannot do:**
 - **Publish to crates.io / PyPI / npm** — requires registry credentials.
