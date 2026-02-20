@@ -30,6 +30,11 @@
 use chrono::{DateTime, Utc};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use tantivy::collector::TopDocs;
+use tantivy::query::{BooleanQuery, FuzzyTermQuery, Occur, QueryParser};
+use tantivy::schema::{Field, Schema, Value as TantivyValueTrait, STORED, STRING, TEXT};
+use tantivy::{doc, Index, Term};
 use ulid::Ulid;
 
 // ---------------------------------------------------------------------------
@@ -44,6 +49,8 @@ pub enum KronroeError {
     Serialization(#[from] serde_json::Error),
     #[error("not found: {0}")]
     NotFound(String),
+    #[error("search error: {0}")]
+    Search(String),
 }
 
 impl From<redb::DatabaseError> for KronroeError {
@@ -69,6 +76,16 @@ impl From<redb::StorageError> for KronroeError {
 impl From<redb::CommitError> for KronroeError {
     fn from(e: redb::CommitError) -> Self {
         KronroeError::Storage(e.to_string())
+    }
+}
+impl From<tantivy::TantivyError> for KronroeError {
+    fn from(e: tantivy::TantivyError) -> Self {
+        KronroeError::Search(e.to_string())
+    }
+}
+impl From<tantivy::query::QueryParserError> for KronroeError {
+    fn from(e: tantivy::query::QueryParserError) -> Self {
+        KronroeError::Search(e.to_string())
     }
 }
 
@@ -336,6 +353,52 @@ impl TemporalGraph {
         self.scan_prefix(&prefix, |_| true)
     }
 
+    /// Full-text search over entity names, aliases, predicates, and string values.
+    ///
+    /// Phase 0 implementation: builds an in-memory index at query time.
+    /// This keeps search self-contained while we validate relevance behavior.
+    pub fn search(&self, query: &str, limit: usize) -> Result<Vec<Fact>> {
+        if query.trim().is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let facts = self.scan_prefix("", |_| true)?;
+        if facts.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let aliases_by_subject = self.alias_map(&facts);
+        let (index, id_field, content_field) =
+            Self::build_search_index(&facts, &aliases_by_subject)?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        let parser = QueryParser::for_index(&index, vec![content_field]);
+        let parsed = parser.parse_query(query)?;
+        let mut top_docs = searcher.search(&parsed, &TopDocs::with_limit(limit))?;
+
+        // Fuzzy fallback for typo-heavy short queries (e.g. "alcie").
+        if top_docs.is_empty() {
+            let fuzzy = Self::build_fuzzy_query(query, content_field);
+            top_docs = searcher.search(&fuzzy, &TopDocs::with_limit(limit))?;
+        }
+
+        let facts_by_id: HashMap<String, Fact> =
+            facts.into_iter().map(|f| (f.id.0.clone(), f)).collect();
+        let mut results = Vec::new();
+
+        for (_score, addr) in top_docs {
+            let retrieved = searcher.doc::<tantivy::schema::TantivyDocument>(addr)?;
+            if let Some(id_val) = retrieved.get_first(id_field).and_then(|v| v.as_str()) {
+                if let Some(fact) = facts_by_id.get(id_val) {
+                    results.push(fact.clone());
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
     /// Invalidate a fact by setting its `valid_to` timestamp.
     ///
     /// The fact is not deleted — its history is preserved. After invalidation,
@@ -393,6 +456,75 @@ impl TemporalGraph {
         }
 
         Ok(results)
+    }
+
+    fn alias_map(&self, facts: &[Fact]) -> HashMap<String, Vec<String>> {
+        let mut aliases_by_subject: HashMap<String, Vec<String>> = HashMap::new();
+        for fact in facts {
+            let is_alias_predicate = fact.predicate == "alias"
+                || fact.predicate == "has_alias"
+                || fact.predicate == "aka";
+            if is_alias_predicate {
+                if let Value::Text(alias) | Value::Entity(alias) = &fact.object {
+                    aliases_by_subject
+                        .entry(fact.subject.clone())
+                        .or_default()
+                        .push(alias.clone());
+                }
+            }
+        }
+        aliases_by_subject
+    }
+
+    fn build_search_index(
+        facts: &[Fact],
+        aliases_by_subject: &HashMap<String, Vec<String>>,
+    ) -> Result<(Index, Field, Field)> {
+        let mut schema_builder = Schema::builder();
+        let id_field = schema_builder.add_text_field("id", STRING | STORED);
+        let content_field = schema_builder.add_text_field("content", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer(50_000_000)?;
+
+        for fact in facts {
+            let mut content_parts = vec![fact.subject.as_str(), &fact.predicate];
+            if let Some(aliases) = aliases_by_subject.get(fact.subject.as_str()) {
+                for alias in aliases {
+                    content_parts.push(alias.as_str());
+                }
+            }
+            if let Value::Text(v) | Value::Entity(v) = &fact.object {
+                content_parts.push(v.as_str());
+            }
+
+            // Allow "works at" style matching against snake_case predicates.
+            let normalized_predicate = fact.predicate.replace('_', " ");
+            let content = format!("{} {}", content_parts.join(" "), normalized_predicate);
+
+            writer.add_document(doc!(
+                id_field => fact.id.0.clone(),
+                content_field => content,
+            ))?;
+        }
+
+        writer.commit()?;
+        Ok((index, id_field, content_field))
+    }
+
+    fn build_fuzzy_query(query: &str, content_field: Field) -> BooleanQuery {
+        let terms: Vec<(Occur, Box<dyn tantivy::query::Query>)> = query
+            .split_whitespace()
+            .filter(|token| !token.is_empty())
+            .map(|token| {
+                let term = Term::from_field_text(content_field, token);
+                (
+                    Occur::Should,
+                    Box::new(FuzzyTermQuery::new(term, 1, true)) as Box<dyn tantivy::query::Query>,
+                )
+            })
+            .collect();
+        BooleanQuery::new(terms)
     }
 }
 
@@ -532,5 +664,38 @@ mod tests {
         let bool_facts = db.current_facts("alice", "is_active").unwrap();
         assert_eq!(bool_facts.len(), 1);
         assert!(matches!(bool_facts[0].object, Value::Boolean(true)));
+    }
+
+    #[test]
+    fn search_returns_expected_facts() {
+        let (db, _tmp) = open_temp_db();
+        let now = Utc::now();
+
+        db.assert_fact("alice", "works_at", "Acme", now).unwrap();
+        db.assert_fact("alice", "has_alias", "ally", now).unwrap();
+        db.assert_fact("bob", "works_at", "BetaCorp", now).unwrap();
+
+        let results = db.search("alice works at", 10).unwrap();
+        assert!(
+            results
+                .iter()
+                .any(|f| f.subject == "alice" && f.predicate == "works_at"),
+            "search should return alice works_at fact"
+        );
+    }
+
+    #[test]
+    fn search_supports_fuzzy_typo_matching() {
+        let (db, _tmp) = open_temp_db();
+        let now = Utc::now();
+
+        db.assert_fact("alice", "works_at", "Acme", now).unwrap();
+        db.assert_fact("alice", "has_alias", "ally", now).unwrap();
+
+        let results = db.search("alcie", 10).unwrap();
+        assert!(
+            results.iter().any(|f| f.subject == "alice"),
+            "fuzzy search should match typo query"
+        );
     }
 }
