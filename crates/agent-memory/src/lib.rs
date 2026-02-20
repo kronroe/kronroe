@@ -86,6 +86,13 @@ impl AgentMemory {
         self.graph.facts_at(entity, predicate, at)
     }
 
+    /// Full-text search across known facts.
+    ///
+    /// Delegates to core search functionality on the underlying temporal graph.
+    pub fn search(&self, query: &str, limit: usize) -> Result<Vec<Fact>> {
+        self.graph.search(query, limit)
+    }
+
     // -----------------------------------------------------------------------
     // Phase 1 stubs — require NLP extraction pipeline + vector index
     // -----------------------------------------------------------------------

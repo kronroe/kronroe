@@ -1,0 +1,19 @@
+[package]
+name = "kronroe-py"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Python bindings for Kronroe via PyO3"
+publish = false
+
+[lib]
+name = "kronroe"
+crate-type = ["cdylib"]
+
+[dependencies]
+kronroe = { path = "../core" }
+kronroe-agent-memory = { path = "../agent-memory" }
+pyo3 = { workspace = true }
+chrono = { workspace = true }

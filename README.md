@@ -57,10 +57,21 @@ kronroe/
 ├── crates/
 │   ├── core/           # The embedded database engine (crate: kronroe)
 │   ├── agent-memory/   # High-level AgentMemory API (crate: kronroe-agent-memory)
+│   ├── python/         # Python bindings (package: kronroe)
 │   └── wasm/           # WebAssembly bindings (crate: kronroe-wasm)
 ├── examples/
 │   └── basic/          # Coming soon
 └── README.md
+```
+
+## Python Quickstart
+
+```python
+from kronroe import AgentMemory
+
+memory = AgentMemory.open("./my-agent.kronroe")
+memory.assert_fact("alice", "works_at", "Acme")
+results = memory.search("where does Alice work?", 10)
 ```
 
 ## Status
