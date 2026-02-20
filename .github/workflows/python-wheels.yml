@@ -8,31 +8,35 @@ on:
 
 jobs:
   build-wheels:
-    name: Build wheel (${{ matrix.target }})
+    name: Build wheel (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: macos-14
-            target: aarch64-apple-darwin
+            name: macos-arm64
           - os: macos-13
-            target: x86_64-apple-darwin
+            name: macos-x86_64
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            name: linux-x86_64
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          target: ${{ matrix.target }}
-          command: build
-          args: --release --manifest-path crates/python/Cargo.toml --out dist
+          python-version: "3.11"
+
+      - name: Install maturin
+        run: python3 -m pip install --upgrade pip maturin
+
+      - name: Build wheels
+        run: python3 -m maturin build --release --manifest-path crates/python/Cargo.toml --out dist
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wheel-${{ matrix.target }}
+          name: wheel-${{ matrix.name }}
           path: dist/*.whl
