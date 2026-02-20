@@ -1,4 +1,4 @@
-name: iOS Build
+name: iOS Packaging
 
 on:
   pull_request:
@@ -10,8 +10,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  ios-sim-build:
-    name: iOS Simulator Build
+  ios-xcframework:
+    name: Build XCFramework
     runs-on: macos-latest
 
     steps:
@@ -20,11 +20,11 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Add iOS simulator target
-        run: rustup target add aarch64-apple-ios-sim
+      - name: Add iOS targets
+        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Build core crate for iOS simulator
-        run: cargo build --target aarch64-apple-ios-sim -p kronroe
+      - name: Build XCFramework and enforce size budget
+        run: CHECK_SIZE_BUDGET=1 ./crates/ios/scripts/build-xcframework.sh

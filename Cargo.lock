@@ -481,6 +481,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kronroe-ios"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "kronroe",
+ "serde_json",
+]
+
+[[package]]
 name = "kronroe-mcp"
 version = "0.1.0"
 dependencies = [

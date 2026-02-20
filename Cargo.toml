@@ -2,6 +2,7 @@
 members = [
     "crates/core",
     "crates/agent-memory",
+    "crates/ios",
     "crates/mcp-server",
     "crates/wasm",
     "crates/python",

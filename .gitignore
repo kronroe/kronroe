@@ -20,3 +20,7 @@
 
 # Python build artifacts
 crates/python/dist/
+
+# iOS packaging artifacts
+crates/ios/build/
+crates/ios/swift/KronroeFFI.xcframework/
