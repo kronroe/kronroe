@@ -13,6 +13,7 @@
 # Local planning docs — personal notes, not part of the public repo
 /planning/
 
-# Claude Code and Playwright session data — local tooling only
+# Claude Code — ignore local config but share skills
 .claude/
+!.claude/skills/
 .playwright-mcp/

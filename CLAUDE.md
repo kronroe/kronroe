@@ -23,7 +23,8 @@ workloads. Kronroe redesigns the embedded graph engine for temporal knowledge ev
 kronroe/
 ├── crates/
 │   ├── core/           # `kronroe` crate — TemporalGraph engine
-│   └── agent-memory/   # `kronroe-agent-memory` crate — AgentMemory API
+│   ├── agent-memory/   # `kronroe-agent-memory` crate — AgentMemory API
+│   └── wasm/           # `kronroe-wasm` crate — WebAssembly bindings (browser)
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml      # cargo test + clippy + fmt on every PR
@@ -74,7 +75,7 @@ Every `Fact` has four timestamps — the standard TSQL-2 bi-temporal model:
 
 | Type | Description |
 |------|-------------|
-| `TemporalGraph` | Low-level engine: `open`, `assert_fact`, `current_facts`, `facts_at`, `all_facts_about`, `invalidate_fact` |
+| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `current_facts`, `facts_at`, `all_facts_about`, `invalidate_fact` |
 | `Fact` | The fundamental unit of storage. Fully bi-temporal. |
 | `FactId` | ULID — lexicographically sortable, monotonic insertion order |
 | `Value` | `Text(String)` \| `Number(f64)` \| `Boolean(bool)` \| `Entity(String)` |
@@ -92,7 +93,8 @@ Phase 1 methods (`remember`, `recall`, `assemble_context`) are currently `unimpl
 
 ### Storage
 
-- **Engine:** `redb` — pure Rust B-tree CoW ACID key-value store. No C deps.
+- **Engine:** `redb` 3.1 — pure Rust B-tree CoW ACID key-value store. No C deps. Supports
+  file-backed (`Database::create`) and in-memory (`InMemoryBackend`) storage.
 - **Key format (Phase 0):** `"subject:predicate:fact_id"` composite string
 - **Phase 0 note:** `invalidate_fact` uses a linear scan to find a fact by ID. A dedicated
   ID-keyed index is planned for Phase 1 as a performance improvement.
@@ -101,16 +103,26 @@ Phase 1 methods (`remember`, `recall`, `assemble_context`) are currently `unimpl
 
 ```
 kronroe-agent-memory   ← agent ergonomics, Phase 1 NLP/vector stubs
+kronroe-wasm           ← browser WASM bindings (in-memory only)
         ↓
-   kronroe (core)      ← TemporalGraph, bi-temporal storage, redb
+   kronroe (core)      ← TemporalGraph, bi-temporal storage, redb 3.1
 ```
 
 Future crates will layer on top: `crates/python/`, `crates/ios/`, `crates/mcp-server/`,
-`crates/android/`, `crates/wasm/`.
+`crates/android/`.
+
+### WASM Notes (`crates/wasm`)
+
+- Compiles to `wasm32-unknown-unknown` via `wasm-pack build --target web`
+- Uses `redb::backends::InMemoryBackend` — no file I/O in browser
+- `getrandom` with `wasm_js` feature provides `Crypto.getRandomValues` for ULID generation
+- tantivy does **not** compile to WASM (rayon dep, `std::time::Instant` panic) — when
+  full-text search lands in core, it must be gated with `#[cfg(not(target_arch = "wasm32"))]`
+- Generated `pkg/` directory is gitignored; rebuilt each `wasm-pack build`
 
 ## Phase 0 Milestone Status
 
-**3 of 12 complete.** See GitHub milestones for tracked issues.
+**4 of 12 complete.** See GitHub milestones for tracked issues.
 
 | # | Milestone | Status | Who |
 |---|-----------|--------|-----|
@@ -123,13 +135,18 @@ Future crates will layer on top: `crates/python/`, `crates/ios/`, `crates/mcp-se
 | 0.7 | Kindly Roe integration | ⬜ Not started | Rebekah (local) |
 | 0.8 | Vector index (hnswlib-rs) | ⬜ Not started | Claude can help |
 | 0.9 | Android AAR (UniFFI) | ⬜ Not started | Claude can help |
-| 0.10 | WASM playground | ⬜ Not started | Claude can help |
+| 0.10 | WASM playground | 🟡 Scaffold done (PR #9, #10) — npm publish + demo page remain | Claude can help |
 | 0.11 | CI pipeline | 🟡 In progress | Claude can help |
 | 0.12 | Storage format commitment | ⬜ Not started | Rebekah decision |
 
-## What Claude Cannot Do in This Repo
+## What Claude Can and Cannot Do in This Repo
 
-- **Run `cargo test`** — no Rust toolchain in the Claude shell. Rebekah runs tests locally.
+**Can do** (Rust toolchain is installed via rustup):
+- `cargo test --all`, `cargo clippy --all -- -D warnings`, `cargo fmt --all`
+- `wasm-pack build --target web` (wasm32-unknown-unknown target installed)
+- `rustup target add <target>` for cross-compilation
+
+**Cannot do:**
 - **iOS builds** — `cargo build --target aarch64-apple-ios*` requires macOS + Xcode.
   Rebekah runs the iOS spike locally.
 - **Publish to crates.io / PyPI / npm** — requires registry credentials.
