@@ -78,4 +78,11 @@ kronroe/
 
 ## Licence
 
-MIT
+Kronroe is dual-licensed:
+
+- **Open source** — [GNU Affero General Public Licence v3.0](./LICENSE) (AGPL-3.0) for open-source projects, personal use, and research
+- **Commercial** — [Commercial Licence](./LICENCE-COMMERCIAL.md) for proprietary products and SaaS applications
+
+If embedding Kronroe in a closed-source product, a commercial licence is required. See [LICENCE-COMMERCIAL.md](./LICENCE-COMMERCIAL.md) for details and how to get in touch.
+
+Copyright © 2026 Rebekah Cole.
