@@ -158,7 +158,9 @@ mod tests {
     fn multiple_facts_about_entity() {
         let (memory, _tmp) = open_temp_memory();
 
-        memory.assert("freya", "attends", "Sunrise Primary").unwrap();
+        memory
+            .assert("freya", "attends", "Sunrise Primary")
+            .unwrap();
         memory.assert("freya", "has_ehcp", true).unwrap();
         memory.assert("freya", "key_worker", "Sarah Jones").unwrap();
 

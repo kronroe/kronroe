@@ -28,7 +28,7 @@
 //! ```
 
 use chrono::{DateTime, Utc};
-use redb::{Database, ReadableTable, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
@@ -216,8 +216,8 @@ impl Fact {
     /// Was this fact valid at the given point in time (valid time axis)?
     pub fn was_valid_at(&self, at: DateTime<Utc>) -> bool {
         self.valid_from <= at
-            && self.valid_to.map_or(true, |t| t > at)
-            && self.expired_at.map_or(true, |t| t > at)
+            && self.valid_to.is_none_or(|t| t > at)
+            && self.expired_at.is_none_or(|t| t > at)
     }
 }
 
@@ -262,6 +262,20 @@ impl TemporalGraph {
     /// extension is conventional but not enforced.
     pub fn open(path: &str) -> Result<Self> {
         let db = Database::create(path)?;
+        Self::init(db)
+    }
+
+    /// Create an in-memory Kronroe database (no file I/O).
+    ///
+    /// Useful for WASM targets, testing, and ephemeral workloads where
+    /// persistence is not needed. Data is lost when the instance is dropped.
+    pub fn open_in_memory() -> Result<Self> {
+        let backend = redb::backends::InMemoryBackend::new();
+        let db = Database::builder().create_with_backend(backend)?;
+        Self::init(db)
+    }
+
+    fn init(db: Database) -> Result<Self> {
         {
             let write_txn = db.begin_write()?;
             write_txn.open_table(FACTS)?;
@@ -311,12 +325,7 @@ impl TemporalGraph {
     ///
     /// Uses the **valid time** axis: queries when something was true in the
     /// world, regardless of when it was recorded.
-    pub fn facts_at(
-        &self,
-        subject: &str,
-        predicate: &str,
-        at: DateTime<Utc>,
-    ) -> Result<Vec<Fact>> {
+    pub fn facts_at(&self, subject: &str, predicate: &str, at: DateTime<Utc>) -> Result<Vec<Fact>> {
         let prefix = format!("{}:{}:", subject, predicate);
         self.scan_prefix(&prefix, |f| f.was_valid_at(at))
     }
@@ -368,11 +377,7 @@ impl TemporalGraph {
     }
 
     // Internal: scan facts table, filter by prefix, apply predicate.
-    fn scan_prefix(
-        &self,
-        prefix: &str,
-        predicate: impl Fn(&Fact) -> bool,
-    ) -> Result<Vec<Fact>> {
+    fn scan_prefix(&self, prefix: &str, predicate: impl Fn(&Fact) -> bool) -> Result<Vec<Fact>> {
         let read_txn = self.db.begin_read()?;
         let table = read_txn.open_table(FACTS)?;
         let mut results = Vec::new();
@@ -442,7 +447,11 @@ mod tests {
 
         // Not yet valid before January
         let before_start = db.facts_at("alice", "works_at", dec_prev).unwrap();
-        assert_eq!(before_start.len(), 0, "should find no facts before valid_from");
+        assert_eq!(
+            before_start.len(),
+            0,
+            "should find no facts before valid_from"
+        );
     }
 
     #[test]
@@ -452,24 +461,34 @@ mod tests {
         let jun = dt("2024-06-01T00:00:00Z");
         let mar = dt("2024-03-01T00:00:00Z");
 
-        let id = db
-            .assert_fact("alice", "works_at", "Acme", jan)
-            .unwrap();
+        let id = db.assert_fact("alice", "works_at", "Acme", jan).unwrap();
         db.invalidate_fact(&id, jun).unwrap();
 
         // No longer current
         let current = db.current_facts("alice", "works_at").unwrap();
-        assert_eq!(current.len(), 0, "fact should no longer be current after invalidation");
+        assert_eq!(
+            current.len(),
+            0,
+            "fact should no longer be current after invalidation"
+        );
 
         // But history is preserved: still valid in March
         let in_march = db.facts_at("alice", "works_at", mar).unwrap();
-        assert_eq!(in_march.len(), 1, "historical fact should still be retrievable");
+        assert_eq!(
+            in_march.len(),
+            1,
+            "historical fact should still be retrievable"
+        );
 
         // Not valid after June (when it was invalidated)
         let after_invalidation = db
             .facts_at("alice", "works_at", dt("2024-09-01T00:00:00Z"))
             .unwrap();
-        assert_eq!(after_invalidation.len(), 0, "fact should not appear after valid_to");
+        assert_eq!(
+            after_invalidation.len(),
+            0,
+            "fact should not appear after valid_to"
+        );
     }
 
     #[test]
@@ -478,12 +497,17 @@ mod tests {
         let now = Utc::now();
 
         db.assert_fact("alice", "works_at", "Acme", now).unwrap();
-        db.assert_fact("alice", "has_role", "Engineer", now).unwrap();
+        db.assert_fact("alice", "has_role", "Engineer", now)
+            .unwrap();
         db.assert_fact("alice", "has_skill", "Rust", now).unwrap();
         db.assert_fact("bob", "works_at", "Acme", now).unwrap(); // different subject
 
         let alice_facts = db.all_facts_about("alice").unwrap();
-        assert_eq!(alice_facts.len(), 3, "should return all 3 facts about alice");
+        assert_eq!(
+            alice_facts.len(),
+            3,
+            "should return all 3 facts about alice"
+        );
 
         let subjects: Vec<&str> = alice_facts.iter().map(|f| f.subject.as_str()).collect();
         assert!(subjects.iter().all(|&s| s == "alice"));
