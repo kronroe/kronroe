@@ -12,7 +12,7 @@ Please read this document carefully. By submitting a pull request and signing th
 
 - **"You"** means the individual or legal entity submitting a Contribution.
 - **"Contribution"** means any original work of authorship, including code, documentation, tests, or other material, that you submit to the Kronroe repository.
-- **"Project Owner"** means Rebekah Cole, the copyright holder and maintainer of Kronroe.
+- **"Project Owner"** means Kindly Roe Ltd, the copyright holder and maintainer of Kronroe.
 - **"Project"** means the Kronroe software project hosted at https://github.com/kronroe/kronroe.
 
 ---
