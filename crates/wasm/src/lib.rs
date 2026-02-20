@@ -139,11 +139,7 @@ impl WasmGraph {
 
     /// Get all currently valid facts for (subject, predicate) as JSON.
     #[wasm_bindgen]
-    pub fn current_facts(
-        &self,
-        subject: &str,
-        predicate: &str,
-    ) -> Result<String, JsValue> {
+    pub fn current_facts(&self, subject: &str, predicate: &str) -> Result<String, JsValue> {
         let facts = self
             .inner
             .current_facts(subject, predicate)
@@ -172,10 +168,7 @@ impl WasmGraph {
     /// Get every fact ever recorded about an entity as JSON.
     #[wasm_bindgen]
     pub fn all_facts_about(&self, subject: &str) -> Result<String, JsValue> {
-        let facts = self
-            .inner
-            .all_facts_about(subject)
-            .map_err(to_js_err)?;
+        let facts = self.inner.all_facts_about(subject).map_err(to_js_err)?;
         serde_json::to_string(&facts).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
