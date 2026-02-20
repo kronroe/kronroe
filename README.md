@@ -76,6 +76,10 @@ kronroe/
 - [ ] Android AAR (UniFFI)
 - [ ] WASM / npm package
 
+## Contributing
+
+Contributions are welcome. Before your first pull request is merged, you'll be asked to sign the [Contributor Licence Agreement](./CLA.md) — a bot will prompt you automatically. The CLA lets us maintain the dual-licence model while keeping the project open.
+
 ## Licence
 
 Kronroe is dual-licensed:
