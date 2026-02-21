@@ -54,6 +54,9 @@ kronroe/
 # Run all tests
 cargo test --all
 
+# Run with vector feature enabled
+cargo test -p kronroe --features vector
+
 # Lint (must pass with no warnings)
 cargo clippy --all -- -D warnings
 
@@ -93,7 +96,7 @@ Every `Fact` has four timestamps — the standard TSQL-2 bi-temporal model:
 
 | Type | Description |
 |------|-------------|
-| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `current_facts`, `facts_at`, `all_facts_about`, `invalidate_fact`, `search` |
+| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `assert_fact_with_embedding`, `current_facts`, `facts_at`, `all_facts_about`, `invalidate_fact`, `search`, `search_by_vector` |
 | `Fact` | The fundamental unit of storage. Fully bi-temporal. |
 | `FactId` | ULID — lexicographically sortable, monotonic insertion order |
 | `Value` | `Text(String)` \| `Number(f64)` \| `Boolean(bool)` \| `Entity(String)` |
@@ -133,7 +136,9 @@ kronroe-wasm           ← browser WASM bindings (in-memory only)
 kronroe-mcp            ← stdio MCP server (remember/recall tools)
 kronroe-ios            ← C FFI staticlib + cbindgen header + Swift Package
         ↓
-   kronroe (core)      ← TemporalGraph, bi-temporal storage, redb 3.1, tantivy full-text
+   kronroe (core)      ← TemporalGraph, bi-temporal storage, redb 3.1,
+                          tantivy full-text (feature: fulltext),
+                          flat cosine vector index (feature: vector)
 ```
 
 Future crates will layer on top: `crates/android/`.
@@ -146,6 +151,7 @@ Future crates will layer on top: `crates/android/`.
 - tantivy does **not** compile to WASM (rayon dep, `std::time::Instant` panic) — the `wasm`
   crate builds with `--no-default-features` to exclude tantivy; full-text search in core is
   already gated with `#[cfg(feature = "fulltext")]`
+- The `vector` feature **does** compile to WASM — flat cosine has no platform restrictions
 - Generated `pkg/` directory is gitignored; rebuilt each `wasm-pack build`
 
 ### iOS Notes (`crates/ios`)
@@ -180,9 +186,24 @@ Future crates will layer on top: `crates/android/`.
 - **pip shim** (`python/kronroe-mcp`): `pip install .` then `kronroe-mcp`; respects
   `KRONROE_MCP_BIN` env var to point at a custom binary location
 
+### Vector Index Notes (`crates/core`, feature: `vector`)
+
+- Enabled with `--features vector` (not in `default`; callers opt in)
+- **Phase 0 implementation:** flat brute-force cosine similarity — O(n·d) search,
+  zero new dependencies, works on all targets (native, WASM, iOS, Android)
+- `VectorIndex` stores `Vec<(FactId, Vec<f32>)>` in memory; **not persisted to redb**
+  — callers re-populate embeddings on restart
+- Kronroe never generates embeddings — the caller (`kronroe-agent-memory`, or the
+  application) computes them and passes pre-computed `Vec<f32>` to `assert_fact_with_embedding`
+- `search_by_vector(query, k, at)` gates results through a bi-temporal `valid_ids`
+  allow-set: invalidated facts are excluded for current queries but remain in the index
+  for historical point-in-time searches (`at = Some(t)`)
+- **Phase 1 path:** if HNSW is needed, fork `rust-cv/hnsw` (no_std, no rayon, ~350 lines,
+  WASM-safe) — **not** `hnsw_rs` (hard rayon+mmap deps = can never work on WASM/iOS)
+
 ## Phase 0 Milestone Status
 
-Snapshot as of 2026-02-20. See GitHub milestones/issues for source of truth.
+Snapshot as of 2026-02-21. See GitHub milestones/issues for source of truth.
 
 | # | Milestone | Status | Who |
 |---|-----------|--------|-----|
@@ -193,7 +214,7 @@ Snapshot as of 2026-02-20. See GitHub milestones/issues for source of truth.
 | 0.5 | MCP server | ✅ Done — stdio server + npm/pip shims merged | — |
 | 0.6 | iOS XCFramework | ✅ Done — `crates/ios` C FFI + cbindgen header + Swift Package + build script merged | — |
 | 0.7 | Kindly Roe integration | ⬜ Not started | Rebekah (local) |
-| 0.8 | Vector index (hnswlib-rs) | ⬜ Not started | Claude can help |
+| 0.8 | Vector index | ✅ Done — flat cosine similarity, zero deps, temporal filtering, PR #18 | — |
 | 0.9 | Android AAR (UniFFI) | ⬜ Not started | Claude can help |
 | 0.10 | WASM playground | 🟡 Site scaffold + Firebase Hosting config merged — need service account secret + custom domains | Claude can help |
 | 0.11 | CI pipeline | 🟡 Core CI + iOS CI green; Python wheel CI Linux-only (macOS TBD) | Claude can help |
