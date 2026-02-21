@@ -151,6 +151,30 @@ Future crates (`crates/python/`, `crates/ios/`, etc.) layer on top of `kronroe` 
 The core crate has **no C dependencies**. Keep it that way. If you need a C library, it belongs
 in a separate crate with an explicit feature flag.
 
+## Playground Security Notes (`site/`)
+
+The browser playground is intentionally offline-first (no backend). Keep these protections in
+place when making frontend changes:
+
+- **Content Security Policy (CSP)** is defined in `/site/index.html` and should stay strict:
+  - `default-src 'self'`
+  - no plugin/object embedding (`object-src 'none'`)
+  - narrow script/style/font/connect sources only as needed
+- **Vite dev file serving scope** is restricted in `/site/vite.config.ts` (`server.fs.allow`).
+  Do not broaden this without a strong reason.
+- **Client-side safety limits** in `/site/src/main.ts` prevent easy browser lockups:
+  - `MAX_REPLAY_FACTS` limits localStorage replay volume
+  - `MAX_STORED_FACTS` limits in-memory/local persisted growth
+  - `MAX_RENDER_FACTS` limits one-shot DOM rendering cost
+  - `MAX_FIELD_LEN` caps user-entered field sizes
+
+If you change any of the above, include rationale in the PR and validate with:
+
+```bash
+cd site
+npm run build
+```
+
 ## Scope Discipline
 
 Phase 0 explicitly excludes the following. Please do not add them:

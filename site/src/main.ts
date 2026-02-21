@@ -56,6 +56,10 @@ type ObjType = "Text" | "Number" | "Boolean" | "Entity";
 // ── localStorage persistence ─────────────────────────────────────────────────
 
 const LS_KEY = "kronroe_facts_v1";
+const MAX_REPLAY_FACTS = 2000;
+const MAX_STORED_FACTS = 5000;
+const MAX_RENDER_FACTS = 500;
+const MAX_FIELD_LEN = 256;
 
 type StoredFact = {
   s: string;
@@ -81,6 +85,10 @@ function loadFromLocalStorage(): StoredFact[] {
   } catch {
     return [];
   }
+}
+
+function exceedsFieldLen(value: string): boolean {
+  return value.length > MAX_FIELD_LEN;
 }
 
 // ── Example data ─────────────────────────────────────────────────────────────
@@ -215,8 +223,16 @@ async function init() {
 
   const persisted = loadFromLocalStorage();
   if (persisted.length > 0) {
+    const replaySlice = persisted.slice(0, MAX_REPLAY_FACTS);
+    if (persisted.length > MAX_REPLAY_FACTS) {
+      setStatus(
+        assertStatus,
+        `Loaded first ${MAX_REPLAY_FACTS} persisted facts (of ${persisted.length}) to keep the playground responsive.`,
+        "err"
+      );
+    }
     const replayed: StoredFact[] = [];
-    for (const sf of persisted) {
+    for (const sf of replaySlice) {
       try {
         const factId    = assertIntoEngine(graph, sf.s, sf.p, sf.objType, sf.oValue, sf.valid_from_iso);
         const localFact = buildLocalFact(factId, sf.s, sf.p, sf.objType, sf.oValue, sf.valid_from_iso);
@@ -334,7 +350,8 @@ async function init() {
     if (facts.length === 0) {
       showEmpty("No facts found.");
     } else {
-      streamBody.innerHTML = facts.map(factRowHtml).join("");
+      const visibleFacts = facts.slice(0, MAX_RENDER_FACTS);
+      streamBody.innerHTML = visibleFacts.map(factRowHtml).join("");
     }
   }
 
@@ -408,6 +425,14 @@ async function init() {
 
     if (!s || !p || !oRaw) {
       setStatus(assertStatus, "⚠  Fill in subject, predicate, and value.", "err");
+      return;
+    }
+    if (exceedsFieldLen(s) || exceedsFieldLen(p) || exceedsFieldLen(oRaw)) {
+      setStatus(assertStatus, `⚠  Keep subject, predicate, and value under ${MAX_FIELD_LEN} characters.`, "err");
+      return;
+    }
+    if (storedFacts.length >= MAX_STORED_FACTS) {
+      setStatus(assertStatus, `⚠  Fact limit reached (${MAX_STORED_FACTS}). Clear graph to continue.`, "err");
       return;
     }
 
@@ -508,6 +533,10 @@ async function init() {
       setStatus(queryStatus, "⚠  Enter an entity name.", "err");
       return;
     }
+    if (exceedsFieldLen(entity) || exceedsFieldLen(pred)) {
+      setStatus(queryStatus, `⚠  Keep query fields under ${MAX_FIELD_LEN} characters.`, "err");
+      return;
+    }
 
     try {
       let facts: WasmFact[];
@@ -539,11 +568,14 @@ async function init() {
 
       viewMode = "query";
       renderFacts(facts, label);
+      const truncatedNote = facts.length > MAX_RENDER_FACTS
+        ? ` Showing first ${MAX_RENDER_FACTS} results.`
+        : "";
       setStatus(
         queryStatus,
         facts.length === 0
           ? `No facts found for "${label}".`
-          : `${facts.length} result${facts.length !== 1 ? "s" : ""}.`,
+          : `${facts.length} result${facts.length !== 1 ? "s" : ""}.${truncatedNote}`,
         facts.length === 0 ? "err" : "ok"
       );
     } catch (e) {
