@@ -132,6 +132,14 @@ impl VectorIndex {
         scored
     }
 
+    /// Expected embedding dimension (set on first insert, `None` if empty).
+    ///
+    /// Used by [`TemporalGraph::assert_fact_with_embedding`] to pre-validate
+    /// the embedding before writing to redb, keeping the two stores in sync.
+    pub(crate) fn dim(&self) -> Option<usize> {
+        self.dim
+    }
+
     /// Number of entries currently in the index.
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
@@ -161,7 +169,12 @@ fn l2_norm(v: &[f32]) -> f32 {
 ///
 /// Returns a value in `[-1.0, 1.0]`. Returns `0.0` if `b` is the zero vector.
 fn cosine_similarity(a: &[f32], b: &[f32], a_norm: f32) -> f32 {
-    debug_assert_eq!(a.len(), b.len(), "cosine_similarity: dimension mismatch");
+    // Runtime guard (not debug-only): `insert` enforces uniform dims, but if a
+    // and b somehow differ `zip` would silently truncate and return a wrong
+    // score.  Returning 0.0 on mismatch is the safest neutral value.
+    if a.len() != b.len() {
+        return 0.0;
+    }
 
     let b_norm = l2_norm(b);
     if b_norm == 0.0 {
