@@ -103,6 +103,65 @@ impl From<tantivy::query::QueryParserError> for KronroeError {
 
 pub type Result<T> = std::result::Result<T, KronroeError>;
 
+/// Strategy options for hybrid retrieval experiments.
+#[cfg(feature = "hybrid-experimental")]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
+pub(crate) enum HybridFusionStrategy {
+    /// Weighted Reciprocal Rank Fusion (RRF).
+    Rrf,
+}
+
+/// Optional temporal adjustment used by hybrid experimental ranking.
+#[cfg(feature = "hybrid-experimental")]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
+pub(crate) enum TemporalAdjustment {
+    /// Disable temporal score adjustment.
+    None,
+    /// Exponential decay using the given half-life in days.
+    HalfLifeDays { days: f32 },
+}
+
+/// Internal parameters for hybrid experimental retrieval.
+#[cfg(feature = "hybrid-experimental")]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
+pub(crate) struct HybridParams {
+    /// Number of results requested.
+    pub k: usize,
+    /// Number of candidates to pull from each channel before fusion.
+    pub candidate_window: usize,
+    /// Weighted fusion strategy.
+    pub fusion: HybridFusionStrategy,
+    /// RRF rank constant.
+    pub rank_constant: usize,
+    /// Relative influence of the lexical channel.
+    pub text_weight: f32,
+    /// Relative influence of the vector channel.
+    pub vector_weight: f32,
+    /// Relative influence of the temporal adjustment.
+    pub temporal_weight: f32,
+    /// Temporal adjustment mode.
+    pub temporal_adjustment: TemporalAdjustment,
+}
+
+#[cfg(feature = "hybrid-experimental")]
+impl Default for HybridParams {
+    fn default() -> Self {
+        Self {
+            k: 10,
+            candidate_window: 50,
+            fusion: HybridFusionStrategy::Rrf,
+            rank_constant: 60,
+            text_weight: 0.5,
+            vector_weight: 0.5,
+            temporal_weight: 0.0,
+            temporal_adjustment: TemporalAdjustment::None,
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Core types
 // ---------------------------------------------------------------------------
@@ -263,6 +322,17 @@ impl Fact {
 /// index will replace this in Phase 1.
 const FACTS: TableDefinition<&str, &str> = TableDefinition::new("facts");
 
+/// Raw little-endian f32 bytes keyed by fact_id string.
+/// Written atomically alongside the fact row in `assert_fact_with_embedding`.
+#[cfg(feature = "vector")]
+const EMBEDDINGS: TableDefinition<&str, &[u8]> = TableDefinition::new("embeddings");
+
+/// Single-row metadata table for the vector index.
+/// Key `"dim"` stores the established embedding dimension (`u64`).
+/// Written once (on first insert) inside a serialised write transaction.
+#[cfg(feature = "vector")]
+const EMBEDDING_META: TableDefinition<&str, u64> = TableDefinition::new("embedding_meta");
+
 /// Kronroe temporal property graph database.
 ///
 /// An embedded, serverless database where bi-temporal facts are the core
@@ -282,8 +352,10 @@ const FACTS: TableDefinition<&str, &str> = TableDefinition::new("facts");
 /// ```
 pub struct TemporalGraph {
     db: Database,
-    /// In-memory vector index. Populated via [`assert_fact_with_embedding`].
-    /// Not persisted to redb — callers re-populate on restart if needed.
+    /// In-memory vector index cache.  Rebuilt from the `embeddings` redb table
+    /// on every [`init`] call, then kept in sync by [`assert_fact_with_embedding`].
+    /// The redb tables are the source of truth; this cache is a read-optimised
+    /// view of them.
     ///
     /// [`assert_fact_with_embedding`]: TemporalGraph::assert_fact_with_embedding
     #[cfg(feature = "vector")]
@@ -314,13 +386,92 @@ impl TemporalGraph {
         {
             let write_txn = db.begin_write()?;
             write_txn.open_table(FACTS)?;
+            #[cfg(feature = "vector")]
+            {
+                write_txn.open_table(EMBEDDINGS)?;
+                write_txn.open_table(EMBEDDING_META)?;
+            }
             write_txn.commit()?;
         }
+        #[cfg(feature = "vector")]
+        let vector_index = {
+            let idx = Self::rebuild_vector_index_from_db(&db)?;
+            std::sync::Mutex::new(idx)
+        };
         Ok(Self {
             db,
             #[cfg(feature = "vector")]
-            vector_index: std::sync::Mutex::new(vector::VectorIndex::new()),
+            vector_index,
         })
+    }
+
+    /// Read every persisted embedding from redb and build a fresh in-memory
+    /// [`VectorIndex`] cache.
+    ///
+    /// Called once from [`init`].  If the database was created before the
+    /// `embeddings` table existed (old-format file), `TableDoesNotExist` is
+    /// handled gracefully — the method returns an empty index and the table
+    /// is created by the preceding `open_table` call in `init`.
+    #[cfg(feature = "vector")]
+    fn rebuild_vector_index_from_db(db: &Database) -> Result<vector::VectorIndex> {
+        let mut idx = vector::VectorIndex::new();
+        let read_txn = db.begin_read()?;
+
+        let emb_table = match read_txn.open_table(EMBEDDINGS) {
+            Ok(t) => t,
+            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(idx),
+            Err(e) => return Err(KronroeError::Storage(e.to_string())),
+        };
+
+        for entry in emb_table.iter()? {
+            let (key, value) = entry?;
+            let fact_id = FactId(key.value().to_string());
+            let bytes = value.value();
+
+            if bytes.len() % 4 != 0 {
+                return Err(KronroeError::Storage(format!(
+                    "corrupt embedding for fact {fact_id}: \
+                     byte length {} is not a multiple of 4",
+                    bytes.len()
+                )));
+            }
+
+            let embedding: Vec<f32> = bytes
+                .chunks_exact(4)
+                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                .collect();
+
+            idx.insert(fact_id, embedding);
+        }
+
+        Ok(idx)
+    }
+
+    /// Write a single fact row inside an already-open [`redb::WriteTransaction`].
+    ///
+    /// The caller owns the transaction and is responsible for committing (or
+    /// letting it drop for an implicit rollback).  This helper is used by both
+    /// [`assert_fact`] and [`assert_fact_with_embedding`] so that the embedding
+    /// path can include the fact write inside the same atomic transaction.
+    ///
+    /// [`assert_fact`]: TemporalGraph::assert_fact
+    /// [`assert_fact_with_embedding`]: TemporalGraph::assert_fact_with_embedding
+    fn write_fact_in_txn(
+        write_txn: &redb::WriteTransaction,
+        subject: &str,
+        predicate: &str,
+        object: Value,
+        valid_from: DateTime<Utc>,
+    ) -> Result<FactId> {
+        let fact = Fact::new(subject, predicate, object, valid_from);
+        let fact_id = fact.id.clone();
+        let key = format!("{}:{}:{}", subject, predicate, fact.id);
+        let value = serde_json::to_string(&fact)?;
+        {
+            let mut table = write_txn.open_table(FACTS)?;
+            table.insert(key.as_str(), value.as_str())?;
+        }
+        Ok(fact_id)
     }
 
     /// Assert a new fact and return its [`FactId`].
@@ -337,18 +488,10 @@ impl TemporalGraph {
         object: impl Into<Value>,
         valid_from: DateTime<Utc>,
     ) -> Result<FactId> {
-        let fact = Fact::new(subject, predicate, object, valid_from);
-        let fact_id = fact.id.clone();
-        let key = format!("{}:{}:{}", subject, predicate, fact.id);
-        let value = serde_json::to_string(&fact)?;
-
         let write_txn = self.db.begin_write()?;
-        {
-            let mut table = write_txn.open_table(FACTS)?;
-            table.insert(key.as_str(), value.as_str())?;
-        }
+        let fact_id =
+            Self::write_fact_in_txn(&write_txn, subject, predicate, object.into(), valid_from)?;
         write_txn.commit()?;
-
         Ok(fact_id)
     }
 
@@ -503,20 +646,27 @@ impl TemporalGraph {
         self.assert_fact(&old.subject, &old.predicate, new_value, at)
     }
 
-    /// Assert a fact and attach a pre-computed embedding to the vector index.
+    /// Assert a fact and durably persist its embedding in a single ACID transaction.
     ///
-    /// The fact is persisted to redb exactly as [`assert_fact`] would persist it.
-    /// The embedding is stored in the in-memory vector index and can be retrieved
-    /// via [`search_by_vector`].
+    /// The fact row, the embedding dimension check-and-set, and the raw embedding
+    /// bytes are all written to redb inside **one `WriteTransaction`** and committed
+    /// atomically.  The in-memory vector index cache is updated *after* the commit,
+    /// so the redb tables are always the source of truth.
+    ///
+    /// Because redb serialises write transactions, the dimension check-and-set is
+    /// race-free: no two concurrent callers can simultaneously establish different
+    /// dimensions on the first insert.
     ///
     /// **Caller responsibility:** Kronroe does not generate embeddings. The caller
     /// (e.g. `kronroe-agent-memory` or the application) must compute `embedding`
     /// before calling this method.
     ///
-    /// # Panics
-    /// Panics if `embedding` is empty, or if its dimension differs from that of
-    /// the first embedding ever inserted (all embeddings in one index must share
-    /// the same dimension).
+    /// # Errors
+    ///
+    /// Returns [`KronroeError::InvalidEmbedding`] if:
+    /// - `embedding` is empty, or
+    /// - `embedding.len()` differs from the dimension established by the first
+    ///   embedding ever inserted into this database.
     ///
     /// [`assert_fact`]: TemporalGraph::assert_fact
     /// [`search_by_vector`]: TemporalGraph::search_by_vector
@@ -529,32 +679,61 @@ impl TemporalGraph {
         valid_from: DateTime<Utc>,
         embedding: Vec<f32>,
     ) -> Result<FactId> {
-        // Pre-validate the embedding *before* writing to redb.  If we wrote
-        // the fact first and the vector insert then panicked (e.g. wrong dim),
-        // the two stores would be left in an inconsistent state with no way to
-        // roll back the already-committed redb transaction.
         if embedding.is_empty() {
             return Err(KronroeError::InvalidEmbedding(
                 "embedding must not be empty".into(),
             ));
         }
+
+        // One write transaction covers the dim check-and-set, the fact row,
+        // and the embedding bytes.  redb serialises writes, so this is atomic
+        // and race-free — no two threads can interleave inside here.
+        let write_txn = self.db.begin_write()?;
+
+        // --- dim check-and-set ---
         {
-            let idx = self.vector_index.lock().unwrap();
-            if let Some(d) = idx.dim() {
-                if embedding.len() != d {
-                    return Err(KronroeError::InvalidEmbedding(format!(
-                        "embedding dimension mismatch: expected {d}, got {}",
-                        embedding.len()
-                    )));
+            let mut meta = write_txn.open_table(EMBEDDING_META)?;
+            // Extract the stored dim as an owned u64 before the match so that the
+            // `AccessGuard` borrow on `meta` is released before `meta.insert`.
+            let stored_dim: Option<u64> = meta.get("dim")?.map(|g| g.value());
+            match stored_dim {
+                None => {
+                    meta.insert("dim", embedding.len() as u64)?;
+                }
+                Some(d) => {
+                    let d = d as usize;
+                    if embedding.len() != d {
+                        // Dropping write_txn triggers an implicit redb rollback.
+                        return Err(KronroeError::InvalidEmbedding(format!(
+                            "embedding dimension mismatch: expected {d}, got {}",
+                            embedding.len()
+                        )));
+                    }
                 }
             }
         }
 
-        let fact_id = self.assert_fact(subject, predicate, object, valid_from)?;
+        // --- fact row ---
+        let fact_id =
+            Self::write_fact_in_txn(&write_txn, subject, predicate, object.into(), valid_from)?;
+
+        // --- embedding bytes (little-endian f32) ---
+        {
+            let bytes: Vec<u8> = embedding.iter().flat_map(|x| x.to_le_bytes()).collect();
+            let mut emb_table = write_txn.open_table(EMBEDDINGS)?;
+            emb_table.insert(fact_id.to_string().as_str(), bytes.as_slice())?;
+        }
+
+        write_txn.commit()?;
+
+        // Update the in-memory cache after the durable commit.
+        // If the process crashes between commit() and here the cache is rebuilt
+        // correctly from redb on the next open().
         self.vector_index
             .lock()
             .unwrap()
             .insert(fact_id.clone(), embedding);
+
         Ok(fact_id)
     }
 
@@ -582,6 +761,21 @@ impl TemporalGraph {
         at: Option<DateTime<Utc>>,
     ) -> Result<Vec<(Fact, f32)>> {
         use std::collections::{HashMap, HashSet};
+
+        // Validate query dimension against the established index dimension.
+        // Return a clear error rather than silently producing zero-scored results
+        // (which `cosine_similarity` would return for mismatched lengths).
+        {
+            let idx = self.vector_index.lock().unwrap();
+            if let Some(d) = idx.dim() {
+                if query.len() != d {
+                    return Err(KronroeError::InvalidEmbedding(format!(
+                        "query dimension mismatch: index has dim {d}, query has {}",
+                        query.len()
+                    )));
+                }
+            }
+        }
 
         // Collect all facts passing the temporal filter, then build an allow-set
         // for the vector index and a lookup map for hydrating results.
@@ -959,6 +1153,92 @@ mod tests {
         assert!(
             results.iter().any(|f| f.subject == "alice"),
             "fuzzy search should match typo query"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Vector: error-path tests (P1 / P2 audit findings)
+    // ------------------------------------------------------------------
+
+    #[test]
+    #[cfg(feature = "vector")]
+    fn vector_empty_embedding_returns_error() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let result = db.assert_fact_with_embedding("alice", "interest", "Rust", Utc::now(), vec![]);
+        assert!(
+            matches!(result, Err(KronroeError::InvalidEmbedding(_))),
+            "empty embedding must return InvalidEmbedding, not panic"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "vector")]
+    fn vector_dim_mismatch_returns_error() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let now = Utc::now();
+
+        // Establish dim = 3.
+        db.assert_fact_with_embedding("alice", "interest", "Rust", now, vec![1.0, 0.0, 0.0])
+            .unwrap();
+
+        // Subsequent insert with dim = 2 must return Err, not panic.
+        let result =
+            db.assert_fact_with_embedding("alice", "interest", "Python", now, vec![0.0, 1.0]);
+        assert!(
+            matches!(result, Err(KronroeError::InvalidEmbedding(_))),
+            "dim mismatch must return InvalidEmbedding, not panic"
+        );
+
+        // The failed insert must not corrupt the index: the original fact is still
+        // retrievable.
+        let results = db.search_by_vector(&[1.0, 0.0, 0.0], 5, None).unwrap();
+        assert_eq!(results.len(), 1, "failed insert must leave index intact");
+    }
+
+    #[test]
+    #[cfg(feature = "vector")]
+    fn vector_search_wrong_query_dim_returns_error() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let now = Utc::now();
+
+        // Insert a dim-3 embedding to establish the index dimension.
+        db.assert_fact_with_embedding("alice", "interest", "Rust", now, vec![1.0, 0.0, 0.0])
+            .unwrap();
+
+        // Query with dim=2 must return Err, not silently score 0.0.
+        let result = db.search_by_vector(&[1.0, 0.0], 5, None);
+        assert!(
+            matches!(result, Err(KronroeError::InvalidEmbedding(_))),
+            "wrong query dimension must return InvalidEmbedding"
+        );
+    }
+
+    /// Embeddings are persisted to redb; the vector index must survive a
+    /// close-and-reopen without any re-population by the caller.
+    #[test]
+    #[cfg(feature = "vector")]
+    fn vector_index_survives_reopen() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("durability.kronroe");
+        let path_str = path.to_str().unwrap();
+        let now = Utc::now();
+
+        // Write two embeddings, then drop the database.
+        {
+            let db = TemporalGraph::open(path_str).unwrap();
+            db.assert_fact_with_embedding("alice", "interest", "Rust", now, vec![1.0, 0.0, 0.0])
+                .unwrap();
+            db.assert_fact_with_embedding("alice", "interest", "Python", now, vec![0.0, 1.0, 0.0])
+                .unwrap();
+        } // db dropped — file closed
+
+        // Reopen: the index must be rebuilt from redb automatically.
+        let db = TemporalGraph::open(path_str).unwrap();
+        let results = db.search_by_vector(&[1.0, 0.0, 0.0], 2, None).unwrap();
+        assert_eq!(results.len(), 2, "both embeddings must survive reopen");
+        assert!(
+            matches!(&results[0].0.object, Value::Text(s) if s == "Rust"),
+            "most similar fact after reopen should be Rust"
         );
     }
 }

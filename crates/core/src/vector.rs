@@ -28,10 +28,11 @@ struct Entry {
 
 /// Flat vector index keyed by [`FactId`].
 ///
-/// The index is held entirely in memory. It is **not** persisted to redb — embeddings
-/// are re-populated on application startup. This is intentional for Phase 0: it keeps
-/// the storage format simple and avoids coupling vector serialisation to the redb
-/// schema before the API has stabilised.
+/// Held entirely in memory as a read-optimised cache.  The backing store is the
+/// `embeddings` redb table, which is written atomically alongside the fact row in
+/// [`TemporalGraph::assert_fact_with_embedding`] and read back by
+/// [`TemporalGraph`]'s `rebuild_vector_index_from_db` on every `open` / `open_in_memory`
+/// call.  The redb tables are the source of truth; this struct is a derived view.
 #[derive(Debug, Default, Clone)]
 pub struct VectorIndex {
     entries: Vec<Entry>,
