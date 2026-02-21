@@ -4,7 +4,10 @@
 // ── WASM types ──────────────────────────────────────────────────────────────
 
 type WasmModule = {
-  WasmGraph: new () => WasmGraph;
+  WasmGraph: {
+    new (): WasmGraph;
+    open?: () => WasmGraph;
+  };
 };
 
 type WasmGraph = {
@@ -120,6 +123,14 @@ function localInputToISO(val: string): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+/** Convert an ISO timestamp to a datetime-local value ("YYYY-MM-DDTHH:mm"). */
+function isoToLocalInput(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
 function factRowHtml(f: WasmFact): string {
   const expired = f.expired_at !== null;
   const cls     = expired ? " invalidated" : "";
@@ -142,10 +153,12 @@ async function init() {
 
   let wasm: WasmModule;
   try {
-    wasm = (await import("../public/pkg/kronroe_wasm.js")) as unknown as WasmModule;
-    await (wasm as unknown as { default?: (path: string) => Promise<void> }).default?.(
-      "../public/pkg/kronroe_wasm_bg.wasm"
-    );
+    const wasmImport = (await import("../public/pkg/kronroe_wasm.js")) as unknown as
+      WasmModule & { default?: (arg?: unknown) => Promise<void> };
+    wasm = wasmImport;
+    await wasmImport.default?.({
+      module_or_path: new URL("../public/pkg/kronroe_wasm_bg.wasm", import.meta.url),
+    });
   } catch (e) {
     loadingText.textContent = "Failed to load WASM — try refreshing.";
     console.error(e);
@@ -154,7 +167,14 @@ async function init() {
 
   loading.classList.add("hidden");
 
-  let graph = new wasm.WasmGraph();
+  function createGraph(module: WasmModule): WasmGraph {
+    if (typeof module.WasmGraph.open === "function") {
+      return module.WasmGraph.open();
+    }
+    return new module.WasmGraph();
+  }
+
+  let graph = createGraph(wasm);
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
 
@@ -165,6 +185,7 @@ async function init() {
   const assertAtEl   = document.getElementById("assert-at")!  as HTMLInputElement;
   const assertBtn    = document.getElementById("assert-btn")!;
   const clearBtn     = document.getElementById("clear-btn")!;
+  const timeDemoBtn  = document.getElementById("time-demo-btn")! as HTMLButtonElement;
   const assertStatus = document.getElementById("assert-status")!;
 
   const queryEntityEl = document.getElementById("query-entity")! as HTMLInputElement;
@@ -226,6 +247,62 @@ async function init() {
     });
     examplesEl.appendChild(btn);
   });
+
+  function runTimeTravelDemo() {
+    const demoSubjectBase = "alice-demo";
+    const demoSubject = `${demoSubjectBase}-${Date.now().toString(36).slice(-4)}`;
+    const demoPred = "works_at";
+    const demoObject = "Acme";
+    const assertedAtISO = "2024-01-01T09:00:00.000Z";
+    const pastQueryISO = "2024-06-01T12:00:00.000Z";
+    const futureQueryISO = new Date(Date.now() + 60_000).toISOString();
+
+    try {
+      const factId = assertIntoEngine(graph, demoSubject, demoPred, "Entity", demoObject, assertedAtISO);
+      const localFact = buildLocalFact(factId, demoSubject, demoPred, "Entity", demoObject, assertedAtISO);
+      allFacts.push(localFact);
+      storedFacts.push({
+        s: demoSubject,
+        p: demoPred,
+        objType: "Entity",
+        oValue: demoObject,
+        valid_from_iso: assertedAtISO,
+        fact_id: factId,
+      });
+
+      graph.invalidate_fact(factId);
+      localFact.expired_at = new Date().toISOString();
+
+      const idx = storedFacts.findIndex(sf => sf.fact_id === factId);
+      if (idx !== -1) storedFacts.splice(idx, 1);
+      saveToLocalStorage(storedFacts);
+
+      const pastFacts = JSON.parse(graph.facts_at(demoSubject, demoPred, pastQueryISO)) as WasmFact[];
+      const futureFacts = JSON.parse(graph.facts_at(demoSubject, demoPred, futureQueryISO)) as WasmFact[];
+
+      queryEntityEl.value = demoSubject;
+      queryPredEl.value = demoPred;
+      queryAtEl.value = isoToLocalInput(pastQueryISO);
+
+      viewMode = "query";
+      renderFacts(pastFacts, `${demoSubject} · ${demoPred} @ ${fmtTime(pastQueryISO)}`);
+
+      setStatus(
+        assertStatus,
+        `Demo loaded for ${demoSubjectBase} (${demoSubject}): asserted "${demoPred} · ${demoObject}" at 2024-01-01, then retracted now.`,
+        "ok"
+      );
+      setStatus(
+        queryStatus,
+        `Past query: ${pastFacts.length} result. Future query: ${futureFacts.length} results. Press Query to explore more times.`,
+        "ok"
+      );
+    } catch (e) {
+      setStatus(assertStatus, `Time-travel demo failed: ${e}`, "err");
+    }
+  }
+
+  timeDemoBtn.addEventListener("click", runTimeTravelDemo);
 
   // ── Placeholder hint ──────────────────────────────────────────────────────
 
@@ -357,7 +434,7 @@ async function init() {
   }
 
   assertBtn.addEventListener("click", assertFact);
-  [subjectEl, predicateEl, objectEl].forEach((el) =>
+  [subjectEl, predicateEl, objectEl, assertAtEl].forEach((el) =>
     el.addEventListener("keydown", (e) => { if (e.key === "Enter") assertFact(); })
   );
 
@@ -394,6 +471,7 @@ async function init() {
           if (btn) btn.disabled = true;
         }
       }
+      setStatus(queryStatus, `✗  retracted: ${fact.subject} · ${fact.predicate} · ${fmtValue(fact.object)}`, "err");
     } catch (e) {
       setStatus(queryStatus, `Invalidation error: ${e}`, "err");
     }
@@ -402,8 +480,11 @@ async function init() {
   // ── Clear ─────────────────────────────────────────────────────────────────
 
   clearBtn.addEventListener("click", () => {
+    if (!confirm("Clear all facts from this in-browser graph? This cannot be undone.")) {
+      return;
+    }
     graph.free();
-    graph       = new wasm.WasmGraph();
+    graph       = createGraph(wasm);
     allFacts    = [];
     storedFacts = [];
     viewMode    = "all";
@@ -473,6 +554,7 @@ async function init() {
   queryBtn.addEventListener("click", doQuery);
   queryEntityEl.addEventListener("keydown", (e) => { if (e.key === "Enter") doQuery(); });
   queryPredEl.addEventListener(  "keydown", (e) => { if (e.key === "Enter") doQuery(); });
+  queryAtEl.addEventListener(    "keydown", (e) => { if (e.key === "Enter") doQuery(); });
 
   // ── Show all ──────────────────────────────────────────────────────────────
 

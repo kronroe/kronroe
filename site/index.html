@@ -357,6 +357,11 @@
         background: var(--lime-bg);
       }
 
+      .chip-demo {
+        border-color: var(--lime-border);
+        color: var(--lime);
+      }
+
       /* ── Status ── */
       .status {
         font-family: var(--mono);
@@ -668,14 +673,18 @@
                 <option value="Boolean">Boolean</option>
                 <option value="Entity">Entity →</option>
               </select>
-              <input type="datetime-local" id="assert-at" title="valid_from — leave blank for now" />
+              <input type="datetime-local" id="assert-at" title="valid_from — optional. If set, this fact starts being true at that time; leave blank for now." />
+              <span class="at-hint" title="Bi-temporal tip: set valid_from to record when this was true in the real world.">valid from</span>
             </div>
             <div class="btn-row">
               <button class="btn-primary" id="assert-btn">Assert →</button>
-              <button class="btn-ghost"   id="clear-btn">Clear graph</button>
+              <button class="btn-ghost"   id="clear-btn" title="Removes all facts from this in-browser graph after confirmation.">Clear graph</button>
             </div>
             <div class="chips-label">TRY</div>
             <div class="chips" id="examples"></div>
+            <button class="chip chip-demo" id="time-demo-btn" title="Runs a bi-temporal scenario: assert in the past, retract now, then compare point-in-time query results.">
+              Time-travel demo
+            </button>
             <div class="status" id="assert-status"></div>
           </div>
         </div>
