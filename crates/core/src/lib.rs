@@ -27,6 +27,9 @@
 //! let facts_then = db.facts_at("alice", "works_at", past).unwrap();
 //! ```
 
+#[cfg(feature = "vector")]
+mod vector;
+
 use chrono::{DateTime, Utc};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
@@ -277,6 +280,12 @@ const FACTS: TableDefinition<&str, &str> = TableDefinition::new("facts");
 /// ```
 pub struct TemporalGraph {
     db: Database,
+    /// In-memory vector index. Populated via [`assert_fact_with_embedding`].
+    /// Not persisted to redb — callers re-populate on restart if needed.
+    ///
+    /// [`assert_fact_with_embedding`]: TemporalGraph::assert_fact_with_embedding
+    #[cfg(feature = "vector")]
+    vector_index: std::sync::Mutex<vector::VectorIndex>,
 }
 
 impl TemporalGraph {
@@ -305,7 +314,11 @@ impl TemporalGraph {
             write_txn.open_table(FACTS)?;
             write_txn.commit()?;
         }
-        Ok(Self { db })
+        Ok(Self {
+            db,
+            #[cfg(feature = "vector")]
+            vector_index: std::sync::Mutex::new(vector::VectorIndex::new()),
+        })
     }
 
     /// Assert a new fact and return its [`FactId`].
@@ -486,6 +499,92 @@ impl TemporalGraph {
         let old = self.fact_by_id(fact_id)?;
         self.invalidate_fact(fact_id, at)?;
         self.assert_fact(&old.subject, &old.predicate, new_value, at)
+    }
+
+    /// Assert a fact and attach a pre-computed embedding to the vector index.
+    ///
+    /// The fact is persisted to redb exactly as [`assert_fact`] would persist it.
+    /// The embedding is stored in the in-memory vector index and can be retrieved
+    /// via [`search_by_vector`].
+    ///
+    /// **Caller responsibility:** Kronroe does not generate embeddings. The caller
+    /// (e.g. `kronroe-agent-memory` or the application) must compute `embedding`
+    /// before calling this method.
+    ///
+    /// # Panics
+    /// Panics if `embedding` is empty, or if its dimension differs from that of
+    /// the first embedding ever inserted (all embeddings in one index must share
+    /// the same dimension).
+    ///
+    /// [`assert_fact`]: TemporalGraph::assert_fact
+    /// [`search_by_vector`]: TemporalGraph::search_by_vector
+    #[cfg(feature = "vector")]
+    pub fn assert_fact_with_embedding(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+        valid_from: DateTime<Utc>,
+        embedding: Vec<f32>,
+    ) -> Result<FactId> {
+        let fact_id = self.assert_fact(subject, predicate, object, valid_from)?;
+        self.vector_index
+            .lock()
+            .unwrap()
+            .insert(fact_id.clone(), embedding);
+        Ok(fact_id)
+    }
+
+    /// Search for facts semantically similar to `query`, optionally filtered to
+    /// those valid at a given point in time.
+    ///
+    /// Results are sorted by cosine similarity in descending order (most similar
+    /// first). At most `k` results are returned.
+    ///
+    /// Pass `at = None` to restrict results to currently-valid facts (both
+    /// `valid_to` and `expired_at` are `None`). Pass `at = Some(t)` to use the
+    /// valid-time axis: facts that were true in the world at time `t`.
+    ///
+    /// Only facts that were previously inserted with
+    /// [`assert_fact_with_embedding`] can be returned — facts asserted via
+    /// [`assert_fact`] have no embedding and are invisible to this method.
+    ///
+    /// [`assert_fact_with_embedding`]: TemporalGraph::assert_fact_with_embedding
+    /// [`assert_fact`]: TemporalGraph::assert_fact
+    #[cfg(feature = "vector")]
+    pub fn search_by_vector(
+        &self,
+        query: &[f32],
+        k: usize,
+        at: Option<DateTime<Utc>>,
+    ) -> Result<Vec<(Fact, f32)>> {
+        use std::collections::{HashMap, HashSet};
+
+        // Collect all facts passing the temporal filter, then build an allow-set
+        // for the vector index and a lookup map for hydrating results.
+        let matching_facts = self.scan_prefix("", |f| match at {
+            Some(t) => f.was_valid_at(t),
+            None => f.is_currently_valid(),
+        })?;
+
+        let valid_ids: HashSet<FactId> = matching_facts.iter().map(|f| f.id.clone()).collect();
+        let facts_by_id: HashMap<FactId, Fact> = matching_facts
+            .into_iter()
+            .map(|f| (f.id.clone(), f))
+            .collect();
+
+        let hits = self
+            .vector_index
+            .lock()
+            .unwrap()
+            .search(query, k, &valid_ids);
+
+        let results = hits
+            .into_iter()
+            .filter_map(|(id, score)| facts_by_id.get(&id).map(|f| (f.clone(), score)))
+            .collect();
+
+        Ok(results)
     }
 
     // Internal: scan facts table, filter by prefix, apply predicate.
@@ -737,6 +836,72 @@ mod tests {
             Value::Text(ref s) => assert_eq!(s, "BetaCorp"),
             ref other => panic!("expected Text, got {other:?}"),
         }
+    }
+
+    #[test]
+    #[cfg(feature = "vector")]
+    fn vector_search_returns_most_similar_current_facts() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let now = Utc::now();
+
+        // Three facts with distinct embedding directions.
+        // Query [1,0,0] should rank id0 first.
+        let id0 = db
+            .assert_fact_with_embedding("alice", "interest", "Rust", now, vec![1.0, 0.0, 0.0])
+            .unwrap();
+        let _id1 = db
+            .assert_fact_with_embedding("alice", "interest", "Python", now, vec![0.0, 1.0, 0.0])
+            .unwrap();
+        let _id2 = db
+            .assert_fact_with_embedding("alice", "interest", "Go", now, vec![0.0, 0.0, 1.0])
+            .unwrap();
+
+        let results = db.search_by_vector(&[1.0, 0.0, 0.0], 1, None).unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0.id, id0);
+        assert!((results[0].1 - 1.0).abs() < 1e-6, "score should be ~1.0");
+    }
+
+    #[test]
+    #[cfg(feature = "vector")]
+    fn vector_search_respects_temporal_filter() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let jan = "2024-01-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap();
+        let jul = "2024-07-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap();
+        let mar = "2024-03-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap();
+
+        // Fact valid from Jan, invalidated at Jul.
+        let id_old = db
+            .assert_fact_with_embedding("alice", "interest", "Rust", jan, vec![1.0, 0.0])
+            .unwrap();
+        db.invalidate_fact(&id_old, jul).unwrap();
+
+        // Fact valid from Jul onward.
+        let _id_new = db
+            .assert_fact_with_embedding("alice", "interest", "Python", jul, vec![0.0, 1.0])
+            .unwrap();
+
+        // At March: only old fact is valid.
+        let at_mar = db.search_by_vector(&[1.0, 0.0], 10, Some(mar)).unwrap();
+        assert_eq!(at_mar.len(), 1);
+        assert_eq!(at_mar[0].0.id, id_old);
+
+        // Currently (no at): old is invalidated, only new is current.
+        let current = db.search_by_vector(&[0.0, 1.0], 10, None).unwrap();
+        assert_eq!(current.len(), 1);
+        assert!(matches!(current[0].0.object, Value::Text(ref s) if s == "Python"));
+    }
+
+    #[test]
+    #[cfg(feature = "vector")]
+    fn vector_search_returns_empty_when_no_embeddings() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        // Assert a plain fact (no embedding).
+        db.assert_fact("alice", "works_at", "Acme", Utc::now())
+            .unwrap();
+        let results = db.search_by_vector(&[1.0, 0.0], 5, None).unwrap();
+        assert!(results.is_empty());
     }
 
     #[test]
