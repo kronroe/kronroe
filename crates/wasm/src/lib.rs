@@ -137,6 +137,68 @@ impl WasmGraph {
         Ok(id.to_string())
     }
 
+    /// Assert a numeric fact with a specific valid_from timestamp (ISO 8601).
+    #[wasm_bindgen]
+    pub fn assert_number_fact_at(
+        &self,
+        subject: &str,
+        predicate: &str,
+        value: f64,
+        valid_from_iso: &str,
+    ) -> Result<String, JsValue> {
+        let valid_from: DateTime<Utc> = valid_from_iso
+            .parse()
+            .map_err(|e: chrono::ParseError| JsValue::from_str(&e.to_string()))?;
+        let id = self
+            .inner
+            .assert_fact(subject, predicate, Value::Number(value), valid_from)
+            .map_err(to_js_err)?;
+        Ok(id.to_string())
+    }
+
+    /// Assert a boolean fact with a specific valid_from timestamp (ISO 8601).
+    #[wasm_bindgen]
+    pub fn assert_boolean_fact_at(
+        &self,
+        subject: &str,
+        predicate: &str,
+        value: bool,
+        valid_from_iso: &str,
+    ) -> Result<String, JsValue> {
+        let valid_from: DateTime<Utc> = valid_from_iso
+            .parse()
+            .map_err(|e: chrono::ParseError| JsValue::from_str(&e.to_string()))?;
+        let id = self
+            .inner
+            .assert_fact(subject, predicate, Value::Boolean(value), valid_from)
+            .map_err(to_js_err)?;
+        Ok(id.to_string())
+    }
+
+    /// Assert an entity reference fact with a specific valid_from timestamp (ISO 8601).
+    #[wasm_bindgen]
+    pub fn assert_entity_fact_at(
+        &self,
+        subject: &str,
+        predicate: &str,
+        entity: &str,
+        valid_from_iso: &str,
+    ) -> Result<String, JsValue> {
+        let valid_from: DateTime<Utc> = valid_from_iso
+            .parse()
+            .map_err(|e: chrono::ParseError| JsValue::from_str(&e.to_string()))?;
+        let id = self
+            .inner
+            .assert_fact(
+                subject,
+                predicate,
+                Value::Entity(entity.to_string()),
+                valid_from,
+            )
+            .map_err(to_js_err)?;
+        Ok(id.to_string())
+    }
+
     /// Get all currently valid facts for (subject, predicate) as JSON.
     #[wasm_bindgen]
     pub fn current_facts(&self, subject: &str, predicate: &str) -> Result<String, JsValue> {
