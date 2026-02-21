@@ -59,6 +59,8 @@ pub enum KronroeError {
     NotFound(String),
     #[error("search error: {0}")]
     Search(String),
+    #[error("invalid embedding: {0}")]
+    InvalidEmbedding(String),
 }
 
 impl From<redb::DatabaseError> for KronroeError {
@@ -527,6 +529,27 @@ impl TemporalGraph {
         valid_from: DateTime<Utc>,
         embedding: Vec<f32>,
     ) -> Result<FactId> {
+        // Pre-validate the embedding *before* writing to redb.  If we wrote
+        // the fact first and the vector insert then panicked (e.g. wrong dim),
+        // the two stores would be left in an inconsistent state with no way to
+        // roll back the already-committed redb transaction.
+        if embedding.is_empty() {
+            return Err(KronroeError::InvalidEmbedding(
+                "embedding must not be empty".into(),
+            ));
+        }
+        {
+            let idx = self.vector_index.lock().unwrap();
+            if let Some(d) = idx.dim() {
+                if embedding.len() != d {
+                    return Err(KronroeError::InvalidEmbedding(format!(
+                        "embedding dimension mismatch: expected {d}, got {}",
+                        embedding.len()
+                    )));
+                }
+            }
+        }
+
         let fact_id = self.assert_fact(subject, predicate, object, valid_from)?;
         self.vector_index
             .lock()
