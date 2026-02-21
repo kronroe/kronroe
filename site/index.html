@@ -6,278 +6,467 @@
     <meta name="description" content="Kronroe — embedded temporal property graph database. Try it live in your browser." />
     <title>Kronroe — Temporal Graph Playground</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <script type="module" src="/src/main.ts"></script>
     <style>
       :root {
-        --bg: #0d0d0d;
-        --surface: #161616;
-        --border: #2a2a2a;
-        --accent: #7c6af7;
-        --accent-dim: #4f46a8;
-        --text: #e8e8e8;
-        --text-muted: #888;
-        --green: #4ade80;
-        --red: #f87171;
-        --mono: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
+        --bg:         #060609;
+        --surface:    #0c0c14;
+        --surface-2:  #111120;
+        --border:     #1c1c2e;
+        --border-hi:  #2c2c44;
+        --lime:       #b4f542;
+        --lime-bg:    rgba(180, 245, 66, 0.08);
+        --lime-border:rgba(180, 245, 66, 0.2);
+        --blue:       #6499ff;
+        --blue-bg:    rgba(100, 153, 255, 0.1);
+        --blue-border:rgba(100, 153, 255, 0.22);
+        --orange:     #ff9f5a;
+        --orange-bg:  rgba(255, 159, 90, 0.1);
+        --orange-border:rgba(255, 159, 90, 0.22);
+        --text:       #dcdcf0;
+        --text-mid:   #8888aa;
+        --text-dim:   #44445a;
+        --green:      #52e88a;
+        --red:        #ff5f5f;
+        --mono:       "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
+        --display:    "Syne", sans-serif;
       }
 
-      * { box-sizing: border-box; margin: 0; padding: 0; }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
       body {
         background: var(--bg);
         color: var(--text);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: var(--display);
         min-height: 100vh;
         display: flex;
         flex-direction: column;
+        position: relative;
       }
 
+      /* Dot-grid texture */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image: radial-gradient(circle, #18182e 1px, transparent 1px);
+        background-size: 34px 34px;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      /* Ambient glows */
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 60% 40% at 15% 15%, rgba(100, 153, 255, 0.04) 0%, transparent 70%),
+          radial-gradient(ellipse 50% 40% at 85% 85%, rgba(180, 245, 66, 0.035) 0%, transparent 70%);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      /* ── Header ── */
       header {
+        position: relative;
+        z-index: 10;
+        height: 52px;
+        padding: 0 2.5rem;
         border-bottom: 1px solid var(--border);
-        padding: 1rem 2rem;
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.875rem;
+        background: rgba(6, 6, 9, 0.85);
+        backdrop-filter: blur(10px);
       }
 
       .logo {
-        font-size: 1.25rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: var(--display);
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -0.025em;
         color: var(--text);
       }
 
-      .logo span { color: var(--accent); }
+      .logo-mark {
+        width: 24px;
+        height: 24px;
+        border: 1.5px solid var(--lime);
+        border-radius: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        font-weight: 700;
+        color: var(--lime);
+        letter-spacing: 0;
+        flex-shrink: 0;
+      }
 
       .badge {
-        font-size: 0.7rem;
         font-family: var(--mono);
-        background: var(--accent-dim);
-        color: #c4bfff;
-        padding: 0.2rem 0.5rem;
-        border-radius: 4px;
-        letter-spacing: 0.05em;
+        font-size: 0.6rem;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        padding: 0.15rem 0.4rem;
+        border-radius: 3px;
+        background: var(--lime-bg);
+        border: 1px solid var(--lime-border);
+        color: var(--lime);
       }
 
-      .header-links {
+      .header-nav {
         margin-left: auto;
         display: flex;
-        gap: 1.25rem;
-        font-size: 0.875rem;
+        gap: 2rem;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        font-weight: 400;
+        letter-spacing: 0.02em;
       }
 
-      .header-links a {
-        color: var(--text-muted);
+      .header-nav a {
+        color: var(--text-mid);
         text-decoration: none;
-        transition: color 0.15s;
+        transition: color 0.12s;
       }
+      .header-nav a:hover { color: var(--text); }
 
-      .header-links a:hover { color: var(--text); }
-
+      /* ── Main grid ── */
       main {
+        position: relative;
+        z-index: 1;
         flex: 1;
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 360px 1fr;
         grid-template-rows: auto 1fr;
-        gap: 0;
-        max-width: 1400px;
-        margin: 0 auto;
+        max-width: 1280px;
         width: 100%;
-        padding: 2rem;
-        gap: 1.5rem;
+        margin: 0 auto;
+        padding: 2.25rem 2.5rem;
+        gap: 2rem;
       }
 
+      /* ── Hero ── */
       .hero {
         grid-column: 1 / -1;
       }
 
       .hero h1 {
-        font-size: clamp(1.5rem, 3vw, 2.25rem);
-        font-weight: 700;
-        letter-spacing: -0.03em;
-        margin-bottom: 0.5rem;
+        font-family: var(--display);
+        font-size: clamp(1.8rem, 3.8vw, 2.9rem);
+        font-weight: 800;
+        letter-spacing: -0.045em;
+        line-height: 1.05;
+        margin-bottom: 0.7rem;
       }
 
-      .hero h1 em {
-        font-style: normal;
-        color: var(--accent);
+      .hero h1 .lime { color: var(--lime); }
+
+      .hero .sub {
+        font-family: var(--mono);
+        font-size: 0.75rem;
+        color: var(--text-dim);
+        line-height: 1.65;
+        letter-spacing: 0.01em;
+        max-width: 480px;
       }
 
-      .hero p {
-        color: var(--text-muted);
-        font-size: 0.95rem;
-        max-width: 560px;
-        line-height: 1.6;
+      /* ── Controls column ── */
+      .controls {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
       }
 
+      /* ── Panel ── */
       .panel {
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: 10px;
-        display: flex;
-        flex-direction: column;
+        border-radius: 8px;
         overflow: hidden;
       }
 
-      .panel-header {
-        padding: 0.75rem 1rem;
+      .panel-hdr {
+        height: 36px;
+        padding: 0 0.875rem;
         border-bottom: 1px solid var(--border);
-        font-size: 0.75rem;
-        font-family: var(--mono);
-        color: var(--text-muted);
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.45rem;
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-mid);
       }
 
-      .panel-header .dot {
-        width: 6px;
-        height: 6px;
+      .pip {
+        width: 5px;
+        height: 5px;
         border-radius: 50%;
-        background: var(--accent);
+        background: var(--lime);
+        flex-shrink: 0;
       }
 
       .panel-body {
-        padding: 1rem;
-        flex: 1;
+        padding: 0.875rem;
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
+        gap: 0.6rem;
       }
 
-      .input-row {
+      /* ── Inputs ── */
+      .triple {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
-        gap: 0.5rem;
+        gap: 0.35rem;
       }
 
-      input, textarea {
+      input {
         background: var(--bg);
         border: 1px solid var(--border);
-        border-radius: 6px;
+        border-radius: 5px;
         color: var(--text);
         font-family: var(--mono);
-        font-size: 0.85rem;
-        padding: 0.5rem 0.75rem;
+        font-size: 0.75rem;
+        padding: 0.45rem 0.625rem;
         width: 100%;
         outline: none;
-        transition: border-color 0.15s;
+        transition: border-color 0.1s, background 0.1s;
       }
 
-      input:focus, textarea:focus {
-        border-color: var(--accent);
+      input:focus {
+        border-color: rgba(180, 245, 66, 0.5);
+        background: rgba(180, 245, 66, 0.015);
       }
 
-      input::placeholder, textarea::placeholder {
-        color: var(--text-muted);
-      }
+      input::placeholder { color: var(--text-dim); }
 
+      /* ── Buttons ── */
       button {
-        background: var(--accent);
-        border: none;
-        border-radius: 6px;
-        color: #fff;
         cursor: pointer;
-        font-size: 0.85rem;
-        font-weight: 600;
-        padding: 0.5rem 1rem;
-        transition: background 0.15s, opacity 0.15s;
-        white-space: nowrap;
-      }
-
-      button:hover { background: #6b59e8; }
-      button:active { opacity: 0.85; }
-      button.secondary {
-        background: transparent;
-        border: 1px solid var(--border);
-        color: var(--text-muted);
-      }
-      button.secondary:hover {
-        border-color: var(--accent);
-        color: var(--text);
-        background: transparent;
-      }
-
-      .button-row {
-        display: flex;
-        gap: 0.5rem;
-      }
-
-      .output {
-        background: var(--bg);
-        border: 1px solid var(--border);
-        border-radius: 6px;
         font-family: var(--mono);
-        font-size: 0.8rem;
-        flex: 1;
-        min-height: 180px;
-        overflow-y: auto;
-        padding: 0.75rem;
-        line-height: 1.6;
+        font-size: 0.72rem;
+        font-weight: 600;
+        border: none;
+        border-radius: 5px;
+        padding: 0.45rem 0.875rem;
+        white-space: nowrap;
+        transition: all 0.1s;
+        letter-spacing: 0.02em;
       }
 
-      .fact-row {
-        padding: 0.3rem 0;
+      .btn-primary {
+        background: var(--lime);
+        color: #060609;
+      }
+      .btn-primary:hover { background: #c8ff5c; }
+      .btn-primary:active { opacity: 0.88; }
+
+      .btn-ghost {
+        background: transparent;
+        border: 1px solid var(--border-hi);
+        color: var(--text-mid);
+      }
+      .btn-ghost:hover {
+        border-color: var(--text-mid);
+        color: var(--text);
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 0.35rem;
+      }
+
+      /* ── Example chips ── */
+      .chips-label {
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        color: var(--text-dim);
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.275rem;
+      }
+
+      .chip {
+        background: transparent;
+        border: 1px solid var(--border-hi);
+        border-radius: 3px;
+        color: var(--text-mid);
+        cursor: pointer;
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        font-weight: 400;
+        padding: 0.175rem 0.4rem;
+        transition: all 0.1s;
+      }
+
+      .chip:hover {
+        border-color: var(--lime-border);
+        color: var(--lime);
+        background: var(--lime-bg);
+      }
+
+      /* ── Status ── */
+      .status {
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        color: var(--text-dim);
+        min-height: 1.1rem;
+        line-height: 1.4;
+      }
+      .status.ok  { color: var(--green); }
+      .status.err { color: var(--red); }
+
+      /* ── Query row ── */
+      .qrow {
+        display: flex;
+        gap: 0.35rem;
+      }
+      .qrow input { flex: 1; }
+
+      /* ── Stream panel ── */
+      .stream {
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .stream-hdr {
+        height: 36px;
+        padding: 0 0.875rem;
         border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+      }
+
+      .stream-hdr-left {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-mid);
+      }
+
+      #stream-count {
+        color: var(--lime);
+        font-weight: 600;
+      }
+
+      #stream-mode {
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        color: var(--text-dim);
+        padding: 0.1rem 0.35rem;
+        border: 1px solid var(--border-hi);
+        border-radius: 3px;
+      }
+
+      .stream-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        min-height: 460px;
+      }
+
+      .stream-body::-webkit-scrollbar { width: 3px; }
+      .stream-body::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+      .stream-body::-webkit-scrollbar-track { background: transparent; }
+
+      /* ── Empty state ── */
+      .empty {
+        margin: auto;
+        text-align: center;
+        color: var(--text-dim);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        line-height: 1.75;
+        user-select: none;
+      }
+
+      .empty-glyph {
+        font-size: 2rem;
+        display: block;
+        margin-bottom: 0.75rem;
+        opacity: 0.3;
+        letter-spacing: -0.05em;
+      }
+
+      /* ── Fact row ── */
+      .fact-row {
         display: grid;
-        grid-template-columns: auto auto auto 1fr;
-        gap: 0.5rem;
-        align-items: baseline;
+        grid-template-columns: auto auto auto auto 1fr auto;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.3rem 0.25rem;
+        border-bottom: 1px solid rgba(28, 28, 46, 0.7);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        animation: fact-in 0.18s ease-out both;
       }
 
       .fact-row:last-child { border-bottom: none; }
 
+      @keyframes fact-in {
+        from { opacity: 0; transform: translateX(-6px); }
+        to   { opacity: 1; transform: translateX(0); }
+      }
+
       .tag {
-        font-size: 0.7rem;
-        padding: 0.1rem 0.4rem;
-        border-radius: 3px;
+        font-size: 0.65rem;
         font-weight: 600;
+        padding: 0.1rem 0.35rem;
+        border-radius: 3px;
+        line-height: 1.4;
+        white-space: nowrap;
       }
 
-      .tag-s { background: #1e3a5f; color: #7eb8f7; }
-      .tag-p { background: #1a3a2a; color: #6ee7a0; }
-      .tag-o { background: #3a1a3a; color: #d8a0f7; }
+      .tag-s { background: var(--blue-bg);   color: var(--blue);   border: 1px solid var(--blue-border); }
+      .tag-p { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
+      .tag-o { background: var(--lime-bg);   color: var(--lime);   border: 1px solid var(--lime-border); }
 
-      .fact-value { color: var(--text); }
-      .fact-time { color: var(--text-muted); font-size: 0.72rem; margin-left: auto; }
-
-      .status {
-        font-size: 0.8rem;
-        color: var(--text-muted);
-        font-family: var(--mono);
-        min-height: 1.5rem;
+      .sep {
+        color: var(--border-hi);
+        font-size: 0.6rem;
+        user-select: none;
       }
 
-      .status.ok { color: var(--green); }
-      .status.err { color: var(--red); }
-
-      .examples {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.4rem;
-        margin-top: 0.25rem;
+      .fact-time {
+        color: var(--text-dim);
+        font-size: 0.6rem;
+        margin-left: auto;
+        white-space: nowrap;
       }
 
-      .example-btn {
-        background: transparent;
-        border: 1px solid var(--border);
-        border-radius: 4px;
-        color: var(--text-muted);
-        cursor: pointer;
-        font-family: var(--mono);
-        font-size: 0.72rem;
-        font-weight: 400;
-        padding: 0.25rem 0.5rem;
-      }
-
-      .example-btn:hover {
-        background: transparent;
-        border-color: var(--accent);
-        color: var(--accent);
-      }
-
+      /* ── Loading overlay ── */
       .loading-overlay {
         position: fixed;
         inset: 0;
@@ -286,9 +475,9 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 1rem;
-        z-index: 100;
-        transition: opacity 0.3s;
+        gap: 1.5rem;
+        z-index: 200;
+        transition: opacity 0.35s ease;
       }
 
       .loading-overlay.hidden {
@@ -296,108 +485,182 @@
         pointer-events: none;
       }
 
-      .spinner {
-        width: 32px;
-        height: 32px;
-        border: 2px solid var(--border);
-        border-top-color: var(--accent);
-        border-radius: 50%;
-        animation: spin 0.7s linear infinite;
+      .loading-wordmark {
+        font-family: var(--display);
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        color: var(--text);
       }
 
-      @keyframes spin { to { transform: rotate(360deg); } }
+      .loading-track {
+        width: 180px;
+        height: 2px;
+        background: var(--border);
+        border-radius: 1px;
+        overflow: hidden;
+      }
 
-      .loading-text {
-        color: var(--text-muted);
+      .loading-fill {
+        height: 100%;
+        background: var(--lime);
+        border-radius: 1px;
+        animation: track 1.4s ease-in-out infinite alternate;
+      }
+
+      @keyframes track {
+        from { width: 8%;  margin-left: 0; }
+        to   { width: 55%; margin-left: 45%; }
+      }
+
+      .loading-label {
         font-family: var(--mono);
-        font-size: 0.85rem;
+        font-size: 0.7rem;
+        color: var(--text-dim);
+        letter-spacing: 0.04em;
       }
 
+      /* ── Footer ── */
       footer {
+        position: relative;
+        z-index: 1;
         border-top: 1px solid var(--border);
-        padding: 1rem 2rem;
-        font-size: 0.78rem;
-        color: var(--text-muted);
+        padding: 0.75rem 2.5rem;
+        font-family: var(--mono);
+        font-size: 0.67rem;
+        color: var(--text-dim);
         display: flex;
-        gap: 1.5rem;
         align-items: center;
+        gap: 1.5rem;
+        background: rgba(6, 6, 9, 0.6);
       }
 
-      footer a { color: var(--text-muted); text-decoration: none; }
-      footer a:hover { color: var(--text); }
+      footer a { color: var(--text-dim); text-decoration: none; transition: color 0.12s; }
+      footer a:hover { color: var(--text-mid); }
+      footer .sep { color: var(--border-hi); }
 
-      @media (max-width: 768px) {
-        main { grid-template-columns: 1fr; padding: 1rem; }
+      /* ── Responsive ── */
+      @media (max-width: 840px) {
+        main {
+          grid-template-columns: 1fr;
+          padding: 1.5rem 1.25rem;
+          gap: 1.25rem;
+        }
         .hero { grid-column: 1; }
-        .input-row { grid-template-columns: 1fr; }
-        header { padding: 0.75rem 1rem; }
-        .header-links { display: none; }
+        .stream-body { min-height: 300px; }
+        header { padding: 0 1.25rem; }
+        .header-nav { display: none; }
+        footer { padding: 0.75rem 1.25rem; gap: 1rem; }
       }
     </style>
   </head>
   <body>
+
+    <!-- Loading -->
     <div class="loading-overlay" id="loading">
-      <div class="spinner"></div>
-      <div class="loading-text">Loading WASM engine…</div>
+      <div class="loading-wordmark">Kronroe</div>
+      <div class="loading-track">
+        <div class="loading-fill"></div>
+      </div>
+      <div class="loading-label">initialising wasm engine…</div>
     </div>
 
+    <!-- Header -->
     <header>
-      <div class="logo">Kron<span>roe</span></div>
+      <div class="logo">
+        <div class="logo-mark">K</div>
+        Kronroe
+      </div>
       <div class="badge">WASM</div>
-      <nav class="header-links">
-        <a href="https://github.com/kronroe/kronroe" target="_blank">GitHub</a>
-        <a href="https://github.com/kronroe/kronroe#readme" target="_blank">Docs</a>
-        <a href="https://crates.io/crates/kronroe" target="_blank">crates.io</a>
+      <nav class="header-nav">
+        <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/kronroe/kronroe#readme" target="_blank" rel="noopener">Docs</a>
+        <a href="https://crates.io/crates/kronroe" target="_blank" rel="noopener">crates.io</a>
       </nav>
     </header>
 
+    <!-- Main -->
     <main>
       <section class="hero">
-        <h1>Bi-temporal graph. <em>In your browser.</em></h1>
-        <p>Kronroe is an embedded temporal property graph database written in pure Rust — compiled to WebAssembly. Every fact carries four timestamps. No server required.</p>
+        <h1>Bi-temporal graph.<br><span class="lime">In your browser.</span></h1>
+        <p class="sub">// Pure Rust → WebAssembly. Every fact carries four timestamps.<br>// No server. No network. No schema.</p>
       </section>
 
-      <div class="panel">
-        <div class="panel-header"><div class="dot"></div>Assert facts</div>
-        <div class="panel-body">
-          <div class="input-row">
-            <input id="subject" placeholder="subject" />
-            <input id="predicate" placeholder="predicate" />
-            <input id="object" placeholder="object" />
+      <!-- Left: controls -->
+      <div class="controls">
+
+        <!-- Assert -->
+        <div class="panel">
+          <div class="panel-hdr">
+            <div class="pip"></div>
+            Assert fact
           </div>
-          <div class="button-row">
-            <button id="assert-btn">Assert</button>
-            <button class="secondary" id="clear-btn">Clear graph</button>
+          <div class="panel-body">
+            <div class="triple">
+              <input id="subject"   placeholder="subject" />
+              <input id="predicate" placeholder="predicate" />
+              <input id="object"    placeholder="object" />
+            </div>
+            <div class="btn-row">
+              <button class="btn-primary" id="assert-btn">Assert →</button>
+              <button class="btn-ghost"   id="clear-btn">Clear graph</button>
+            </div>
+            <div class="chips-label">TRY</div>
+            <div class="chips" id="examples"></div>
+            <div class="status" id="assert-status"></div>
           </div>
-          <div class="examples">
-            <span style="font-size:0.72rem;color:var(--text-muted);align-self:center">Try:</span>
+        </div>
+
+        <!-- Query -->
+        <div class="panel">
+          <div class="panel-hdr">
+            <div class="pip"></div>
+            Query entity
           </div>
-          <div class="status" id="assert-status"></div>
+          <div class="panel-body">
+            <div class="qrow">
+              <input id="query-entity" placeholder="entity (e.g. alice)" />
+              <button class="btn-primary" id="query-btn">Query →</button>
+            </div>
+            <div class="qrow">
+              <input id="query-pred" placeholder="predicate filter (optional)" />
+              <button class="btn-ghost" id="show-all-btn">Show all</button>
+            </div>
+            <div class="status" id="query-status"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right: fact stream -->
+      <div class="stream">
+        <div class="stream-hdr">
+          <div class="stream-hdr-left">
+            <div class="pip"></div>
+            Fact stream
+            <span id="stream-count">0 facts</span>
+          </div>
+          <span id="stream-mode">ALL</span>
+        </div>
+        <div class="stream-body" id="stream-body">
+          <div class="empty">
+            <span class="empty-glyph">◈</span>
+            No facts yet.<br>Assert one above to begin.
+          </div>
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-header"><div class="dot"></div>Query facts</div>
-        <div class="panel-body">
-          <div style="display:flex;gap:0.5rem">
-            <input id="query-entity" placeholder="entity name (e.g. alice)" style="flex:1" />
-            <button id="query-btn">Query</button>
-          </div>
-          <div style="display:flex;gap:0.5rem">
-            <input id="search-text" placeholder="full-text search…" style="flex:1" />
-            <button id="search-btn">Search</button>
-          </div>
-          <div class="output" id="output">
-            <span style="color:var(--text-muted)">Results will appear here…</span>
-          </div>
-        </div>
-      </div>
     </main>
 
+    <!-- Footer -->
     <footer>
-      <span>Kronroe — AGPL-3.0 / Commercial</span>
-      <a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank">Commercial licence</a>
-      <a href="https://github.com/kronroe/kronroe/blob/main/README.md" target="_blank">Docs</a>
+      <span>Kronroe</span>
+      <span class="sep">·</span>
+      <span>AGPL-3.0 / Commercial</span>
+      <span class="sep">·</span>
+      <a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank" rel="noopener">Commercial licence</a>
+      <a href="https://github.com/kronroe/kronroe/blob/main/README.md" target="_blank" rel="noopener">Docs</a>
     </footer>
+
   </body>
 </html>

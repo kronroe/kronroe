@@ -1,0 +1,6 @@
+# Configure getrandom 0.3 to use the browser's Crypto.getRandomValues API
+# when building for wasm32-unknown-unknown. getrandom 0.3 replaced the
+# `wasm-bindgen` / `wasm_js` Cargo feature with this rustflag mechanism.
+# getrandom 0.2 still uses `features = ["js"]` (see Cargo.toml).
+[target.wasm32-unknown-unknown]
+rustflags = ["--cfg", "getrandom_backend=\"wasm_js\""]

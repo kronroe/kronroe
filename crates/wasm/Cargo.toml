@@ -11,16 +11,21 @@ repository.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-kronroe = { path = "../core" }
+# default-features = false excludes the `fulltext` feature (tantivy/zstd-sys),
+# which has C dependencies that cannot compile to wasm32-unknown-unknown.
+kronroe = { path = "../core", default-features = false }
 wasm-bindgen = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde-wasm-bindgen = "0.6"
 chrono = { workspace = true }
 
-# Required for ulid randomness on wasm32-unknown-unknown.
-# Enables Crypto.getRandomValues via wasm-bindgen.
-getrandom = { version = "0.3", features = ["wasm_js"] }
+# ulid → getrandom 0.2: declare here with "js" feature so Cargo merges it.
+getrandom = { version = "0.2", features = ["js"] }
+# ulid → rand 0.9 → rand_core → getrandom 0.3: enable "wasm_js" feature.
+# Must also set --cfg getrandom_backend="wasm_js" via .cargo/config.toml.
+# Aliased as "getrandom3" so Cargo allows two versions of the same package.
+getrandom3 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
