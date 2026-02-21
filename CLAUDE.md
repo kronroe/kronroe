@@ -211,13 +211,13 @@ Snapshot as of 2026-02-21. See GitHub milestones/issues for source of truth.
 | 0.2 | iOS compilation spike | ✅ Done locally (aarch64-apple-ios + aarch64-apple-ios-sim compile) | Rebekah (local) |
 | 0.3 | Full-text index (tantivy) | ✅ Done | — |
 | 0.4 | Python bindings (PyO3) | ✅ Done | — |
-| 0.5 | MCP server | ✅ Done — stdio server + npm/pip shims merged | — |
-| 0.6 | iOS XCFramework | ✅ Done — `crates/ios` C FFI + cbindgen header + Swift Package + build script merged | — |
+| 0.5 | MCP server | ✅ Done — stdio server, 5 tools (remember/recall/facts_about/assert_fact/correct_fact), pip wrapper | — |
+| 0.6 | iOS XCFramework | ✅ Done locally (aarch64-apple-ios + Swift package scaffold, commit cc4287e) | Rebekah (local) |
 | 0.7 | Kindly Roe integration | ⬜ Not started | Rebekah (local) |
 | 0.8 | Vector index | ✅ Done — flat cosine similarity, zero deps, temporal filtering, PR #18 | — |
 | 0.9 | Android AAR (UniFFI) | ⬜ Not started | Claude can help |
 | 0.10 | WASM playground | 🟡 Site scaffold + Firebase Hosting config merged — need service account secret + custom domains | Claude can help |
-| 0.11 | CI pipeline | 🟡 Core CI + iOS CI green; Python wheel CI Linux-only (macOS TBD) | Claude can help |
+| 0.11 | CI pipeline | ✅ Done — `test` + `clippy` + `fmt` + iOS packaging + Python wheels all green | — |
 | 0.12 | Storage format commitment | ⬜ Not started | Rebekah decision |
 
 ## What Claude Can and Cannot Do in This Repo
