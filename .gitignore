@@ -33,3 +33,6 @@ firestore-debug.log
 site/dist/
 site/node_modules/
 site/public/pkg/
+
+# Private ideas / future phases (not for public repo)
+.ideas/
