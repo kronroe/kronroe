@@ -51,14 +51,14 @@ kronroe/
 ## Running the Project
 
 ```bash
-# Run all tests
-cargo test --all
+# Run all tests (CI runs --all-features, match it locally)
+cargo test --all --all-features
 
-# Run with vector feature enabled
+# Run with vector feature only
 cargo test -p kronroe --features vector
 
-# Lint (must pass with no warnings)
-cargo clippy --all -- -D warnings
+# Lint (must pass with no warnings — CI runs --all-features, match it locally)
+cargo clippy --all --all-features -- -D warnings
 
 # Format check
 cargo fmt --all -- --check
@@ -191,8 +191,8 @@ Future crates will layer on top: `crates/android/`.
 - Enabled with `--features vector` (not in `default`; callers opt in)
 - **Phase 0 implementation:** flat brute-force cosine similarity — O(n·d) search,
   zero new dependencies, works on all targets (native, WASM, iOS, Android)
-- `VectorIndex` stores `Vec<(FactId, Vec<f32>)>` in memory; **not persisted to redb**
-  — callers re-populate embeddings on restart
+- `VectorIndex` is an in-memory read cache over the `EMBEDDINGS` redb table — rebuilt from redb
+  on every `open()` / `open_in_memory()` call via `rebuild_vector_index_from_db()`
 - Kronroe never generates embeddings — the caller (`kronroe-agent-memory`, or the
   application) computes them and passes pre-computed `Vec<f32>` to `assert_fact_with_embedding`
 - `search_by_vector(query, k, at)` gates results through a bi-temporal `valid_ids`
@@ -200,6 +200,20 @@ Future crates will layer on top: `crates/android/`.
   for historical point-in-time searches (`at = Some(t)`)
 - **Phase 1 path:** if HNSW is needed, fork `rust-cv/hnsw` (no_std, no rayon, ~350 lines,
   WASM-safe) — **not** `hnsw_rs` (hard rayon+mmap deps = can never work on WASM/iOS)
+
+## Rust / redb Gotchas
+
+- **redb `AccessGuard` borrow:** `table.get("key")?` returns `AccessGuard<V>` that borrows
+  `table`. Extract to owned before any mutable borrow:
+  `let v: Option<u64> = table.get("key")?.map(|g| g.value());`
+- **`unexpected_cfgs` on CI:** CI runs `clippy --all-features`. Any `#[cfg(feature = "foo")]`
+  in code requires `foo = []` declared in `Cargo.toml` or clippy fails with `-D unexpected-cfgs`.
+- **Targeted `git add` leaves Cargo.toml unstaged:** When committing with specific file paths,
+  always run `git status` after to catch modified-but-unstaged files (especially `Cargo.toml`).
+- **`Value` does not derive `PartialEq`:** Use `matches!(&val, Value::Text(s) if s == "foo")`
+  in tests instead of `assert_eq!`.
+- **`.ideas/` has private experiment planning docs** — gitignored, check there for context on
+  experimental features before starting new work (e.g. `EXPERIMENT_01_HYBRID_RETRIEVAL_RESEARCH.md`).
 
 ## Phase 0 Milestone Status
 
