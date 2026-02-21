@@ -15,6 +15,7 @@ crate-type = ["rlib", "staticlib"]
 [features]
 default = ["fulltext"]
 fulltext = ["dep:tantivy"]
+vector = []
 
 [dependencies]
 redb = { workspace = true }
