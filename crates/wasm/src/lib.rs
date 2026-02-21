@@ -189,7 +189,12 @@ impl WasmGraph {
             .map_err(|e: chrono::ParseError| JsValue::from_str(&e.to_string()))?;
         let id = self
             .inner
-            .assert_fact(subject, predicate, Value::Entity(entity.to_string()), valid_from)
+            .assert_fact(
+                subject,
+                predicate,
+                Value::Entity(entity.to_string()),
+                valid_from,
+            )
             .map_err(to_js_err)?;
         Ok(id.to_string())
     }
