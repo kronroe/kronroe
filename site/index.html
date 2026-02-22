@@ -273,7 +273,7 @@
       /* ── Type-at row (below triple in assert panel) ── */
       .type-at-row {
         display: grid;
-        grid-template-columns: auto 1fr;
+        grid-template-columns: auto auto 1fr;
         gap: 0.35rem;
         align-items: center;
       }
@@ -418,6 +418,12 @@
         font-weight: 600;
       }
 
+      .stream-hdr-right {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
       #stream-mode {
         font-family: var(--mono);
         font-size: 0.6rem;
@@ -427,6 +433,24 @@
         padding: 0.1rem 0.35rem;
         border: 1px solid var(--border-hi);
         border-radius: 3px;
+      }
+
+      .btn-export {
+        font-family: var(--mono);
+        font-size: 0.55rem;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        color: var(--text-dim);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        padding: 0.1rem 0.4rem;
+        cursor: pointer;
+        transition: color 0.15s, border-color 0.15s;
+      }
+      .btn-export:hover {
+        color: var(--lime);
+        border-color: var(--lime);
       }
 
       .stream-body {
@@ -501,6 +525,17 @@
 
       .fact-row:last-child { border-bottom: none; }
 
+      .stream-divider {
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        letter-spacing: 0.08em;
+        color: var(--red);
+        opacity: 0.6;
+        padding: 0.5rem 0.75rem 0.3rem;
+        border-top: 1px solid color-mix(in srgb, var(--red) 20%, transparent);
+        margin-top: 0.15rem;
+      }
+
       @keyframes fact-in {
         from { opacity: 0; transform: translateX(-6px); }
         to   { opacity: 1; transform: translateX(0); }
@@ -528,9 +563,65 @@
       .fact-time {
         color: var(--text-dim);
         font-size: 0.6rem;
-        margin-left: auto;
         white-space: nowrap;
+        cursor: default;
       }
+
+      /* ── Bi-temporal timestamp tooltip ── */
+      .fact-timestamps {
+        position: relative;
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+      }
+
+      .fact-ts-tooltip { display: none; } /* hidden data container — shown via #ts-tooltip */
+
+      /* Global fixed tooltip — avoids overflow clipping from stream-body */
+      #ts-tooltip {
+        position: fixed;
+        z-index: 9999;
+        background: var(--surface-2);
+        border: 1px solid var(--border-hi);
+        border-radius: 6px;
+        padding: 0.55rem 0.7rem;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.1s;
+        min-width: 240px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      }
+      #ts-tooltip.visible { opacity: 1; }
+
+      .ts-row {
+        display: flex;
+        gap: 0.5rem;
+        align-items: baseline;
+        padding: 0.07rem 0;
+      }
+
+      .ts-row-divider {
+        margin-top: 0.35rem;
+        padding-top: 0.35rem;
+        border-top: 1px solid var(--border);
+      }
+
+      .ts-key {
+        font-family: var(--mono);
+        font-size: 0.58rem;
+        color: var(--text-dim);
+        min-width: 85px;
+        flex-shrink: 0;
+      }
+
+      .ts-val {
+        font-family: var(--mono);
+        font-size: 0.58rem;
+        color: var(--text-mid);
+      }
+
+      .ts-val.ts-active  { color: var(--lime); }
+      .ts-val.ts-expired { color: var(--red); }
 
       /* ── Loading overlay ── */
       .loading-overlay {
@@ -674,8 +765,8 @@
                 <option value="Boolean">Boolean</option>
                 <option value="Entity">Entity →</option>
               </select>
-              <input type="datetime-local" id="assert-at" title="valid_from — optional. If set, this fact starts being true at that time; leave blank for now." />
               <span class="at-hint" title="Bi-temporal tip: set valid_from to record when this was true in the real world.">valid from</span>
+              <input type="datetime-local" id="assert-at" title="valid_from — optional. If set, this fact starts being true at that time; leave blank for now." />
             </div>
             <div class="btn-row">
               <button class="btn-primary" id="assert-btn">Assert →</button>
@@ -723,7 +814,10 @@
             Fact stream
             <span id="stream-count">0 facts</span>
           </div>
-          <span id="stream-mode">ALL</span>
+          <div class="stream-hdr-right">
+            <button class="btn-export" id="export-btn" title="Download visible facts as JSON">↓ JSON</button>
+            <span id="stream-mode">ALL</span>
+          </div>
         </div>
         <div class="stream-body" id="stream-body">
           <div class="empty">
@@ -745,5 +839,6 @@
       <a href="https://github.com/kronroe/kronroe/blob/main/README.md" target="_blank" rel="noopener">Docs</a>
     </footer>
 
+  <div id="ts-tooltip"></div>
   </body>
 </html>

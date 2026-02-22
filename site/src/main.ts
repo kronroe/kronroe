@@ -116,9 +116,20 @@ function fmtValue(v: WasmFactObject): string {
 
 function fmtTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString([], {
-      hour: "2-digit", minute: "2-digit", second: "2-digit",
-    });
+    const d   = new Date(iso);
+    const now = new Date();
+    const today =
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth()    === now.getMonth()    &&
+      d.getDate()     === now.getDate();
+    if (today) {
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
+    return (
+      d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) +
+      " · " +
+      d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    );
   } catch {
     return iso;
   }
@@ -131,6 +142,37 @@ function localInputToISO(val: string): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+function fmtTooltipTime(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return (
+      d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" }) +
+      "  " +
+      d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    );
+  } catch {
+    return iso;
+  }
+}
+
+function tsTooltipHtml(f: WasmFact): string {
+  const vf = `<span class="ts-val">${esc(fmtTooltipTime(f.valid_from))}</span>`;
+  const vt = f.valid_to
+    ? `<span class="ts-val">${esc(fmtTooltipTime(f.valid_to))}</span>`
+    : `<span class="ts-val ts-active">current</span>`;
+  const ra = `<span class="ts-val">${esc(fmtTooltipTime(f.recorded_at))}</span>`;
+  const ea = f.expired_at
+    ? `<span class="ts-val ts-expired">${esc(fmtTooltipTime(f.expired_at))}</span>`
+    : `<span class="ts-val ts-active">active</span>`;
+  return `<div class="fact-ts-tooltip">
+    <div class="ts-row"><span class="ts-key">valid_from</span>${vf}</div>
+    <div class="ts-row"><span class="ts-key">valid_to</span>${vt}</div>
+    <div class="ts-row ts-row-divider"><span class="ts-key">recorded_at</span>${ra}</div>
+    <div class="ts-row"><span class="ts-key">expired_at</span>${ea}</div>
+  </div>`;
+}
+
 /** Convert an ISO timestamp to a datetime-local value ("YYYY-MM-DDTHH:mm"). */
 function isoToLocalInput(iso: string): string {
   const d = new Date(iso);
@@ -140,7 +182,9 @@ function isoToLocalInput(iso: string): string {
 }
 
 function factRowHtml(f: WasmFact): string {
-  const expired = f.expired_at !== null;
+  // A fact is "expired" if valid_to is set (engine-level invalidation via valid-time end)
+  // OR if expired_at is set (transaction-time correction). Both render as dimmed/strikethrough.
+  const expired = f.valid_to !== null || f.expired_at !== null;
   const cls     = expired ? " invalidated" : "";
   return `<div class="fact-row${cls}" data-id="${esc(f.id)}">
     <span class="tag tag-s">${esc(f.subject)}</span>
@@ -148,7 +192,10 @@ function factRowHtml(f: WasmFact): string {
     <span class="tag tag-p">${esc(f.predicate)}</span>
     <span class="sep">→</span>
     <span class="tag tag-o">${esc(fmtValue(f.object))}</span>
-    <span class="fact-time">${fmtTime(f.valid_from)}</span>
+    <div class="fact-timestamps">
+      <span class="fact-time">${fmtTime(f.valid_from)}</span>
+      ${tsTooltipHtml(f)}
+    </div>
     <button class="btn-invalidate" data-id="${esc(f.id)}" title="Invalidate fact"${expired ? " disabled" : ""}>×</button>
   </div>`;
 }
@@ -206,13 +253,15 @@ async function init() {
   const streamBody  = document.getElementById("stream-body")!;
   const streamCount = document.getElementById("stream-count")!;
   const streamMode  = document.getElementById("stream-mode")!;
+  const exportBtn   = document.getElementById("export-btn")! as HTMLButtonElement;
   const examplesEl  = document.getElementById("examples")!;
 
   // ── State ─────────────────────────────────────────────────────────────────
 
-  let allFacts: WasmFact[]   = []; // complete history (including invalidated)
+  let allFacts: WasmFact[]      = []; // complete history (including invalidated)
   let storedFacts: StoredFact[] = []; // mirror for localStorage
   let viewMode: "all" | "query" = "all";
+  let lastRenderedFacts: WasmFact[] = []; // snapshot of the last renderFacts() call
 
   /** Facts that have not been invalidated — used for the "ALL" stream view. */
   function activeFacts(): WasmFact[] {
@@ -345,6 +394,7 @@ async function init() {
   }
 
   function renderFacts(facts: WasmFact[], modeLabel: string) {
+    lastRenderedFacts = facts;
     streamMode.textContent  = modeLabel;
     streamCount.textContent = `${facts.length} fact${facts.length !== 1 ? "s" : ""}`;
     if (facts.length === 0) {
@@ -502,6 +552,44 @@ async function init() {
     }
   });
 
+  // ── Bi-temporal timestamp tooltip (fixed, avoids scroll clipping) ─────────
+
+  const tsTip = document.getElementById("ts-tooltip")!;
+
+  streamBody.addEventListener("mouseover", (e) => {
+    const ts = (e.target as HTMLElement).closest(".fact-timestamps") as HTMLElement | null;
+    if (!ts) { return; }
+    const inner = ts.querySelector(".fact-ts-tooltip");
+    if (!inner) { return; }
+    tsTip.innerHTML = inner.innerHTML;
+    const rect = ts.getBoundingClientRect();
+    const tipW = 248;
+    const vw   = window.innerWidth;
+    const left = Math.min(vw - tipW - 4, Math.max(4, rect.right - tipW));
+    const top  = rect.bottom + 6;
+    tsTip.style.left = `${left}px`;
+    tsTip.style.top  = `${top}px`;
+    tsTip.classList.add("visible");
+  });
+
+  streamBody.addEventListener("mouseleave", () => {
+    tsTip.classList.remove("visible");
+  });
+
+  // ── Export JSON ───────────────────────────────────────────────────────────
+
+  exportBtn.addEventListener("click", () => {
+    if (lastRenderedFacts.length === 0) { return; }
+    const json = JSON.stringify(lastRenderedFacts, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = "kronroe-facts.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
   // ── Clear ─────────────────────────────────────────────────────────────────
 
   clearBtn.addEventListener("click", () => {
@@ -541,6 +629,7 @@ async function init() {
     try {
       let facts: WasmFact[];
       let label: string;
+      let historyDividerAt: number | null = null; // index into facts[] where invalidated rows begin
 
       if (pred && atISO) {
         // facts_at: entity + predicate + point-in-time
@@ -561,21 +650,42 @@ async function init() {
         });
         label = `${entity} @ ${fmtTime(atISO)}`;
       } else {
-        // all_facts_about: everything ever recorded for entity
-        facts = JSON.parse(graph.all_facts_about(entity)) as WasmFact[];
+        // all_facts_about: full history — sort active first, invalidated after
+        const allAbout = JSON.parse(graph.all_facts_about(entity)) as WasmFact[];
+        // "active" = no valid-time end AND no transaction-time expiry
+        const active      = allAbout.filter(f => f.valid_to === null && f.expired_at === null);
+        const invalidated = allAbout.filter(f => f.valid_to !== null || f.expired_at !== null);
+        facts = [...active, ...invalidated];
+        if (invalidated.length > 0) { historyDividerAt = active.length; }
         label = `all:${entity}`;
       }
 
       viewMode = "query";
       renderFacts(facts, label);
+
+      // Inject a section divider between current and invalidated history rows
+      if (historyDividerAt !== null && historyDividerAt < facts.length) {
+        const rows = streamBody.querySelectorAll(".fact-row");
+        const pivotRow = rows[historyDividerAt] as HTMLElement | undefined;
+        if (pivotRow) {
+          const div = document.createElement("div");
+          div.className = "stream-divider";
+          div.textContent = "INVALIDATED HISTORY";
+          streamBody.insertBefore(div, pivotRow);
+        }
+      }
+
       const truncatedNote = facts.length > MAX_RENDER_FACTS
         ? ` Showing first ${MAX_RENDER_FACTS} results.`
         : "";
+      const invCount = historyDividerAt !== null ? facts.length - historyDividerAt : 0;
+      const actCount = historyDividerAt !== null ? historyDividerAt : facts.length;
+      const breakdown = invCount > 0 ? ` (${actCount} current · ${invCount} history)` : "";
       setStatus(
         queryStatus,
         facts.length === 0
           ? `No facts found for "${label}".`
-          : `${facts.length} result${facts.length !== 1 ? "s" : ""}.${truncatedNote}`,
+          : `${facts.length} result${facts.length !== 1 ? "s" : ""}${breakdown}.${truncatedNote}`,
         facts.length === 0 ? "err" : "ok"
       );
     } catch (e) {
