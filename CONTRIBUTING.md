@@ -148,6 +148,11 @@ kronroe-agent-memory   ← high-level AgentMemory API
 
 Future crates (`crates/python/`, `crates/ios/`, etc.) layer on top of `kronroe` core.
 
+### Naming conventions
+
+Use the repository naming standard in [`docs/NAMING-CONVENTIONS.md`](./docs/NAMING-CONVENTIONS.md).
+Library entrypoints are explicitly declared in each crate `Cargo.toml` via `[lib] path` and must use named source files.
+
 The core crate has **no C dependencies**. Keep it that way. If you need a C library, it belongs
 in a separate crate with an explicit feature flag.
 

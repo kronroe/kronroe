@@ -9,6 +9,7 @@ description = "iOS FFI bindings for Kronroe"
 
 [lib]
 name = "kronroe_ios"
+path = "src/ffi.rs"
 crate-type = ["staticlib"]
 
 [dependencies]

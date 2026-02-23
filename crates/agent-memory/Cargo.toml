@@ -9,6 +9,13 @@ description = "High-level agent memory API built on Kronroe"
 keywords = ["agent-memory", "ai", "graph", "temporal", "mcp"]
 categories = ["database-implementations"]
 
+[lib]
+path = "src/agent_memory.rs"
+
+[features]
+default = []
+hybrid = ["kronroe/vector"]
+
 [dependencies]
 kronroe = { path = "../core" }
 serde = { workspace = true }

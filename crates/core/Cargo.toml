@@ -10,6 +10,7 @@ keywords = ["graph", "database", "temporal", "embedded", "agent-memory"]
 categories = ["database-implementations", "data-structures"]
 
 [lib]
+path = "src/temporal_graph.rs"
 crate-type = ["rlib", "staticlib"]
 
 [features]

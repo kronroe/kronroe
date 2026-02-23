@@ -8,6 +8,7 @@ description = "Kronroe temporal graph database — WebAssembly bindings"
 repository.workspace = true
 
 [lib]
+path = "src/wasm_bindings.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

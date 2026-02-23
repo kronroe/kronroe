@@ -149,6 +149,8 @@ db.invalidate_fact(&id, Utc::now())?;
 
 Contributions are welcome. Before your first pull request is merged, you'll be asked to sign the [Contributor Licence Agreement](./CLA.md) — a bot will prompt you automatically. The CLA lets us maintain the dual-licence model while keeping the project open.
 
+Naming standards for crate entrypoints and path references are documented in [`docs/NAMING-CONVENTIONS.md`](./docs/NAMING-CONVENTIONS.md).
+
 ## Licence
 
 Kronroe is dual-licensed:
