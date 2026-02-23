@@ -85,13 +85,8 @@ impl AgentMemory {
         predicate: &str,
         object: impl Into<Value>,
     ) -> Result<FactId> {
-        self.graph.assert_fact_idempotent(
-            idempotency_key,
-            subject,
-            predicate,
-            object,
-            Utc::now(),
-        )
+        self.graph
+            .assert_fact_idempotent(idempotency_key, subject, predicate, object, Utc::now())
     }
 
     /// Store a structured fact with explicit parameters.
