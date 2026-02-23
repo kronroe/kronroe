@@ -74,6 +74,21 @@ impl AgentMemory {
             .assert_fact(subject, predicate, object, Utc::now())
     }
 
+    /// Store a structured fact with idempotent retry semantics.
+    ///
+    /// Reusing the same `idempotency_key` returns the original fact ID and
+    /// avoids duplicate writes.
+    pub fn assert_idempotent(
+        &self,
+        idempotency_key: &str,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+    ) -> Result<FactId> {
+        self.graph
+            .assert_fact_idempotent(idempotency_key, subject, predicate, object, Utc::now())
+    }
+
     /// Store a structured fact with explicit parameters.
     pub fn assert_with_params(
         &self,
@@ -136,6 +151,24 @@ impl AgentMemory {
 
         self.graph
             .assert_fact(episode_id, "memory", text.to_string(), Utc::now())
+    }
+
+    /// Store an unstructured memory episode with idempotent retry semantics.
+    ///
+    /// Reusing `idempotency_key` returns the same fact ID and avoids duplicates.
+    pub fn remember_idempotent(
+        &self,
+        idempotency_key: &str,
+        text: &str,
+        episode_id: &str,
+    ) -> Result<FactId> {
+        self.graph.assert_fact_idempotent(
+            idempotency_key,
+            episode_id,
+            "memory",
+            text.to_string(),
+            Utc::now(),
+        )
     }
 
     /// Retrieve memory facts by query, using vector search when embedding is provided.
@@ -236,6 +269,36 @@ mod tests {
         assert_eq!(facts[0].subject, "ep-001");
         assert_eq!(facts[0].predicate, "memory");
         assert!(matches!(&facts[0].object, Value::Text(t) if t == "Alice loves Rust"));
+    }
+
+    #[test]
+    fn test_assert_idempotent_dedupes_same_key() {
+        let (mem, _tmp) = open_temp_memory();
+        let first = mem
+            .assert_idempotent("evt-1", "alice", "works_at", "Acme")
+            .unwrap();
+        let second = mem
+            .assert_idempotent("evt-1", "alice", "works_at", "Acme")
+            .unwrap();
+        assert_eq!(first, second);
+
+        let facts = mem.facts_about("alice").unwrap();
+        assert_eq!(facts.len(), 1);
+    }
+
+    #[test]
+    fn test_remember_idempotent_dedupes_same_key() {
+        let (mem, _tmp) = open_temp_memory();
+        let first = mem
+            .remember_idempotent("evt-memory-1", "Alice loves Rust", "ep-001")
+            .unwrap();
+        let second = mem
+            .remember_idempotent("evt-memory-1", "Alice loves Rust", "ep-001")
+            .unwrap();
+        assert_eq!(first, second);
+
+        let facts = mem.facts_about("ep-001").unwrap();
+        assert_eq!(facts.len(), 1);
     }
 
     #[test]

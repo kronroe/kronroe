@@ -321,6 +321,11 @@ impl Fact {
 /// This is the Phase 0 storage strategy — a proper multi-level B-tree
 /// index will replace this in Phase 1.
 const FACTS: TableDefinition<&str, &str> = TableDefinition::new("facts");
+/// Maps client-supplied idempotency keys to persisted fact IDs.
+///
+/// Used by [`TemporalGraph::assert_fact_idempotent`] to provide safe retry
+/// semantics for ingestion workflows.
+const IDEMPOTENCY: TableDefinition<&str, &str> = TableDefinition::new("idempotency");
 
 /// Raw little-endian f32 bytes keyed by fact_id string.
 /// Written atomically alongside the fact row in `assert_fact_with_embedding`.
@@ -386,6 +391,7 @@ impl TemporalGraph {
         {
             let write_txn = db.begin_write()?;
             write_txn.open_table(FACTS)?;
+            write_txn.open_table(IDEMPOTENCY)?;
             #[cfg(feature = "vector")]
             {
                 write_txn.open_table(EMBEDDINGS)?;
@@ -491,6 +497,43 @@ impl TemporalGraph {
         let write_txn = self.db.begin_write()?;
         let fact_id =
             Self::write_fact_in_txn(&write_txn, subject, predicate, object.into(), valid_from)?;
+        write_txn.commit()?;
+        Ok(fact_id)
+    }
+
+    /// Assert a new fact with idempotency-key deduplication.
+    ///
+    /// If `idempotency_key` has already been used, returns the original
+    /// [`FactId`] without creating a new fact row. Otherwise, creates a new fact
+    /// and stores the key -> fact mapping atomically in the same transaction.
+    pub fn assert_fact_idempotent(
+        &self,
+        idempotency_key: &str,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+        valid_from: DateTime<Utc>,
+    ) -> Result<FactId> {
+        let write_txn = self.db.begin_write()?;
+
+        {
+            let idem_table = write_txn.open_table(IDEMPOTENCY)?;
+            let existing: Option<String> = idem_table
+                .get(idempotency_key)?
+                .map(|guard| guard.value().to_string());
+            if let Some(existing_id) = existing {
+                return Ok(FactId(existing_id));
+            }
+        }
+
+        let fact_id =
+            Self::write_fact_in_txn(&write_txn, subject, predicate, object.into(), valid_from)?;
+
+        {
+            let mut idem_table = write_txn.open_table(IDEMPOTENCY)?;
+            idem_table.insert(idempotency_key, fact_id.0.as_str())?;
+        }
+
         write_txn.commit()?;
         Ok(fact_id)
     }
@@ -930,6 +973,72 @@ mod tests {
             Value::Text(s) => assert_eq!(s, "Acme"),
             other => panic!("expected Text, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn idempotent_assert_same_key_returns_same_fact_id() {
+        let (db, _tmp) = open_temp_db();
+        let now = Utc::now();
+
+        let first = db
+            .assert_fact_idempotent("evt-123", "alice", "works_at", "Acme", now)
+            .unwrap();
+        let second = db
+            .assert_fact_idempotent("evt-123", "alice", "works_at", "Acme", now)
+            .unwrap();
+
+        assert_eq!(first, second, "same idempotency key must dedupe");
+        let all = db.all_facts_about("alice").unwrap();
+        assert_eq!(all.len(), 1, "same key must not create extra fact rows");
+    }
+
+    #[test]
+    fn idempotent_assert_different_keys_create_different_facts() {
+        let (db, _tmp) = open_temp_db();
+        let now = Utc::now();
+
+        let first = db
+            .assert_fact_idempotent("evt-aaa", "alice", "works_at", "Acme", now)
+            .unwrap();
+        let second = db
+            .assert_fact_idempotent("evt-bbb", "alice", "works_at", "Acme", now)
+            .unwrap();
+
+        assert_ne!(
+            first, second,
+            "different keys must produce different fact ids"
+        );
+        let all = db.all_facts_about("alice").unwrap();
+        assert_eq!(all.len(), 2, "different keys must create independent facts");
+    }
+
+    #[test]
+    fn idempotent_assert_survives_reopen() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("idempotency-reopen.kronroe");
+        let path_str = path.to_str().unwrap();
+        let now = Utc::now();
+
+        let first_id = {
+            let db = TemporalGraph::open(path_str).unwrap();
+            db.assert_fact_idempotent("evt-reopen", "alice", "works_at", "Acme", now)
+                .unwrap()
+        };
+
+        let second_id = {
+            let db = TemporalGraph::open(path_str).unwrap();
+            db.assert_fact_idempotent("evt-reopen", "alice", "works_at", "Acme", now)
+                .unwrap()
+        };
+
+        assert_eq!(
+            first_id, second_id,
+            "idempotency mapping must persist across reopen"
+        );
+
+        let db = TemporalGraph::open(path_str).unwrap();
+        let facts = db.all_facts_about("alice").unwrap();
+        assert_eq!(facts.len(), 1, "reopen + retry must not duplicate facts");
     }
 
     #[test]
