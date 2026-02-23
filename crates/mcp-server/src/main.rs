@@ -9,6 +9,7 @@ const MAX_MESSAGE_BYTES: usize = 1_048_576; // 1 MiB
 const MAX_TEXT_BYTES: usize = 32 * 1024; // 32 KiB
 const MAX_QUERY_BYTES: usize = 8 * 1024; // 8 KiB
 const MAX_EPISODE_ID_BYTES: usize = 512;
+const MAX_IDEMPOTENCY_KEY_BYTES: usize = 512;
 const MAX_RECALL_LIMIT: usize = 200;
 
 struct AppState {
@@ -160,7 +161,8 @@ fn tools_schema() -> Vec<JsonValue> {
                 "type": "object",
                 "properties": {
                     "text": {"type": "string"},
-                    "episode_id": {"type": "string"}
+                    "episode_id": {"type": "string"},
+                    "idempotency_key": {"type": "string"}
                 },
                 "required": ["text"]
             }
@@ -195,7 +197,8 @@ fn tools_schema() -> Vec<JsonValue> {
                     "subject": {"type": "string"},
                     "predicate": {"type": "string"},
                     "object": {},
-                    "valid_from": {"type": "string"}
+                    "valid_from": {"type": "string"},
+                    "idempotency_key": {"type": "string"}
                 },
                 "required": ["subject", "predicate", "object"]
             }
@@ -235,6 +238,7 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
                 .get("episode_id")
                 .and_then(JsonValue::as_str)
                 .unwrap_or("default");
+            let idempotency_key = args.get("idempotency_key").and_then(JsonValue::as_str);
             if text.len() > MAX_TEXT_BYTES {
                 anyhow::bail!("text exceeds max allowed size ({} bytes)", MAX_TEXT_BYTES);
             }
@@ -244,22 +248,54 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
                     MAX_EPISODE_ID_BYTES
                 );
             }
+            if let Some(key) = idempotency_key {
+                if key.len() > MAX_IDEMPOTENCY_KEY_BYTES {
+                    anyhow::bail!(
+                        "idempotency_key exceeds max allowed size ({} bytes)",
+                        MAX_IDEMPOTENCY_KEY_BYTES
+                    );
+                }
+            }
 
             // Phase 0 extraction heuristic: store raw episode text, and if pattern
             // "<subject> works at <object>" exists, assert a structured fact too.
-            let mut ids = vec![
+            let note_id = if let Some(key) = idempotency_key {
+                state
+                    .graph
+                    .assert_fact_idempotent(
+                        &format!("{key}:note"),
+                        episode_id,
+                        "note",
+                        text.to_string(),
+                        Utc::now(),
+                    )?
+                    .0
+            } else {
                 state
                     .graph
                     .assert_fact(episode_id, "note", text.to_string(), Utc::now())?
-                    .0,
-            ];
+                    .0
+            };
+            let mut ids = vec![note_id];
             if let Some((subject, employer)) = parse_works_at(text) {
-                ids.push(
+                let relation_id = if let Some(key) = idempotency_key {
+                    state
+                        .graph
+                        .assert_fact_idempotent(
+                            &format!("{key}:works_at"),
+                            subject,
+                            "works_at",
+                            employer.to_string(),
+                            Utc::now(),
+                        )?
+                        .0
+                } else {
                     state
                         .graph
                         .assert_fact(subject, "works_at", employer.to_string(), Utc::now())?
-                        .0,
-                );
+                        .0
+                };
+                ids.push(relation_id);
             }
 
             Ok(json!({
@@ -307,9 +343,24 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
                 .context("predicate is required")?;
             let object = json_to_value(args.get("object").context("object is required")?);
             let valid_from = parse_valid_from(args.get("valid_from"))?;
-            let fact_id = state
-                .graph
-                .assert_fact(subject, predicate, object, valid_from)?;
+            let idempotency_key = args.get("idempotency_key").and_then(JsonValue::as_str);
+            if let Some(key) = idempotency_key {
+                if key.len() > MAX_IDEMPOTENCY_KEY_BYTES {
+                    anyhow::bail!(
+                        "idempotency_key exceeds max allowed size ({} bytes)",
+                        MAX_IDEMPOTENCY_KEY_BYTES
+                    );
+                }
+            }
+            let fact_id = if let Some(key) = idempotency_key {
+                state
+                    .graph
+                    .assert_fact_idempotent(key, subject, predicate, object, valid_from)?
+            } else {
+                state
+                    .graph
+                    .assert_fact(subject, predicate, object, valid_from)?
+            };
             Ok(json!({
                 "content": [{ "type": "text", "text": format!("asserted fact {fact_id}") }],
                 "structuredContent": { "fact_id": fact_id.0 }
@@ -444,5 +495,104 @@ mod tests {
         )
         .expect_err("oversized text must fail");
         assert!(err.to_string().contains("text exceeds max"));
+    }
+
+    #[test]
+    fn assert_fact_idempotent_returns_same_fact_id() {
+        let mut state = temp_state();
+        let first = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme",
+                    "idempotency_key": "evt-assert-1"
+                }
+            })),
+        )
+        .unwrap();
+        let second = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme",
+                    "idempotency_key": "evt-assert-1"
+                }
+            })),
+        )
+        .unwrap();
+
+        let first_id = first
+            .get("structuredContent")
+            .and_then(|v| v.get("fact_id"))
+            .and_then(JsonValue::as_str)
+            .unwrap();
+        let second_id = second
+            .get("structuredContent")
+            .and_then(|v| v.get("fact_id"))
+            .and_then(JsonValue::as_str)
+            .unwrap();
+        assert_eq!(first_id, second_id);
+    }
+
+    #[test]
+    fn remember_idempotent_returns_same_fact_ids() {
+        let mut state = temp_state();
+        let first = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "remember",
+                "arguments": {
+                    "text": "alice took notes",
+                    "episode_id": "ep-001",
+                    "idempotency_key": "evt-remember-1"
+                }
+            })),
+        )
+        .unwrap();
+        let second = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "remember",
+                "arguments": {
+                    "text": "alice took notes",
+                    "episode_id": "ep-001",
+                    "idempotency_key": "evt-remember-1"
+                }
+            })),
+        )
+        .unwrap();
+
+        let first_ids = first
+            .get("structuredContent")
+            .and_then(|v| v.get("fact_ids"))
+            .and_then(JsonValue::as_array)
+            .unwrap();
+        let second_ids = second
+            .get("structuredContent")
+            .and_then(|v| v.get("fact_ids"))
+            .and_then(JsonValue::as_array)
+            .unwrap();
+        assert_eq!(first_ids, second_ids, "retries must return identical ids");
+
+        let about = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "facts_about",
+                "arguments": { "entity": "ep-001" }
+            })),
+        )
+        .unwrap();
+        let facts = about
+            .get("structuredContent")
+            .and_then(|v| v.get("facts"))
+            .and_then(JsonValue::as_array)
+            .unwrap();
+        assert_eq!(facts.len(), 1, "same remember key must not duplicate note");
     }
 }
