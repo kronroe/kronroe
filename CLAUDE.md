@@ -109,8 +109,10 @@ Every `Fact` has four timestamps — the standard TSQL-2 bi-temporal model:
 | Type | Description |
 |------|-------------|
 | `AgentMemory` | High-level API for AI agent use cases. Wraps `TemporalGraph`. |
+| `AssertParams` | Optional assertion parameters for explicit valid-time control. |
 
-Phase 1 methods (`remember`, `recall`, `assemble_context`) are currently `unimplemented!()` stubs.
+Phase 1 methods are implemented (`remember`, `recall`, `assemble_context`).
+Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memory.rs`.
 
 ### Key Types (`crates/python`)
 
@@ -130,7 +132,7 @@ Phase 1 methods (`remember`, `recall`, `assemble_context`) are currently `unimpl
 ### Crate Layering
 
 ```
-kronroe-agent-memory   ← agent ergonomics, Phase 1 NLP/vector stubs
+kronroe-agent-memory   ← agent ergonomics, Phase 1 memory API
 kronroe-python         ← Python/PyO3 bindings
 kronroe-wasm           ← browser WASM bindings (in-memory only)
 kronroe-mcp            ← stdio MCP server (remember/recall tools)
@@ -140,6 +142,8 @@ kronroe-ios            ← C FFI staticlib + cbindgen header + Swift Package
                           tantivy full-text (feature: fulltext),
                           flat cosine vector index (feature: vector)
 ```
+
+See naming rules in `docs/NAMING-CONVENTIONS.md` before introducing or renaming crate entrypoints.
 
 Future crates will layer on top: `crates/android/`.
 

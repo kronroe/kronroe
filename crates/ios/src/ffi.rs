@@ -35,6 +35,22 @@ fn cstr_to_string(ptr: *const c_char, field: &str) -> Result<String, String> {
 }
 
 #[no_mangle]
+/// Create an in-memory Kronroe graph handle (no file I/O).
+///
+/// Ideal for simulator testing and ephemeral workloads.
+/// Returns NULL on error (inspect `kronroe_last_error_message`).
+pub extern "C" fn kronroe_graph_open_in_memory() -> *mut KronroeGraphHandle {
+    clear_last_error();
+    match TemporalGraph::open_in_memory() {
+        Ok(graph) => Box::into_raw(Box::new(KronroeGraphHandle { graph })),
+        Err(err) => {
+            set_last_error(err.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
 /// Open/create a Kronroe graph handle.
 ///
 /// # Safety
