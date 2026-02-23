@@ -5,6 +5,12 @@ use serde_json::{json, Value as JsonValue};
 use std::env;
 use std::io::{self, BufRead, BufReader, Write};
 
+const MAX_MESSAGE_BYTES: usize = 1_048_576; // 1 MiB
+const MAX_TEXT_BYTES: usize = 32 * 1024; // 32 KiB
+const MAX_QUERY_BYTES: usize = 8 * 1024; // 8 KiB
+const MAX_EPISODE_ID_BYTES: usize = 512;
+const MAX_RECALL_LIMIT: usize = 200;
+
 struct AppState {
     graph: TemporalGraph,
 }
@@ -66,6 +72,13 @@ fn read_message<R: BufRead>(reader: &mut R) -> Result<Option<JsonValue>> {
     }
 
     let len = content_length.context("missing Content-Length header")?;
+    if len > MAX_MESSAGE_BYTES {
+        anyhow::bail!(
+            "Content-Length {} exceeds max allowed {} bytes",
+            len,
+            MAX_MESSAGE_BYTES
+        );
+    }
     let mut payload = vec![0_u8; len];
     reader.read_exact(&mut payload)?;
     let value: JsonValue = serde_json::from_slice(&payload).context("invalid JSON payload")?;
@@ -159,7 +172,7 @@ fn tools_schema() -> Vec<JsonValue> {
                 "type": "object",
                 "properties": {
                     "query": {"type": "string"},
-                    "limit": {"type": "integer", "minimum": 1}
+                    "limit": {"type": "integer", "minimum": 1, "maximum": MAX_RECALL_LIMIT}
                 },
                 "required": ["query"]
             }
@@ -222,6 +235,15 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
                 .get("episode_id")
                 .and_then(JsonValue::as_str)
                 .unwrap_or("default");
+            if text.len() > MAX_TEXT_BYTES {
+                anyhow::bail!("text exceeds max allowed size ({} bytes)", MAX_TEXT_BYTES);
+            }
+            if episode_id.len() > MAX_EPISODE_ID_BYTES {
+                anyhow::bail!(
+                    "episode_id exceeds max allowed size ({} bytes)",
+                    MAX_EPISODE_ID_BYTES
+                );
+            }
 
             // Phase 0 extraction heuristic: store raw episode text, and if pattern
             // "<subject> works at <object>" exists, assert a structured fact too.
@@ -250,7 +272,13 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
                 .get("query")
                 .and_then(JsonValue::as_str)
                 .context("query is required")?;
+            if query.len() > MAX_QUERY_BYTES {
+                anyhow::bail!("query exceeds max allowed size ({} bytes)", MAX_QUERY_BYTES);
+            }
             let limit = args.get("limit").and_then(JsonValue::as_u64).unwrap_or(10) as usize;
+            if limit > MAX_RECALL_LIMIT {
+                anyhow::bail!("limit exceeds max allowed value ({MAX_RECALL_LIMIT})");
+            }
             let facts = state.graph.search(query, limit)?;
             Ok(json!({
                 "content": [{ "type": "text", "text": format!("found {} fact(s)", facts.len()) }],
@@ -341,6 +369,7 @@ fn json_to_value(v: &JsonValue) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
     use tempfile::NamedTempFile;
 
     fn temp_state() -> AppState {
@@ -378,5 +407,42 @@ mod tests {
             .and_then(JsonValue::as_array)
             .unwrap();
         assert!(!facts.is_empty());
+    }
+
+    #[test]
+    fn read_message_rejects_oversized_frame() {
+        let raw = format!("Content-Length: {}\r\n\r\n", MAX_MESSAGE_BYTES + 1);
+        let mut cursor = Cursor::new(raw.into_bytes());
+        let err = read_message(&mut cursor).expect_err("oversized frame must fail");
+        assert!(err.to_string().contains("exceeds max allowed"));
+    }
+
+    #[test]
+    fn recall_rejects_excessive_limit() {
+        let mut state = temp_state();
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall",
+                "arguments": { "query": "alice", "limit": MAX_RECALL_LIMIT + 1 }
+            })),
+        )
+        .expect_err("excessive limit must fail");
+        assert!(err.to_string().contains("limit exceeds max"));
+    }
+
+    #[test]
+    fn remember_rejects_oversized_text() {
+        let mut state = temp_state();
+        let huge_text = "a".repeat(MAX_TEXT_BYTES + 1);
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "remember",
+                "arguments": { "text": huge_text, "episode_id": "ep-1" }
+            })),
+        )
+        .expect_err("oversized text must fail");
+        assert!(err.to_string().contains("text exceeds max"));
     }
 }
