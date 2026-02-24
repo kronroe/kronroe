@@ -18,9 +18,9 @@ public enum KronroeError: Error, LocalizedError {
 }
 
 public final class KronroeGraph {
-    private var handle: UnsafeMutablePointer<KronroeGraphHandle>?
+    private var handle: OpaquePointer?
 
-    private init(handle: UnsafeMutablePointer<KronroeGraphHandle>) {
+    private init(handle: OpaquePointer) {
         self.handle = handle
     }
 
@@ -35,6 +35,13 @@ public final class KronroeGraph {
         guard let handle = path.withCString({ cPath in
             kronroe_graph_open(cPath)
         }) else {
+            throw KronroeError.openFailed(Self.lastErrorMessage())
+        }
+        return KronroeGraph(handle: handle)
+    }
+
+    public static func openInMemory() throws -> KronroeGraph {
+        guard let handle = kronroe_graph_open_in_memory() else {
             throw KronroeError.openFailed(Self.lastErrorMessage())
         }
         return KronroeGraph(handle: handle)

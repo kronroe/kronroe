@@ -21,6 +21,11 @@ let package = Package(
             name: "Kronroe",
             dependencies: ["KronroeFFI"],
             path: "Sources/Kronroe"
+        ),
+        .testTarget(
+            name: "KronroeTests",
+            dependencies: ["Kronroe"],
+            path: "Tests/KronroeTests"
         )
     ]
 )

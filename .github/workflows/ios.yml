@@ -26,5 +26,11 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: Run iOS FFI behavior tests
+        run: cargo test -p kronroe-ios
+
       - name: Build XCFramework and enforce size budget
         run: CHECK_SIZE_BUDGET=1 ./crates/ios/scripts/build-xcframework.sh
+
+      - name: Run Swift wrapper behavior tests
+        run: ./crates/ios/scripts/run-swift-tests.sh

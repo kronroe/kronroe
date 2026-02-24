@@ -1,0 +1,4 @@
+module KronroeFFI {
+  header "kronroe.h"
+  export *
+}
