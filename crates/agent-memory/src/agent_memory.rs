@@ -29,6 +29,8 @@
 //! - `assemble_context(query, query_embedding, max_tokens)` — build LLM context
 
 use chrono::{DateTime, Utc};
+#[cfg(feature = "hybrid")]
+use kronroe::HybridParams;
 use kronroe::{Fact, FactId, TemporalGraph, Value};
 
 pub use kronroe::KronroeError as Error;
@@ -171,7 +173,11 @@ impl AgentMemory {
         )
     }
 
-    /// Retrieve memory facts by query, using vector search when embedding is provided.
+    /// Retrieve memory facts by query.
+    ///
+    /// In `hybrid` mode, if an embedding is provided this uses Kronroe's
+    /// hybrid-experimental retrieval (text + vector fusion). Otherwise it falls
+    /// back to fulltext search.
     pub fn recall(
         &self,
         query: &str,
@@ -181,8 +187,15 @@ impl AgentMemory {
     ) -> Result<Vec<Fact>> {
         #[cfg(feature = "hybrid")]
         if let Some(emb) = query_embedding {
-            let hits = self.graph.search_by_vector(emb, limit, None)?;
-            return Ok(hits.into_iter().map(|(fact, _score)| fact).collect());
+            let params = HybridParams {
+                k: limit,
+                candidate_window: limit.max(20),
+                ..HybridParams::default()
+            };
+            let hits = self
+                .graph
+                .search_hybrid_experimental(query, emb, params, None)?;
+            return Ok(hits.into_iter().map(|(fact, _breakdown)| fact).collect());
         }
 
         self.graph.search(query, limit)
@@ -368,6 +381,23 @@ mod tests {
             .unwrap();
 
         let hits = mem.recall("language", Some(&[1.0, 0.0]), 1).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].subject, "ep-rust");
+    }
+
+    #[cfg(feature = "hybrid")]
+    #[test]
+    fn test_recall_hybrid_uses_text_and_vector_signals() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.remember("rare-rust-token", "ep-rust", Some(vec![1.0f32, 0.0]))
+            .unwrap();
+        mem.remember("completely different", "ep-py", Some(vec![0.0f32, 1.0]))
+            .unwrap();
+
+        // Query text matches only ep-rust, vector matches only ep-py.
+        // With hybrid fusion enabled, both signals are used and ep-rust should
+        // still surface in a top-1 tie-break deterministic setup.
+        let hits = mem.recall("rare-rust-token", Some(&[0.0, 1.0]), 1).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].subject, "ep-rust");
     }
