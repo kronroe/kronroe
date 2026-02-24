@@ -33,7 +33,9 @@ mod vector;
 use chrono::{DateTime, Utc};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "fulltext")]
+#[cfg(feature = "hybrid-experimental")]
+use std::cmp::Ordering;
+#[cfg(any(feature = "fulltext", feature = "hybrid-experimental"))]
 use std::collections::HashMap;
 #[cfg(feature = "fulltext")]
 use tantivy::collector::TopDocs;
@@ -106,8 +108,7 @@ pub type Result<T> = std::result::Result<T, KronroeError>;
 /// Strategy options for hybrid retrieval experiments.
 #[cfg(feature = "hybrid-experimental")]
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(dead_code)]
-pub(crate) enum HybridFusionStrategy {
+pub enum HybridFusionStrategy {
     /// Weighted Reciprocal Rank Fusion (RRF).
     Rrf,
 }
@@ -115,8 +116,7 @@ pub(crate) enum HybridFusionStrategy {
 /// Optional temporal adjustment used by hybrid experimental ranking.
 #[cfg(feature = "hybrid-experimental")]
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(dead_code)]
-pub(crate) enum TemporalAdjustment {
+pub enum TemporalAdjustment {
     /// Disable temporal score adjustment.
     None,
     /// Exponential decay using the given half-life in days.
@@ -126,8 +126,7 @@ pub(crate) enum TemporalAdjustment {
 /// Internal parameters for hybrid experimental retrieval.
 #[cfg(feature = "hybrid-experimental")]
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(dead_code)]
-pub(crate) struct HybridParams {
+pub struct HybridParams {
     /// Number of results requested.
     pub k: usize,
     /// Number of candidates to pull from each channel before fusion.
@@ -144,6 +143,20 @@ pub(crate) struct HybridParams {
     pub temporal_weight: f32,
     /// Temporal adjustment mode.
     pub temporal_adjustment: TemporalAdjustment,
+}
+
+/// Score breakdown for one hybrid retrieval hit.
+#[cfg(feature = "hybrid-experimental")]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HybridScoreBreakdown {
+    /// Final score used for ranking.
+    pub final_score: f64,
+    /// Text-channel contribution from weighted RRF.
+    pub text_rrf_contrib: f64,
+    /// Vector-channel contribution from weighted RRF.
+    pub vector_rrf_contrib: f64,
+    /// Temporal contribution applied after fusion.
+    pub temporal_adjustment: f64,
 }
 
 #[cfg(feature = "hybrid-experimental")]
@@ -847,6 +860,174 @@ impl TemporalGraph {
         Ok(results)
     }
 
+    #[cfg(feature = "hybrid-experimental")]
+    fn validate_hybrid_params(params: &HybridParams) -> Result<()> {
+        if params.k == 0 {
+            return Err(KronroeError::Search(
+                "hybrid-experimental: `k` must be >= 1".to_string(),
+            ));
+        }
+        if params.candidate_window == 0 {
+            return Err(KronroeError::Search(
+                "hybrid-experimental: `candidate_window` must be >= 1".to_string(),
+            ));
+        }
+        if params.rank_constant < 1 {
+            return Err(KronroeError::Search(
+                "hybrid-experimental: `rank_constant` must be >= 1".to_string(),
+            ));
+        }
+        if params.text_weight < 0.0 || params.vector_weight < 0.0 || params.temporal_weight < 0.0 {
+            return Err(KronroeError::Search(
+                "hybrid-experimental: weights must be non-negative".to_string(),
+            ));
+        }
+        if params.text_weight == 0.0 && params.vector_weight == 0.0 {
+            return Err(KronroeError::Search(
+                "hybrid-experimental: at least one of `text_weight` or `vector_weight` must be > 0"
+                    .to_string(),
+            ));
+        }
+        if let TemporalAdjustment::HalfLifeDays { days } = params.temporal_adjustment {
+            if days <= 0.0 {
+                return Err(KronroeError::Search(
+                    "hybrid-experimental: `HalfLifeDays.days` must be > 0".to_string(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "hybrid-experimental")]
+    fn search_ranked(&self, query: &str, limit: usize) -> Result<Vec<(FactId, usize)>> {
+        if query.trim().is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let facts = match self.search(query, limit) {
+            Ok(facts) => facts,
+            // Keep hybrid usable in builds without fulltext.
+            Err(KronroeError::Search(msg))
+                if msg == "fulltext feature is disabled for this build" =>
+            {
+                Vec::new()
+            }
+            Err(e) => return Err(e),
+        };
+
+        Ok(facts
+            .into_iter()
+            .enumerate()
+            .map(|(rank, fact)| (fact.id, rank))
+            .collect())
+    }
+
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    fn search_by_vector_ranked(
+        &self,
+        query: &[f32],
+        limit: usize,
+        at: Option<DateTime<Utc>>,
+    ) -> Result<Vec<(FactId, usize)>> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let hits = self.search_by_vector(query, limit, at)?;
+        Ok(hits
+            .into_iter()
+            .enumerate()
+            .map(|(rank, (fact, _score))| (fact.id, rank))
+            .collect())
+    }
+
+    /// Hybrid experimental retrieval: weighted text+vector RRF with deterministic ranking.
+    ///
+    /// The returned list is ordered by `final_score` descending, then by `FactId`
+    /// lexicographically to guarantee deterministic ties.
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    pub fn search_hybrid_experimental(
+        &self,
+        text_query: &str,
+        vector_query: &[f32],
+        params: HybridParams,
+        at: Option<DateTime<Utc>>,
+    ) -> Result<Vec<(Fact, HybridScoreBreakdown)>> {
+        Self::validate_hybrid_params(&params)?;
+
+        let window = params.candidate_window;
+        let text_ranked = self.search_ranked(text_query, window)?;
+        let vec_ranked = self.search_by_vector_ranked(vector_query, window, at)?;
+
+        let rank_constant = params.rank_constant as f64;
+        let mut by_id: HashMap<String, HybridScoreBreakdown> = HashMap::new();
+
+        for (fact_id, rank) in text_ranked {
+            let contrib = params.text_weight as f64 / (rank_constant + (rank + 1) as f64);
+            let entry = by_id.entry(fact_id.0).or_insert(HybridScoreBreakdown {
+                final_score: 0.0,
+                text_rrf_contrib: 0.0,
+                vector_rrf_contrib: 0.0,
+                temporal_adjustment: 0.0,
+            });
+            entry.text_rrf_contrib += contrib;
+            entry.final_score += contrib;
+        }
+
+        for (fact_id, rank) in vec_ranked {
+            let contrib = params.vector_weight as f64 / (rank_constant + (rank + 1) as f64);
+            let entry = by_id.entry(fact_id.0).or_insert(HybridScoreBreakdown {
+                final_score: 0.0,
+                text_rrf_contrib: 0.0,
+                vector_rrf_contrib: 0.0,
+                temporal_adjustment: 0.0,
+            });
+            entry.vector_rrf_contrib += contrib;
+            entry.final_score += contrib;
+        }
+
+        let mut fused: Vec<(FactId, HybridScoreBreakdown)> = by_id
+            .into_iter()
+            .map(|(id, breakdown)| (FactId(id), breakdown))
+            .collect();
+
+        if !matches!(params.temporal_adjustment, TemporalAdjustment::None)
+            && params.temporal_weight > 0.0
+        {
+            let now = at.unwrap_or_else(Utc::now);
+            let temporal_scale = (0.1_f64 * params.temporal_weight as f64).max(0.0);
+            for (fact_id, breakdown) in &mut fused {
+                let fact = self.fact_by_id(fact_id)?;
+                let age_days = (now - fact.valid_from).num_seconds().max(0) as f64 / 86_400.0;
+                let adjustment = match params.temporal_adjustment {
+                    TemporalAdjustment::None => 0.0,
+                    TemporalAdjustment::HalfLifeDays { days } => {
+                        let decay = (-std::f64::consts::LN_2 * age_days / days as f64).exp();
+                        ((decay - 0.5) * 2.0 * temporal_scale)
+                            .clamp(-temporal_scale, temporal_scale)
+                    }
+                };
+                breakdown.temporal_adjustment = adjustment;
+                breakdown.final_score += adjustment;
+            }
+        }
+
+        fused.sort_by(|(a_id, a), (b_id, b)| {
+            b.final_score
+                .partial_cmp(&a.final_score)
+                .unwrap_or(Ordering::Equal)
+                .then_with(|| a_id.0.cmp(&b_id.0))
+        });
+        fused.truncate(params.k);
+
+        let mut out = Vec::with_capacity(fused.len());
+        for (fact_id, breakdown) in fused {
+            let fact = self.fact_by_id(&fact_id)?;
+            out.push((fact, breakdown));
+        }
+
+        Ok(out)
+    }
+
     // Internal: scan facts table, filter by prefix, apply predicate.
     fn scan_prefix(&self, prefix: &str, predicate: impl Fn(&Fact) -> bool) -> Result<Vec<Fact>> {
         let read_txn = self.db.begin_read()?;
@@ -1228,6 +1409,105 @@ mod tests {
             .unwrap();
         let results = db.search_by_vector(&[1.0, 0.0], 5, None).unwrap();
         assert!(results.is_empty());
+    }
+
+    #[test]
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    fn hybrid_search_returns_hits_with_consistent_breakdown() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let t = Utc::now();
+        db.assert_fact_with_embedding(
+            "alice",
+            "bio",
+            "expert Rust systems programmer",
+            t,
+            vec![1.0, 0.0, 0.0],
+        )
+        .unwrap();
+        db.assert_fact_with_embedding(
+            "bob",
+            "bio",
+            "Python data scientist",
+            t,
+            vec![0.0, 1.0, 0.0],
+        )
+        .unwrap();
+        db.assert_fact_with_embedding(
+            "carol",
+            "bio",
+            "Rust and embedded systems",
+            t,
+            vec![0.9, 0.1, 0.0],
+        )
+        .unwrap();
+
+        let hits = db
+            .search_hybrid_experimental("Rust", &[1.0, 0.0, 0.0], HybridParams::default(), None)
+            .unwrap();
+        assert!(!hits.is_empty(), "hybrid search should return results");
+
+        for (_fact, breakdown) in &hits {
+            let expected = breakdown.text_rrf_contrib
+                + breakdown.vector_rrf_contrib
+                + breakdown.temporal_adjustment;
+            assert!(
+                (breakdown.final_score - expected).abs() < 1e-9,
+                "breakdown must sum to final_score"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    fn hybrid_search_ties_are_deterministic_by_fact_id() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let t = Utc::now();
+        db.assert_fact_with_embedding("doc-text", "bio", "rare-hybrid-token", t, vec![1.0, 0.0])
+            .unwrap();
+        db.assert_fact_with_embedding("doc-vector", "bio", "unrelated", t, vec![0.0, 1.0])
+            .unwrap();
+
+        let params = HybridParams {
+            k: 2,
+            candidate_window: 1,
+            rank_constant: 60,
+            text_weight: 0.5,
+            vector_weight: 0.5,
+            temporal_weight: 0.0,
+            temporal_adjustment: TemporalAdjustment::None,
+            fusion: HybridFusionStrategy::Rrf,
+        };
+
+        let hits = db
+            .search_hybrid_experimental("rare-hybrid-token", &[0.0, 1.0], params, None)
+            .unwrap();
+        assert_eq!(hits.len(), 2);
+        assert!(
+            (hits[0].1.final_score - hits[1].1.final_score).abs() < 1e-12,
+            "test setup must produce equal scores"
+        );
+        assert!(
+            hits[0].0.id.0 <= hits[1].0.id.0,
+            "tie-break should use FactId lexicographic order"
+        );
+    }
+
+    #[test]
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    fn hybrid_search_rejects_invalid_params() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        db.assert_fact_with_embedding("alice", "bio", "Rust", Utc::now(), vec![1.0, 0.0])
+            .unwrap();
+
+        let bad = HybridParams {
+            rank_constant: 0,
+            ..HybridParams::default()
+        };
+        let result = db.search_hybrid_experimental("Rust", &[1.0, 0.0], bad, None);
+        assert!(
+            matches!(result, Err(KronroeError::Search(_))),
+            "invalid params should return a validation error"
+        );
     }
 
     #[test]

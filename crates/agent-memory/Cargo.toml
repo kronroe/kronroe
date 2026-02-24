@@ -14,7 +14,7 @@ path = "src/agent_memory.rs"
 
 [features]
 default = []
-hybrid = ["kronroe/vector"]
+hybrid = ["kronroe/vector", "kronroe/hybrid-experimental"]
 
 [dependencies]
 kronroe = { path = "../core" }
