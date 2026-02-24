@@ -10,6 +10,7 @@ final class KronroeTests: XCTestCase {
         try graph.assert(subject: "Freya", predicate: "attends", object: "Sunrise Primary")
 
         let json = try graph.factsAboutJSON(entity: "Freya")
+        print("PROOF_QUERY_RESULT_JSON=\(json)")
         let data = try XCTUnwrap(json.data(using: .utf8))
         let decoded = try JSONSerialization.jsonObject(with: data) as? [[String: Any]]
         let first = try XCTUnwrap(decoded?.first)
