@@ -12,6 +12,13 @@ extern "C" {
 typedef struct KronroeGraphHandle KronroeGraphHandle;
 
 /**
+ * Create an in-memory Kronroe database (no file I/O).
+ * Ideal for simulator testing and ephemeral workloads.
+ * Returns NULL on error (inspect `kronroe_last_error_message`).
+ */
+KronroeGraphHandle *kronroe_graph_open_in_memory(void);
+
+/**
  * Open/create a Kronroe database and return an opaque handle.
  * Returns NULL on error (inspect `kronroe_last_error_message`).
  */

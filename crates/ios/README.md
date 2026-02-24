@@ -29,6 +29,23 @@ To enforce compressed size budget (< 6 MB):
 CHECK_SIZE_BUDGET=1 ./scripts/build-xcframework.sh
 ```
 
+## Behavior tests (FFI)
+
+```bash
+cargo test -p kronroe-ios
+```
+
+These tests cover:
+- open/assert/query roundtrip
+- open_in_memory roundtrip
+- failure-path error propagation for null handle
+
+## Swift wrapper tests (iOS Simulator)
+
+```bash
+./crates/ios/scripts/run-swift-tests.sh
+```
+
 ## Swift usage
 
 ```swift

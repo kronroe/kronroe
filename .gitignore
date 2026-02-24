@@ -24,6 +24,7 @@ crates/python/dist/
 # iOS packaging artifacts
 crates/ios/build/
 crates/ios/swift/KronroeFFI.xcframework/
+crates/ios/swift/.build/
 
 # Firebase debug logs
 firebase-debug.log
