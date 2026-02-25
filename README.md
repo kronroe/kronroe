@@ -46,16 +46,16 @@ The solutions developers reach for today (Graphiti + Neo4j, mcp-memory-service) 
 
 Pure Rust. No C dependencies in the core engine.
 
-| Layer | Crate | Status |
+| Layer | Crate | Notes |
 |---|---|---|
-| Key-value storage | [`redb`](https://github.com/cberner/redb) — pure Rust ACID B-tree CoW | ✅ Done |
-| Full-text search | [`tantivy`](https://github.com/quickwit-oss/tantivy) — pure Rust BM25 (`feature: fulltext`) | ✅ Done |
-| Vector search | Flat cosine similarity, zero deps, temporal filtering (`feature: vector`) | ✅ Done |
-| Python bindings | `PyO3` → `pip install kronroe` (Linux wheels built on CI) | ✅ Done |
-| MCP server | stdio transport, 5 tools (`remember` / `recall` / `facts_about` / `assert_fact` / `correct_fact`) | ✅ Done |
-| iOS XCFramework | `cbindgen` + Swift Package (`crates/ios`) | ✅ Done (locally) |
-| WASM / npm | `wasm32-unknown-unknown`, in-memory only (`crates/wasm`) | 🟡 Scaffold merged — deploy pending |
-| Android AAR | `uniffi` Kotlin bindings | ⬜ Phase 1 |
+| Key-value storage | [`redb`](https://github.com/cberner/redb) | Pure Rust ACID B-tree CoW |
+| Full-text search | [`tantivy`](https://github.com/quickwit-oss/tantivy) | BM25 + fuzzy matching (`feature: fulltext`) |
+| Vector search | `crates/core/src/vector.rs` | Flat cosine similarity + temporal filtering (`feature: vector`) |
+| Python bindings | `crates/python` | `PyO3` bindings for core + agent memory |
+| MCP server | `crates/mcp-server` | stdio transport, 5 tools |
+| iOS bindings | `crates/ios` | C FFI + XCFramework + Swift Package |
+| WASM bindings | `crates/wasm` | In-memory backend only |
+| Android bindings | _(planned)_ | UniFFI Kotlin bindings |
 
 ## Workspace
 
@@ -128,22 +128,37 @@ let historical = db.facts_at("alice", "works_at", past_date)?;
 db.invalidate_fact(&id, Utc::now())?;
 ```
 
-## Status
+## Capability Matrix
 
-- [x] Bi-temporal `Fact` data model (`valid_from`, `valid_to`, `recorded_at`, `expired_at`)
-- [x] `assert_fact`, `current_facts`, `facts_at`, `all_facts_about`, `invalidate_fact`
-- [x] Full-text search (`tantivy` BM25, fuzzy matching, `feature: fulltext`)
-- [x] Flat cosine vector search with bi-temporal filtering (`feature: vector`)
-- [x] Single-transaction atomicity — fact + embedding commit atomically in one redb `WriteTransaction`
-- [x] `AgentMemory` high-level API (`crates/agent-memory`)
-- [x] Python bindings (`KronroeDb`, `AgentMemory`) — Linux manylinux wheels built on CI
-- [x] MCP server — stdio transport, 5 tools, pip + npm shim wrappers
-- [x] iOS XCFramework (`aarch64-apple-ios` + simulator, Swift Package)
-- [x] WASM bindings (`wasm32-unknown-unknown`, `redb` in-memory backend)
-- [x] CI — test + clippy + fmt + iOS packaging + Python wheels
-- [ ] WASM playground deploy (Firebase Hosting — needs service account secret + custom domain)
-- [ ] Android AAR (UniFFI Kotlin bindings)
-- [ ] `AgentMemory.remember` / `recall` / `assemble_context` NLP layer (Phase 1)
+### Available (shipping in repo)
+
+| Capability | Where | Quick verification |
+|---|---|---|
+| Bi-temporal fact model + core CRUD (`assert_fact`, `facts_at`, `invalidate_fact`, etc.) | `crates/core/src/temporal_graph.rs` | `cargo test -p kronroe` |
+| Full-text search (BM25 + fuzzy) | `crates/core/src/temporal_graph.rs` (`feature: fulltext`, default on core) | `cargo test -p kronroe search_ --all-features` |
+| Vector search with temporal filtering | `crates/core/src/temporal_graph.rs`, `crates/core/src/vector.rs` (`feature: vector`) | `cargo test -p kronroe vector_ --all-features` |
+| Atomic fact + embedding write transaction | `assert_fact_with_embedding` in core | see vector durability/error tests in core suite |
+| Idempotent writes (`assert_fact_idempotent`) | core + agent-memory wrappers | `cargo test -p kronroe idempotent --all-features` |
+| `AgentMemory` API surface (`assert`, `remember`, `recall`, `assemble_context`) | `crates/agent-memory/src/agent_memory.rs` | `cargo test -p kronroe-agent-memory --all-features` |
+| MCP server (5 tools) + npm/pip shims | `crates/mcp-server`, `packages/kronroe-mcp`, `python/kronroe-mcp` | `cargo test -p kronroe-mcp` |
+| Python bindings (`KronroeDb`, `AgentMemory`) | `crates/python/src/python_bindings.rs` | `cargo build -p kronroe-py` |
+| iOS package artifacts + behavior tests | `crates/ios` | `cargo test -p kronroe-ios` and `./crates/ios/scripts/run-swift-tests.sh` |
+| WASM bindings (in-memory engine, no persistent file backend) | `crates/wasm/src/wasm_bindings.rs` | `cargo build -p kronroe-wasm` |
+
+### Experimental (feature-gated, API may change)
+
+| Capability | Gate | Current status |
+|---|---|---|
+| Hybrid retrieval API (`search_hybrid_experimental`) with deterministic ranking + score breakdown | `kronroe` features `hybrid-experimental` + `vector` | Implemented and tested in core; intentionally marked experimental |
+| Agent-memory hybrid recall path (text + vector fusion) | `kronroe-agent-memory` feature `hybrid` | Implemented via core experimental API; contract may evolve |
+
+### Planned (not shipping yet)
+
+| Capability | Status |
+|---|---|
+| WASM playground hosting/deploy (Firebase Hosting + domain wiring) | Planned |
+| Android AAR / Kotlin bindings (UniFFI path) | Planned |
+| Rich NLP extraction/planning layer beyond current `AgentMemory` primitives | Planned |
 
 ## Contributing
 
