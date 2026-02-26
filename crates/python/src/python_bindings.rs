@@ -3,12 +3,26 @@
 use ::chrono::Utc;
 use ::kronroe::{Fact, TemporalGraph, Value};
 use kronroe_agent_memory::AgentMemory;
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyType};
 
 fn to_py_err<E: std::fmt::Display>(err: E) -> PyErr {
     PyRuntimeError::new_err(err.to_string())
+}
+
+fn py_to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
+    if let Ok(b) = obj.extract::<bool>() {
+        Ok(Value::Boolean(b))
+    } else if let Ok(n) = obj.extract::<f64>() {
+        Ok(Value::Number(n))
+    } else if let Ok(s) = obj.extract::<String>() {
+        Ok(Value::Text(s))
+    } else {
+        Err(PyTypeError::new_err(
+            "object must be str, int, float, or bool",
+        ))
+    }
 }
 
 fn fact_to_dict<'py>(py: Python<'py>, fact: &Fact) -> PyResult<Bound<'py, PyDict>> {
@@ -63,10 +77,16 @@ impl PyKronroeDb {
         Ok(Self { inner })
     }
 
-    fn assert_fact(&self, subject: &str, predicate: &str, object: &str) -> PyResult<String> {
+    fn assert_fact(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: &Bound<'_, PyAny>,
+    ) -> PyResult<String> {
+        let value = py_to_value(object)?;
         let id = self
             .inner
-            .assert_fact(subject, predicate, object, Utc::now())
+            .assert_fact(subject, predicate, value, Utc::now())
             .map_err(to_py_err)?;
         Ok(id.0)
     }
@@ -90,10 +110,16 @@ impl PyAgentMemory {
         Ok(Self { inner })
     }
 
-    fn assert_fact(&self, subject: &str, predicate: &str, object: &str) -> PyResult<String> {
+    fn assert_fact(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: &Bound<'_, PyAny>,
+    ) -> PyResult<String> {
+        let value = py_to_value(object)?;
         let id = self
             .inner
-            .assert(subject, predicate, object.to_string())
+            .assert(subject, predicate, value)
             .map_err(to_py_err)?;
         Ok(id.0)
     }

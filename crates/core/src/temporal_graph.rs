@@ -657,18 +657,21 @@ impl TemporalGraph {
         drop(table);
         drop(read_txn);
 
-        if let (Some(key), Some(mut fact)) = (found_key, found_fact) {
-            fact.valid_to = Some(at);
-            let value = serde_json::to_string(&fact)?;
-            let write_txn = self.db.begin_write()?;
-            {
-                let mut table = write_txn.open_table(FACTS)?;
-                table.insert(key.as_str(), value.as_str())?;
+        match (found_key, found_fact) {
+            (Some(key), Some(mut fact)) => {
+                fact.valid_to = Some(at);
+                fact.expired_at = Some(at);
+                let value = serde_json::to_string(&fact)?;
+                let write_txn = self.db.begin_write()?;
+                {
+                    let mut table = write_txn.open_table(FACTS)?;
+                    table.insert(key.as_str(), value.as_str())?;
+                }
+                write_txn.commit()?;
+                Ok(())
             }
-            write_txn.commit()?;
+            _ => Err(KronroeError::NotFound(format!("fact id {fact_id}"))),
         }
-
-        Ok(())
     }
 
     /// Retrieve a fact by its id.
@@ -1335,6 +1338,11 @@ mod tests {
 
         let old = db.fact_by_id(&old_id).unwrap();
         assert_eq!(old.valid_to, Some(feb));
+        assert_eq!(
+            old.expired_at,
+            Some(feb),
+            "corrected fact should have expired_at set"
+        );
 
         let new_fact = db.fact_by_id(&new_id).unwrap();
         assert_eq!(new_fact.subject, "alice");
@@ -1628,6 +1636,40 @@ mod tests {
         assert!(
             matches!(&results[0].0.object, Value::Text(s) if s == "Rust"),
             "most similar fact after reopen should be Rust"
+        );
+    }
+
+    #[test]
+    fn invalidate_nonexistent_fact_returns_not_found() {
+        let (db, _tmp) = open_temp_db();
+        let bogus_id = FactId(Ulid::new().to_string());
+        let result = db.invalidate_fact(&bogus_id, Utc::now());
+        assert!(
+            result.is_err(),
+            "invalidating a nonexistent fact should fail"
+        );
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, KronroeError::NotFound(_)),
+            "error should be NotFound, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn invalidate_fact_sets_expired_at() {
+        let (db, _tmp) = open_temp_db();
+        let jan = dt("2024-01-01T00:00:00Z");
+        let jun = dt("2024-06-01T00:00:00Z");
+
+        let id = db.assert_fact("alice", "works_at", "Acme", jan).unwrap();
+        db.invalidate_fact(&id, jun).unwrap();
+
+        let fact = db.fact_by_id(&id).unwrap();
+        assert_eq!(fact.valid_to, Some(jun), "valid_to should be set");
+        assert_eq!(
+            fact.expired_at,
+            Some(jun),
+            "expired_at should be set (TSQL-2 transaction time)"
         );
     }
 }
