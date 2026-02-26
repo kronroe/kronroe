@@ -5,21 +5,17 @@ on:
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
-      - "crates/core/**"
       - "crates/agent-memory/**"
       - "crates/python/**"
       - ".github/workflows/python-wheels.yml"
-      - ".github/workflows/python-publish.yml"
   push:
     branches: [main]
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
-      - "crates/core/**"
       - "crates/agent-memory/**"
       - "crates/python/**"
       - ".github/workflows/python-wheels.yml"
-      - ".github/workflows/python-publish.yml"
   workflow_dispatch:
 
 jobs:
