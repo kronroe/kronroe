@@ -83,6 +83,7 @@ public final class KronroeGraph {
         guard let ptr = kronroe_last_error_message() else {
             return "unknown error"
         }
+        defer { kronroe_string_free(ptr) }
         return String(cString: ptr)
     }
 }

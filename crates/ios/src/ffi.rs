@@ -129,7 +129,7 @@ pub unsafe extern "C" fn kronroe_graph_assert_text(
         }
     };
 
-    let graph = unsafe { &mut *handle };
+    let graph = unsafe { &*handle };
     match graph
         .graph
         .assert_fact(&subject, &predicate, object, Utc::now())
@@ -165,7 +165,7 @@ pub unsafe extern "C" fn kronroe_graph_facts_about_json(
             return ptr::null_mut();
         }
     };
-    let graph = unsafe { &mut *handle };
+    let graph = unsafe { &*handle };
 
     match graph.graph.all_facts_about(&entity) {
         Ok(facts) => match serde_json::to_string(&facts) {
@@ -189,10 +189,23 @@ pub unsafe extern "C" fn kronroe_graph_facts_about_json(
 }
 
 #[no_mangle]
-pub extern "C" fn kronroe_last_error_message() -> *const c_char {
+/// Return the last error message as a newly allocated C string.
+///
+/// Returns NULL if no error is set.
+///
+/// # Safety
+/// The returned pointer must be freed with `kronroe_string_free` when no
+/// longer needed. Unlike the previous implementation, this returns an
+/// independent allocation — the pointer remains valid even after subsequent
+/// Kronroe calls that clear or overwrite the internal error state.
+pub extern "C" fn kronroe_last_error_message() -> *mut c_char {
     LAST_ERROR.with(|cell| match cell.borrow().as_ref() {
-        Some(msg) => msg.as_ptr(),
-        None => ptr::null(),
+        Some(msg) => {
+            // Clone so the caller owns the allocation independently
+            // of the thread-local lifetime.
+            msg.clone().into_raw()
+        }
+        None => ptr::null_mut(),
     })
 }
 
@@ -334,5 +347,6 @@ mod tests {
             msg.contains("graph handle is null"),
             "expected null-handle error, got: {msg}"
         );
+        unsafe { kronroe_string_free(msg_ptr) };
     }
 }
