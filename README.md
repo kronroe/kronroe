@@ -65,14 +65,14 @@ kronroe/
 │   ├── core/           # kronroe — TemporalGraph engine, bi-temporal storage
 │   ├── agent-memory/   # kronroe-agent-memory — high-level AgentMemory API
 │   ├── mcp-server/     # kronroe-mcp — stdio MCP server binary
-│   ├── python/         # kronroe-python — PyO3 bindings
+│   ├── python/         # kronroe-py — PyO3 bindings
 │   ├── wasm/           # kronroe-wasm — WebAssembly bindings (in-memory)
 │   └── ios/            # kronroe-ios — C FFI staticlib + Swift Package
 ├── packages/
 │   └── kronroe-mcp/    # npm shim — npx kronroe-mcp
 ├── python/
 │   └── kronroe-mcp/    # pip shim — kronroe-mcp CLI entry point
-└── examples/
+└── docs/
 ```
 
 ## Quickstarts
@@ -101,17 +101,14 @@ The server exposes five tools: `remember`, `recall`, `facts_about`, `assert_fact
 ### Python
 
 ```python
-from kronroe import KronroeDb
-from datetime import datetime, timezone
+from kronroe import KronroeDb, AgentMemory
 
 db = KronroeDb.open("./memory.kronroe")
-
-# Assert and query temporal facts
-db.assert_fact("alice", "works_at", "Acme", datetime.now(timezone.utc))
-facts = db.facts_about("alice")
-
-# Full-text search
+db.assert_fact("alice", "works_at", "Acme")
 results = db.search("where does Alice work", 10)
+
+memory = AgentMemory.open("./memory.kronroe")
+facts = memory.facts_about("alice")
 ```
 
 ### Rust
@@ -144,6 +141,7 @@ db.invalidate_fact(&id, Utc::now())?;
 | Python bindings (`KronroeDb`, `AgentMemory`) | `crates/python/src/python_bindings.rs` | `cargo build -p kronroe-py` |
 | iOS package artifacts + behavior tests | `crates/ios` | `cargo test -p kronroe-ios` and `./crates/ios/scripts/run-swift-tests.sh` |
 | WASM bindings (in-memory engine, no persistent file backend) | `crates/wasm/src/wasm_bindings.rs` | `cargo build -p kronroe-wasm` |
+| WASM playground live deploy + smoke verification | `.github/workflows/deploy-site.yml`, `site/scripts/smoke-playground.mjs` | merge to `main` triggers deploy + smoke summary |
 
 ### Experimental (feature-gated, API may change)
 
@@ -156,7 +154,6 @@ db.invalidate_fact(&id, Utc::now())?;
 
 | Capability | Status |
 |---|---|
-| WASM playground hosting/deploy (Firebase Hosting + live channel + smoke test) | Available |
 | Android AAR / Kotlin bindings (UniFFI path) | Planned |
 | Rich NLP extraction/planning layer beyond current `AgentMemory` primitives | Planned |
 

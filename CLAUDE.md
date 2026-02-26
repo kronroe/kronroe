@@ -26,7 +26,7 @@ kronroe/
 │   ├── agent-memory/   # `kronroe-agent-memory` crate — AgentMemory API
 │   ├── ios/            # `kronroe-ios` crate — C FFI staticlib + cbindgen header + Swift Package
 │   ├── mcp-server/     # `kronroe-mcp` binary — stdio MCP server (remember/recall tools)
-│   ├── python/         # `kronroe-python` crate — PyO3 bindings
+│   ├── python/         # `kronroe-py` crate — PyO3 bindings
 │   └── wasm/           # `kronroe-wasm` crate — WebAssembly bindings (browser)
 ├── packages/
 │   └── kronroe-mcp/    # npm shim — delegates to `kronroe-mcp` binary on PATH
@@ -38,9 +38,9 @@ kronroe/
 │   │   ├── cla.yml            # CLA assistant bot (contributors must sign CLA)
 │   │   ├── ios.yml            # cross-compile check for aarch64-apple-ios targets
 │   │   ├── python-wheels.yml  # build Python wheels (Linux manylinux)
-│   │   └── python-publish.yml # publish to PyPI via trusted publisher on version tags
+│   │   ├── python-publish.yml # publish to PyPI via trusted publisher (release/workflow dispatch)
+│   │   └── deploy-site.yml    # Firebase Hosting live deploy + post-deploy smoke test
 │   └── ISSUE_TEMPLATE/
-├── examples/
 ├── LICENSE             # AGPL-3.0
 ├── LICENCE-COMMERCIAL.md
 ├── CLA.md
@@ -69,14 +69,14 @@ cargo fmt --all
 # Run a specific test
 cargo test -p kronroe test_name
 cargo test -p kronroe-agent-memory test_name
-cargo test -p kronroe-python test_name
+cargo test -p kronroe-py test_name
 cargo test -p kronroe-mcp test_name
 
 # Run the MCP server locally (reads/writes ./kronroe-mcp.kronroe by default)
 KRONROE_MCP_DB_PATH=./my.kronroe cargo run -p kronroe-mcp
 
 # Build the iOS XCFramework (requires macOS + Xcode CLT)
-bash crates/ios/build-xcframework.sh
+bash crates/ios/scripts/build-xcframework.sh
 ```
 
 ## Architecture
@@ -92,11 +92,18 @@ Every `Fact` has four timestamps — the standard TSQL-2 bi-temporal model:
 | `recorded_at` | Transaction time | When we first stored this fact |
 | `expired_at` | Transaction time | When we overwrote/invalidated it (`None` = still active) |
 
+Additional fact metadata fields:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `confidence` | `f32` | Confidence score for the fact (default `1.0`) |
+| `source` | `Option<String>` | Optional provenance/source marker |
+
 ### Key Types (`crates/core`)
 
 | Type | Description |
 |------|-------------|
-| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `assert_fact_with_embedding`, `current_facts`, `facts_at`, `all_facts_about`, `invalidate_fact`, `search`, `search_by_vector` |
+| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `assert_fact_idempotent`, `assert_fact_with_embedding`, `current_facts`, `facts_at`, `all_facts_about`, `fact_by_id`, `correct_fact`, `invalidate_fact`, `search`, `search_by_vector`, `search_hybrid_experimental` (feature-gated) |
 | `Fact` | The fundamental unit of storage. Fully bi-temporal. |
 | `FactId` | ULID — lexicographically sortable, monotonic insertion order |
 | `Value` | `Text(String)` \| `Number(f64)` \| `Boolean(bool)` \| `Entity(String)` |
@@ -118,7 +125,7 @@ Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memo
 
 | Type | Description |
 |------|-------------|
-| `KronroeDb` | Python class wrapping `TemporalGraph` — exposes `assert_fact`, `search`, `facts_about`, `facts_about_at` |
+| `KronroeDb` | Python class wrapping `TemporalGraph` — exposes `open`, `assert_fact`, `search` |
 | `AgentMemory` | Python class wrapping `AgentMemory` — high-level agent API |
 
 ### Storage
@@ -133,7 +140,7 @@ Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memo
 
 ```
 kronroe-agent-memory   ← agent ergonomics, Phase 1 memory API
-kronroe-python         ← Python/PyO3 bindings
+kronroe-py             ← Python/PyO3 bindings
 kronroe-wasm           ← browser WASM bindings (in-memory only)
 kronroe-mcp            ← stdio MCP server (remember/recall tools)
 kronroe-ios            ← C FFI staticlib + cbindgen header + Swift Package
@@ -162,20 +169,21 @@ Future crates will layer on top: `crates/android/`.
 
 - `crates/ios` is a thin C FFI crate (`kronroe-ios`) wrapping the core `TemporalGraph` API
 - `crate-type = ["staticlib"]` — produces `libkronroe_ios.a` for XCFramework linking
-- `cbindgen` generates `KronroeFFI.h` — the C header consumed by the Swift Package
-- `build-xcframework.sh` compiles for `aarch64-apple-ios` + `aarch64-apple-ios-sim`, then runs
+- `cbindgen` generates `kronroe.h` in `crates/ios/include/` — consumed by the Swift Package module map
+- `scripts/build-xcframework.sh` compiles for `aarch64-apple-ios` + `aarch64-apple-ios-sim`, then runs
   `xcodebuild -create-xcframework` to produce `KronroeFFI.xcframework`
+- `scripts/generate-header.sh` regenerates `crates/ios/include/kronroe.h`
 - Size budget: ≤ 6 MB for the XCFramework (verified in CI)
 - Stable toolchain builds iOS targets cleanly — no nightly workaround needed (verified rustc 1.93.1)
 - XCFramework build artifacts (`crates/ios/build/`, `crates/ios/swift/KronroeFFI.xcframework/`)
-  are gitignored — run `build-xcframework.sh` locally
+  are gitignored — run `scripts/build-xcframework.sh` locally
 
 ### Python Notes (`crates/python`)
 
 - PyO3 bindings exposing `KronroeDb` and `AgentMemory` Python classes
 - Built with `maturin` — `maturin develop -m crates/python/Cargo.toml` for local dev
 - `python-wheels.yml` builds Linux manylinux wheels on every push to `main`
-- `python-publish.yml` publishes to PyPI via trusted publisher on version tags (`v*.*.*`)
+- `python-publish.yml` publishes to PyPI via trusted publisher on release publish/workflow dispatch
 - macOS wheel build temporarily disabled in CI — add macOS runner to `python-wheels.yml` when needed
 - `fact_to_dict()` serialises all `Fact` fields (including all four timestamps) to Python dicts
 
@@ -274,3 +282,69 @@ The CLA bot handles this automatically on PRs. `rebekahcole` and `Becky9012` are
 ## Owner
 
 Rebekah Cole — rebekah@kindlyroe.com
+
+# Memory
+
+## Me
+Rebekah Cole — project owner & sole maintainer of Kronroe. Building Kindly Roe (iOS app) that consumes it.
+
+## People
+
+| Who | Role |
+|-----|------|
+| **Rebekah** (Becky) | Rebekah Cole — owner, sole maintainer. GitHub: rebekahcole / Becky9012. rebekah@kindlyroe.com |
+
+→ Full profiles: `memory/people/`
+
+## Terms
+
+| Term | Meaning |
+|------|---------|
+| FFI | Foreign Function Interface — C API layer for iOS/Android |
+| CoW | Copy on Write — redb storage strategy |
+| ULID | Universally Unique Lexicographically Sortable Identifier — FactId format |
+| MCP | Model Context Protocol — AI tool integration standard |
+| PyO3 | Python ↔ Rust bindings framework (crates/python) |
+| WASM | WebAssembly — browser target (wasm32-unknown-unknown) |
+| XCFramework | Apple multi-arch binary bundle — iOS distribution format |
+| AGPL | Affero General Public License v3 — open source licence |
+| CLA | Contributor License Agreement — required for external PRs |
+| AAR | Android Archive — Android library format (planned) |
+| UniFFI | Mozilla's Rust FFI generator — planned for Android |
+| TSQL-2 | Temporal SQL standard — bi-temporal model reference |
+| HNSW | Hierarchical Navigable Small World — future vector index |
+| P0 | Phase 0 — current development phase |
+| bi-temporal | Two time dimensions: valid time + transaction time |
+| fact | Fundamental storage unit — subject-predicate-value triple with 4 timestamps |
+| entity | Graph node, referenced by canonical name string |
+| flat cosine | Phase 0 vector search — brute-force cosine similarity, O(n·d) |
+| Kindly Roe | Rebekah's iOS app — perpetual commercial licence for Kronroe |
+| the DuckDB analogy | Kronroe is to graph DBs what DuckDB is to analytical DBs |
+
+→ Full glossary: `memory/glossary.md`
+
+## Projects
+
+| Name | What | Status |
+|------|------|--------|
+| **Kronroe** | Embedded temporal property graph DB (Rust) | Active P0 |
+| **Kindly Roe** | Rebekah's iOS app — consumes Kronroe | Active |
+
+→ Details: `memory/projects/`
+
+## Crate Short Names
+
+| Short | Crate | Path |
+|-------|-------|------|
+| core | kronroe | crates/core/ |
+| agent-memory | kronroe-agent-memory | crates/agent-memory/ |
+| ios | kronroe-ios | crates/ios/ |
+| mcp-server | kronroe-mcp | crates/mcp-server/ |
+| python | kronroe-py | crates/python/ |
+| wasm | kronroe-wasm | crates/wasm/ |
+
+## Preferences
+- CI runs `--all-features` — always match locally
+- `#[cfg(feature)]` requires feature declared in Cargo.toml
+- Targeted `git add` can leave Cargo.toml unstaged — always check `git status`
+- `.ideas/` has private experiment planning docs — check before starting new work
