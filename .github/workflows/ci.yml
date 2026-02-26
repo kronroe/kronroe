@@ -6,7 +6,10 @@ on:
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
-      - "crates/**"
+      - "crates/core/**"
+      - "crates/agent-memory/**"
+      - "crates/mcp-server/**"
+      - "crates/wasm/**"
       - "site/**"
       - "firebase.json"
       - ".firebaserc"
@@ -15,7 +18,10 @@ on:
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
-      - "crates/**"
+      - "crates/core/**"
+      - "crates/agent-memory/**"
+      - "crates/mcp-server/**"
+      - "crates/wasm/**"
       - "site/**"
       - "firebase.json"
       - ".firebaserc"
@@ -47,7 +53,10 @@ jobs:
             rust:
               - 'Cargo.toml'
               - 'Cargo.lock'
-              - 'crates/**'
+              - 'crates/core/**'
+              - 'crates/agent-memory/**'
+              - 'crates/mcp-server/**'
+              - 'crates/wasm/**'
             wasm:
               - 'Cargo.toml'
               - 'Cargo.lock'
