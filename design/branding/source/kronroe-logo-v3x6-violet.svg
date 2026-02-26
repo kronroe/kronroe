@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Kronroe Logo — V3×V6 Hybrid</title>
+  <desc>Sketchy K with colour-coded arms, extending edge lines, and precise node dots on violet background</desc>
+  
+  <defs>
+    <!-- Subtle grain filter for texture -->
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="grayNoise"/>
+      <feBlend in="SourceGraphic" in2="grayNoise" mode="multiply" result="grained"/>
+      <feComponentTransfer in="grained">
+        <feFuncA type="linear" slope="1"/>
+      </feComponentTransfer>
+    </filter>
+    
+    <!-- Glow effect for nodes -->
+    <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    
+    <!-- Soft shadow for container -->
+    <filter id="containerShadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#2E211C" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  
+  <!-- Violet container with rounded corners -->
+  <rect 
+    x="32" y="32" 
+    width="448" height="448" 
+    rx="64" ry="64" 
+    fill="#7C5CFC" 
+    filter="url(#containerShadow)"
+  />
+  
+  <!-- Very subtle grain overlay on violet -->
+  <rect 
+    x="32" y="32" 
+    width="448" height="448" 
+    rx="64" ry="64" 
+    fill="#7C5CFC" 
+    opacity="0.03"
+    filter="url(#grain)"
+  />
+  
+  <!-- === THE K === -->
+  <!-- All paths hand-drawn with slight wobble via curve control points -->
+  
+  <!-- Spine (white, sketchy) — the vertical stroke -->
+  <path 
+    d="M 195 128 
+       C 194 132, 196 145, 195 160 
+       C 194 180, 196 200, 195 220 
+       C 194 240, 196 260, 195 280 
+       C 194 300, 196 320, 195 340 
+       C 194 355, 196 370, 195 384" 
+    stroke="#FFFFFF" 
+    stroke-width="36" 
+    stroke-linecap="round" 
+    fill="none"
+    opacity="0.95"
+  />
+  
+  <!-- Upper arm (aqua, sketchy) — reaching up-right -->
+  <path 
+    d="M 200 262 
+       C 210 252, 225 238, 245 222 
+       C 260 210, 278 196, 295 183 
+       C 310 172, 328 160, 345 148" 
+    stroke="#5CFCFC" 
+    stroke-width="32" 
+    stroke-linecap="round" 
+    fill="none"
+    opacity="0.95"
+  />
+  
+  <!-- Lower arm (rose, sketchy) — reaching down-right -->
+  <path 
+    d="M 200 262 
+       C 210 272, 225 286, 245 302 
+       C 260 314, 278 328, 295 341 
+       C 310 352, 328 364, 345 376" 
+    stroke="#FC5C8A" 
+    stroke-width="32" 
+    stroke-linecap="round" 
+    fill="none"
+    opacity="0.95"
+  />
+  
+  <!-- === EXTENDING EDGE LINES === -->
+  <!-- These break past the container boundary — the graph reaching outward -->
+  
+  <!-- Upper edge line (aqua, precise, thin) -->
+  <line 
+    x1="350" y1="145" 
+    x2="420" y2="100" 
+    stroke="#5CFCFC" 
+    stroke-width="6" 
+    stroke-linecap="round"
+    opacity="0.85"
+  />
+  
+  <!-- Lower edge line (rose, precise, thin) -->
+  <line 
+    x1="350" y1="379" 
+    x2="420" y2="424" 
+    stroke="#FC5C8A" 
+    stroke-width="6" 
+    stroke-linecap="round"
+    opacity="0.85"
+  />
+  
+  <!-- === NODE DOTS === -->
+  <!-- Perfectly round, precise — contrasts with sketchy strokes -->
+  
+  <!-- Upper node (aqua) with glow -->
+  <circle 
+    cx="432" cy="90" r="24" 
+    fill="#5CFCFC" 
+    filter="url(#nodeGlow)"
+    opacity="0.25"
+  />
+  <circle 
+    cx="432" cy="90" r="18" 
+    fill="#5CFCFC"
+  />
+  
+  <!-- Lower node (rose) with glow -->
+  <circle 
+    cx="432" cy="434" r="24" 
+    fill="#FC5C8A" 
+    filter="url(#nodeGlow)"
+    opacity="0.25"
+  />
+  <circle 
+    cx="432" cy="434" r="18" 
+    fill="#FC5C8A"
+  />
+</svg>
