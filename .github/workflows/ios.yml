@@ -2,8 +2,20 @@ name: iOS Packaging
 
 on:
   pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/core/**"
+      - "crates/ios/**"
+      - ".github/workflows/ios.yml"
   push:
     branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/core/**"
+      - "crates/ios/**"
+      - ".github/workflows/ios.yml"
   workflow_dispatch:
 
 env:

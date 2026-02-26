@@ -3,7 +3,23 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "site/**"
+      - "firebase.json"
+      - ".firebaserc"
+      - ".github/workflows/ci.yml"
   pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "site/**"
+      - "firebase.json"
+      - ".firebaserc"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 env:
