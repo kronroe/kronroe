@@ -190,8 +190,12 @@ Future crates will layer on top: `crates/android/`.
 ### MCP Server Notes (`crates/mcp-server`)
 
 - Stdio transport with LSP-style `Content-Length` framing — works with any MCP client
-- Tools: `remember` (stores free-text as facts via tantivy parse), `recall` (full-text search,
-  returns structured fact list)
+- Tools:
+  - `remember` (stores free-text as facts via tantivy parse)
+  - `recall` (full-text search, returns structured fact list)
+  - `facts_about` (fact lookup scoped to an entity)
+  - `assert_fact` (structured fact assertion with optional idempotency key)
+  - `correct_fact` (in-place correction preserving history semantics)
 - Database path: `KRONROE_MCP_DB_PATH` env var (default: `./kronroe-mcp.kronroe`)
 - Install binary: `cargo install --path crates/mcp-server`
 - **npm shim** (`packages/kronroe-mcp`): `npx kronroe-mcp` — delegates to binary on PATH
