@@ -16,7 +16,7 @@
 //! When corpora grow to tens of thousands of entries a proper HNSW index should
 //! replace this module. See CLAUDE.md §0.8 for the evaluation notes.
 
-use crate::FactId;
+use crate::{FactId, KronroeError, Result};
 use std::collections::HashSet;
 
 /// An entry in the index: a fact identifier paired with its embedding vector.
@@ -49,20 +49,24 @@ impl VectorIndex {
 
     /// Insert or replace an embedding for `id`.
     ///
-    /// # Panics
-    /// Panics if `embedding` is empty or if its dimension differs from the first
-    /// embedding ever inserted into this index.
-    pub fn insert(&mut self, id: FactId, embedding: Vec<f32>) {
-        assert!(!embedding.is_empty(), "embedding must not be empty");
+    /// Returns an error if the embedding is empty or if its dimension differs
+    /// from the first embedding ever inserted into this index.
+    pub fn insert(&mut self, id: FactId, embedding: Vec<f32>) -> Result<()> {
+        if embedding.is_empty() {
+            return Err(KronroeError::InvalidEmbedding(
+                "embedding must not be empty".into(),
+            ));
+        }
 
         match self.dim {
             None => self.dim = Some(embedding.len()),
-            Some(d) => assert_eq!(
-                embedding.len(),
-                d,
-                "embedding dimension mismatch: expected {d}, got {}",
-                embedding.len()
-            ),
+            Some(d) if embedding.len() != d => {
+                return Err(KronroeError::InvalidEmbedding(format!(
+                    "embedding dimension mismatch: expected {d}, got {}",
+                    embedding.len()
+                )));
+            }
+            Some(_) => {}
         }
 
         // Replace an existing entry for the same id (e.g. after `correct_fact`).
@@ -71,6 +75,7 @@ impl VectorIndex {
         } else {
             self.entries.push(Entry { id, embedding });
         }
+        Ok(())
     }
 
     /// Remove the entry for `id`. No-op if `id` is not present.
@@ -255,7 +260,7 @@ mod tests {
     fn test_insert_single() {
         let mut idx = VectorIndex::new();
         let id = new_id();
-        idx.insert(id.clone(), vec![1.0, 0.0, 0.0]);
+        idx.insert(id.clone(), vec![1.0, 0.0, 0.0]).unwrap();
         assert_eq!(idx.len(), 1);
     }
 
@@ -263,25 +268,32 @@ mod tests {
     fn test_insert_replaces_existing_id() {
         let mut idx = VectorIndex::new();
         let id = new_id();
-        idx.insert(id.clone(), vec![1.0, 0.0, 0.0]);
-        idx.insert(id.clone(), vec![0.0, 1.0, 0.0]);
+        idx.insert(id.clone(), vec![1.0, 0.0, 0.0]).unwrap();
+        idx.insert(id.clone(), vec![0.0, 1.0, 0.0]).unwrap();
         // Should replace, not append.
         assert_eq!(idx.len(), 1);
     }
 
     #[test]
-    #[should_panic(expected = "embedding must not be empty")]
-    fn test_insert_empty_embedding_panics() {
+    fn test_insert_empty_embedding_returns_error() {
         let mut idx = VectorIndex::new();
-        idx.insert(new_id(), vec![]);
+        let result = idx.insert(new_id(), vec![]);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("empty"), "expected 'empty' in: {msg}");
     }
 
     #[test]
-    #[should_panic(expected = "embedding dimension mismatch")]
-    fn test_insert_dimension_mismatch_panics() {
+    fn test_insert_dimension_mismatch_returns_error() {
         let mut idx = VectorIndex::new();
-        idx.insert(new_id(), vec![1.0, 0.0]);
-        idx.insert(new_id(), vec![1.0, 0.0, 0.0]); // wrong dim
+        idx.insert(new_id(), vec![1.0, 0.0]).unwrap();
+        let result = idx.insert(new_id(), vec![1.0, 0.0, 0.0]); // wrong dim
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("dimension mismatch"),
+            "expected 'dimension mismatch' in: {msg}"
+        );
     }
 
     // ------------------------------------------------------------------
@@ -292,7 +304,7 @@ mod tests {
     fn test_remove_existing() {
         let mut idx = VectorIndex::new();
         let id = new_id();
-        idx.insert(id.clone(), vec![1.0, 0.0]);
+        idx.insert(id.clone(), vec![1.0, 0.0]).unwrap();
         idx.remove(&id);
         assert!(idx.is_empty());
     }
@@ -300,7 +312,7 @@ mod tests {
     #[test]
     fn test_remove_nonexistent_is_noop() {
         let mut idx = VectorIndex::new();
-        idx.insert(new_id(), vec![1.0, 0.0]);
+        idx.insert(new_id(), vec![1.0, 0.0]).unwrap();
         idx.remove(&new_id()); // random id not in index
         assert_eq!(idx.len(), 1);
     }
@@ -321,7 +333,7 @@ mod tests {
     fn test_search_k_zero_returns_empty() {
         let mut idx = VectorIndex::new();
         let id = new_id();
-        idx.insert(id.clone(), vec![1.0, 0.0]);
+        idx.insert(id.clone(), vec![1.0, 0.0]).unwrap();
         let valid = all_ids(&[id]);
         let results = idx.search(&[1.0, 0.0], 0, &valid);
         assert!(results.is_empty());
@@ -336,9 +348,9 @@ mod tests {
         //   ids[0] → [1,0,0]  sim = 1.0  (best)
         //   ids[1] → [0,1,0]  sim = 0.0
         //   ids[2] → [-1,0,0] sim = -1.0 (worst)
-        idx.insert(ids[0].clone(), vec![1.0, 0.0, 0.0]);
-        idx.insert(ids[1].clone(), vec![0.0, 1.0, 0.0]);
-        idx.insert(ids[2].clone(), vec![-1.0, 0.0, 0.0]);
+        idx.insert(ids[0].clone(), vec![1.0, 0.0, 0.0]).unwrap();
+        idx.insert(ids[1].clone(), vec![0.0, 1.0, 0.0]).unwrap();
+        idx.insert(ids[2].clone(), vec![-1.0, 0.0, 0.0]).unwrap();
 
         let valid = all_ids(&ids);
         let results = idx.search(&[1.0, 0.0, 0.0], 3, &valid);
@@ -356,7 +368,7 @@ mod tests {
         let mut idx = VectorIndex::new();
         let ids = make_ids(5);
         for id in &ids {
-            idx.insert(id.clone(), vec![1.0, 0.0]);
+            idx.insert(id.clone(), vec![1.0, 0.0]).unwrap();
         }
         let valid = all_ids(&ids);
         let results = idx.search(&[1.0, 0.0], 3, &valid);
@@ -375,7 +387,7 @@ mod tests {
         // All three vectors are identical (sim = 1.0) so ranking won't obscure
         // the filtering behaviour.
         for id in &ids {
-            idx.insert(id.clone(), vec![1.0, 0.0]);
+            idx.insert(id.clone(), vec![1.0, 0.0]).unwrap();
         }
 
         // Only ids[0] and ids[2] are "valid at time T" (caller-supplied filter).
@@ -392,7 +404,7 @@ mod tests {
     #[test]
     fn test_search_empty_valid_ids_returns_empty() {
         let mut idx = VectorIndex::new();
-        idx.insert(new_id(), vec![1.0, 0.0]);
+        idx.insert(new_id(), vec![1.0, 0.0]).unwrap();
         let valid: HashSet<FactId> = HashSet::new();
         let results = idx.search(&[1.0, 0.0], 5, &valid);
         assert!(results.is_empty());
@@ -402,7 +414,7 @@ mod tests {
     fn test_search_zero_query_returns_empty() {
         let mut idx = VectorIndex::new();
         let id = new_id();
-        idx.insert(id.clone(), vec![1.0, 0.0]);
+        idx.insert(id.clone(), vec![1.0, 0.0]).unwrap();
         let valid = all_ids(&[id]);
         // Zero vector has no direction — undefined cosine similarity.
         let results = idx.search(&[0.0, 0.0], 5, &valid);

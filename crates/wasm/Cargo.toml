@@ -18,7 +18,6 @@ kronroe = { path = "../core", default-features = false }
 wasm-bindgen = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde-wasm-bindgen = "0.6"
 chrono = { workspace = true }
 
 # ulid → getrandom 0.2: declare here with "js" feature so Cargo merges it.

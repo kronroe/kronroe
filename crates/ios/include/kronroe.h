@@ -46,8 +46,9 @@ char *kronroe_graph_facts_about_json(KronroeGraphHandle *handle, const char *ent
 
 /**
  * Return last error message for the current thread, or NULL if none.
+ * Caller owns the returned string and must free it with `kronroe_string_free`.
  */
-const char *kronroe_last_error_message(void);
+char *kronroe_last_error_message(void);
 
 /**
  * Free strings returned from Kronroe FFI.

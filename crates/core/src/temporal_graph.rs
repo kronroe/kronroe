@@ -460,7 +460,7 @@ impl TemporalGraph {
                 .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
                 .collect();
 
-            idx.insert(fact_id, embedding);
+            idx.insert(fact_id, embedding)?;
         }
 
         Ok(idx)
@@ -527,6 +527,23 @@ impl TemporalGraph {
         object: impl Into<Value>,
         valid_from: DateTime<Utc>,
     ) -> Result<FactId> {
+        // Fast path: check with a read transaction to avoid holding the write
+        // lock on cache-hit (idempotent retry). The idempotency table may not
+        // exist yet on a fresh database, which is fine — just fall through.
+        {
+            let read_txn = self.db.begin_read()?;
+            if let Ok(idem_table) = read_txn.open_table(IDEMPOTENCY) {
+                let existing: Option<String> = idem_table
+                    .get(idempotency_key)?
+                    .map(|guard| guard.value().to_string());
+                if let Some(existing_id) = existing {
+                    return Ok(FactId(existing_id));
+                }
+            }
+        }
+
+        // Slow path: acquire write lock. Re-check the key since another writer
+        // may have inserted between our read and this write (double-check).
         let write_txn = self.db.begin_write()?;
 
         {
@@ -791,7 +808,7 @@ impl TemporalGraph {
         self.vector_index
             .lock()
             .unwrap()
-            .insert(fact_id.clone(), embedding);
+            .insert(fact_id.clone(), embedding)?;
 
         Ok(fact_id)
     }
@@ -1515,6 +1532,121 @@ mod tests {
         assert!(
             matches!(result, Err(KronroeError::Search(_))),
             "invalid params should return a validation error"
+        );
+    }
+
+    #[test]
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    fn hybrid_half_life_days_boosts_recent_facts() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+
+        // Two facts with identical text and vector content, but different ages.
+        let old_time = dt("2020-01-01T00:00:00Z");
+        let recent_time = dt("2026-02-01T00:00:00Z");
+        let query_time = dt("2026-02-20T00:00:00Z");
+
+        db.assert_fact_with_embedding(
+            "old-doc",
+            "bio",
+            "temporal-keyword",
+            old_time,
+            vec![1.0, 0.0],
+        )
+        .unwrap();
+        db.assert_fact_with_embedding(
+            "new-doc",
+            "bio",
+            "temporal-keyword",
+            recent_time,
+            vec![1.0, 0.0],
+        )
+        .unwrap();
+
+        let params = HybridParams {
+            k: 2,
+            candidate_window: 10,
+            rank_constant: 60,
+            text_weight: 0.3,
+            vector_weight: 0.3,
+            temporal_weight: 0.4,
+            temporal_adjustment: TemporalAdjustment::HalfLifeDays { days: 90.0 },
+            fusion: HybridFusionStrategy::Rrf,
+        };
+
+        let hits = db
+            .search_hybrid_experimental("temporal-keyword", &[1.0, 0.0], params, Some(query_time))
+            .unwrap();
+        assert_eq!(hits.len(), 2, "should return both facts");
+
+        // The recent fact should rank higher due to temporal decay.
+        assert_eq!(
+            hits[0].0.subject, "new-doc",
+            "recent fact should rank first with half-life decay"
+        );
+
+        // Temporal adjustments should be non-zero and the recent one larger.
+        assert!(
+            hits[0].1.temporal_adjustment > hits[1].1.temporal_adjustment,
+            "recent fact temporal adjustment ({}) should exceed old fact ({})",
+            hits[0].1.temporal_adjustment,
+            hits[1].1.temporal_adjustment
+        );
+    }
+
+    #[test]
+    fn half_open_interval_boundary_at_valid_from() {
+        // Fact valid at [valid_from, valid_to). Query exactly at valid_from
+        // should include the fact.
+        let (db, _tmp) = open_temp_db();
+        let jan = dt("2024-01-01T00:00:00Z");
+        let jun = dt("2024-06-01T00:00:00Z");
+
+        let id = db.assert_fact("alice", "works_at", "Acme", jan).unwrap();
+        db.invalidate_fact(&id, jun).unwrap();
+
+        let at_start = db.facts_at("alice", "works_at", jan).unwrap();
+        assert_eq!(
+            at_start.len(),
+            1,
+            "fact should be valid at exact valid_from"
+        );
+    }
+
+    #[test]
+    fn half_open_interval_boundary_at_valid_to() {
+        // Fact valid at [valid_from, valid_to). Query exactly at valid_to
+        // should NOT include the fact (half-open upper bound).
+        let (db, _tmp) = open_temp_db();
+        let jan = dt("2024-01-01T00:00:00Z");
+        let jun = dt("2024-06-01T00:00:00Z");
+
+        let id = db.assert_fact("alice", "works_at", "Acme", jan).unwrap();
+        db.invalidate_fact(&id, jun).unwrap();
+
+        let at_end = db.facts_at("alice", "works_at", jun).unwrap();
+        assert_eq!(
+            at_end.len(),
+            0,
+            "fact should NOT be valid at exact valid_to (half-open)"
+        );
+    }
+
+    #[test]
+    fn half_open_interval_one_instant_before_valid_to() {
+        let (db, _tmp) = open_temp_db();
+        let jan = dt("2024-01-01T00:00:00Z");
+        let jun = dt("2024-06-01T00:00:00Z");
+
+        let id = db.assert_fact("alice", "works_at", "Acme", jan).unwrap();
+        db.invalidate_fact(&id, jun).unwrap();
+
+        // One second before valid_to — should still be valid.
+        let just_before = dt("2024-05-31T23:59:59Z");
+        let before_end = db.facts_at("alice", "works_at", just_before).unwrap();
+        assert_eq!(
+            before_end.len(),
+            1,
+            "fact should be valid just before valid_to"
         );
     }
 
