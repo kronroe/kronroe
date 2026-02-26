@@ -156,7 +156,7 @@ db.invalidate_fact(&id, Utc::now())?;
 
 | Capability | Status |
 |---|---|
-| WASM playground hosting/deploy (Firebase Hosting + domain wiring) | Planned |
+| WASM playground hosting/deploy (Firebase Hosting + live channel + smoke test) | Available |
 | Android AAR / Kotlin bindings (UniFFI path) | Planned |
 | Rich NLP extraction/planning layer beyond current `AgentMemory` primitives | Planned |
 
