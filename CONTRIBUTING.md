@@ -48,7 +48,7 @@ cargo build --all
 ### Running tests
 
 ```bash
-cargo test --all
+cargo test --all --all-features
 ```
 
 Tests use `tempfile` for temporary databases — no setup required.
@@ -57,7 +57,7 @@ Tests use `tempfile` for temporary databases — no setup required.
 
 ```bash
 # Must pass with no warnings
-cargo clippy --all -- -D warnings
+cargo clippy --all --all-features -- -D warnings
 
 # Check formatting
 cargo fmt --all -- --check
@@ -88,8 +88,8 @@ cargo build --target aarch64-apple-ios-sim -p kronroe
 
 4. Run the full check suite:
    ```bash
-   cargo test --all
-   cargo clippy --all -- -D warnings
+   cargo test --all --all-features
+   cargo clippy --all --all-features -- -D warnings
    cargo fmt --all -- --check
    ```
 

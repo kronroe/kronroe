@@ -5,11 +5,15 @@ This document defines repository naming conventions used to keep crate entrypoin
 ## Rust crate entrypoints
 
 - Policy: do not use legacy default entrypoint filenames. Every crate entrypoint must be explicitly named and declared via `[lib] path = "..."`.
-- Exception rule: if a crate intentionally uses a named entrypoint, set it explicitly in `Cargo.toml` under `[lib] path = "..."]`.
-- Current explicit exception:
-  - `crates/agent-memory/Cargo.toml` uses `path = "src/agent_memory.rs"`.
+- All crates in this repository follow this convention:
+  - `crates/core/Cargo.toml` → `path = "src/temporal_graph.rs"`
+  - `crates/agent-memory/Cargo.toml` → `path = "src/agent_memory.rs"`
+  - `crates/ios/Cargo.toml` → `path = "src/ffi.rs"`
+  - `crates/mcp-server/Cargo.toml` → binary, uses `src/main.rs`
+  - `crates/python/Cargo.toml` → `path = "src/python_bindings.rs"`
+  - `crates/wasm/Cargo.toml` → `path = "src/wasm_bindings.rs"`
 
-Reason: `agent_memory.rs` makes the high-level API entrypoint explicit and avoids confusion with other crates that also used legacy defaults.
+Named entrypoints make the high-level API explicit and avoid confusion between crates.
 
 ## Documentation path references
 
