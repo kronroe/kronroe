@@ -200,6 +200,14 @@ function factRowHtml(f: WasmFact): string {
   </div>`;
 }
 
+function factObjectKey(v: WasmFactObject): string {
+  return `${v.type}:${String(v.value)}`;
+}
+
+function factIdentityKey(f: WasmFact): string {
+  return `${f.subject}|${f.predicate}|${factObjectKey(f.object)}`;
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -242,6 +250,7 @@ async function init() {
   const clearBtn     = document.getElementById("clear-btn")!;
   const timeDemoBtn  = document.getElementById("time-demo-btn")! as HTMLButtonElement;
   const assertStatus = document.getElementById("assert-status")!;
+  const assertPanel  = document.getElementById("assert-panel");
 
   const queryEntityEl = document.getElementById("query-entity")! as HTMLInputElement;
   const queryPredEl   = document.getElementById("query-pred")!   as HTMLInputElement;
@@ -249,23 +258,273 @@ async function init() {
   const queryBtn      = document.getElementById("query-btn")!;
   const showAllBtn    = document.getElementById("show-all-btn")!;
   const queryStatus   = document.getElementById("query-status")!;
+  const queryPanel    = document.getElementById("query-panel");
 
   const streamBody  = document.getElementById("stream-body")!;
   const streamCount = document.getElementById("stream-count")!;
   const streamMode  = document.getElementById("stream-mode")!;
   const exportBtn   = document.getElementById("export-btn")! as HTMLButtonElement;
+  const railValidTrack = document.getElementById("rail-valid-track")!;
+  const railRecordedTrack = document.getElementById("rail-recorded-track")!;
+  const railScrubber = document.getElementById("rail-scrubber")! as HTMLInputElement;
+  const railTimeLabel = document.getElementById("rail-time-label")!;
+  const railCountLabel = document.getElementById("rail-count-label")!;
+  const diffAEl = document.getElementById("diff-a")! as HTMLInputElement;
+  const diffBEl = document.getElementById("diff-b")! as HTMLInputElement;
+  const diffCompareBtn = document.getElementById("diff-compare-btn")! as HTMLButtonElement;
+  const diffSummary = document.getElementById("diff-summary")!;
+  const entityCardsBody = document.getElementById("entity-cards-body")!;
+  const entitySortRecentBtn = document.getElementById("entity-sort-recent")! as HTMLButtonElement;
+  const entitySortAlphaBtn = document.getElementById("entity-sort-alpha")! as HTMLButtonElement;
   const examplesEl  = document.getElementById("examples")!;
 
   // ── State ─────────────────────────────────────────────────────────────────
 
   let allFacts: WasmFact[]      = []; // complete history (including invalidated)
   let storedFacts: StoredFact[] = []; // mirror for localStorage
-  let viewMode: "all" | "query" = "all";
+  let viewMode: "all" | "query" | "rail" = "all";
   let lastRenderedFacts: WasmFact[] = []; // snapshot of the last renderFacts() call
+  let railPoints: number[] = [];
+  let railSelectedIndex = 0;
+  let entitySortMode: "recent" | "alpha" = "recent";
+
+  function isActiveFact(f: WasmFact): boolean {
+    return f.valid_to === null && f.expired_at === null;
+  }
 
   /** Facts that have not been invalidated — used for the "ALL" stream view. */
   function activeFacts(): WasmFact[] {
-    return allFacts.filter(f => f.expired_at === null);
+    return allFacts.filter(isActiveFact);
+  }
+
+  function isFactVisibleAt(f: WasmFact, atMs: number): boolean {
+    if (!isActiveFact(f)) return false;
+    const from = new Date(f.valid_from).getTime();
+    const to   = f.valid_to ? new Date(f.valid_to).getTime() : Infinity;
+    return from <= atMs && atMs < to;
+  }
+
+  function syncEntitySortButtons() {
+    const recentActive = entitySortMode === "recent";
+    entitySortRecentBtn.classList.toggle("active", recentActive);
+    entitySortAlphaBtn.classList.toggle("active", !recentActive);
+    entitySortRecentBtn.setAttribute("aria-pressed", recentActive ? "true" : "false");
+    entitySortAlphaBtn.setAttribute("aria-pressed", recentActive ? "false" : "true");
+  }
+
+  function renderEntityCards() {
+    if (allFacts.length === 0) {
+      entityCardsBody.innerHTML = `<div class="status">Entity story cards appear here after facts are loaded.</div>`;
+      return;
+    }
+    const visibleIds = new Set(lastRenderedFacts.map((f) => f.id));
+    const grouped = new Map<string, WasmFact[]>();
+    for (const f of allFacts) {
+      const existing = grouped.get(f.subject) ?? [];
+      existing.push(f);
+      grouped.set(f.subject, existing);
+    }
+    const cards = Array.from(grouped.entries())
+      .sort((a, b) => {
+        if (entitySortMode === "alpha") {
+          return a[0].localeCompare(b[0]);
+        }
+        const latestA = Math.max(
+          ...a[1].map((f) =>
+            Math.max(
+              new Date(f.valid_from).getTime(),
+              new Date(f.recorded_at).getTime(),
+              f.expired_at ? new Date(f.expired_at).getTime() : -Infinity
+            )
+          )
+        );
+        const latestB = Math.max(
+          ...b[1].map((f) =>
+            Math.max(
+              new Date(f.valid_from).getTime(),
+              new Date(f.recorded_at).getTime(),
+              f.expired_at ? new Date(f.expired_at).getTime() : -Infinity
+            )
+          )
+        );
+        if (latestA !== latestB) return latestB - latestA;
+        return a[0].localeCompare(b[0]);
+      })
+      .map(([subject, rows]) => {
+        const current = rows.filter(isActiveFact).length;
+        const history = rows.length - current;
+        const latestChangedMs = Math.max(
+          ...rows.map((f) =>
+            Math.max(
+              new Date(f.valid_from).getTime(),
+              new Date(f.recorded_at).getTime(),
+              f.expired_at ? new Date(f.expired_at).getTime() : -Infinity
+            )
+          )
+        );
+        const latestChangedIso = Number.isFinite(latestChangedMs)
+          ? new Date(latestChangedMs).toISOString()
+          : null;
+        const sortedRows = rows
+          .slice()
+          .sort((a, b) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime());
+        const lines = sortedRows
+          .slice(0, 8)
+          .map((r) => {
+            const state = isActiveFact(r) ? "current" : "history";
+            const visible = visibleIds.has(r.id) ? "visible" : "offscreen";
+            return `<div class="entity-line"><span class="k">${esc(r.predicate)}</span><span>${esc(fmtValue(r.object))}</span><span class="entity-stat ${state}">${state}</span><span class="entity-stat">${visible}</span></div>`;
+          })
+          .join("");
+        return `<details class="entity-card"${subject === queryEntityEl.value.trim() ? " open" : ""}>
+          <summary>
+            <span class="entity-title">${esc(subject)}</span>
+            <span class="entity-stats">
+              <span class="entity-stat current">${current} current</span>
+              <span class="entity-stat history">${history} history</span>
+              <span class="entity-stat">updated ${esc(latestChangedIso ? fmtTime(latestChangedIso) : "—")}</span>
+            </span>
+          </summary>
+          <div class="entity-body">${lines || `<div class="entity-line">No details.</div>`}</div>
+        </details>`;
+      });
+    entityCardsBody.innerHTML = cards.join("");
+  }
+
+  function renderRailDots(track: Element, timestamps: number[], activeMs: number | null, cls: string) {
+    if (timestamps.length === 0) {
+      track.innerHTML = "";
+      return;
+    }
+    const min = timestamps[0];
+    const max = timestamps[timestamps.length - 1];
+    const span = Math.max(1, max - min);
+    track.innerHTML = timestamps
+      .map((ts) => {
+        const left = ((ts - min) / span) * 100;
+        const active = activeMs !== null && ts === activeMs ? " active" : "";
+        return `<span class="rail-dot ${cls}${active}" style="left:${left}%"></span>`;
+      })
+      .join("");
+  }
+
+  function updateRail() {
+    const validRaw: number[] = [];
+    const recordedRaw: number[] = [];
+    const invalidatedPointSet = new Set<number>();
+    for (const f of allFacts) {
+      const valid = new Date(f.valid_from).getTime();
+      if (Number.isFinite(valid)) validRaw.push(valid);
+
+      const recorded = new Date(f.recorded_at).getTime();
+      if (Number.isFinite(recorded)) recordedRaw.push(recorded);
+
+      if (f.expired_at) {
+        const expired = new Date(f.expired_at).getTime();
+        if (Number.isFinite(expired)) {
+          recordedRaw.push(expired);
+          invalidatedPointSet.add(expired);
+        }
+      }
+    }
+    const validPoints = Array.from(new Set(validRaw)).sort((a, b) => a - b);
+    const recordedPoints = Array.from(new Set(recordedRaw)).sort((a, b) => a - b);
+    railPoints = Array.from(new Set([...validPoints, ...recordedPoints])).sort((a, b) => a - b);
+
+    const hasPoints = railPoints.length > 0;
+    railScrubber.disabled = !hasPoints;
+    railScrubber.min = "0";
+    railScrubber.max = String(Math.max(0, railPoints.length - 1));
+    railSelectedIndex = Math.min(railSelectedIndex, Math.max(0, railPoints.length - 1));
+    railScrubber.value = String(railSelectedIndex);
+
+    const selectedMs = hasPoints ? railPoints[railSelectedIndex] : null;
+    renderRailDots(railValidTrack, validPoints, selectedMs, "valid");
+    renderRailDots(
+      railRecordedTrack,
+      recordedPoints.filter((p) => !invalidatedPointSet.has(p)),
+      selectedMs,
+      "recorded"
+    );
+    const invalidatedPoints = recordedPoints.filter((p) => invalidatedPointSet.has(p));
+    railRecordedTrack.innerHTML += invalidatedPoints
+      .map((ts) => {
+        const min = recordedPoints[0] ?? ts;
+        const max = recordedPoints[recordedPoints.length - 1] ?? ts;
+        const span = Math.max(1, max - min);
+        const left = ((ts - min) / span) * 100;
+        const active = selectedMs !== null && ts === selectedMs ? " active" : "";
+        return `<span class="rail-dot invalidated${active}" style="left:${left}%"></span>`;
+      })
+      .join("");
+
+    if (!hasPoints || selectedMs === null) {
+      railTimeLabel.textContent = "No temporal points yet.";
+      railCountLabel.textContent = "0 visible";
+      return;
+    }
+
+    const visibleCount = allFacts.filter((f) => isFactVisibleAt(f, selectedMs)).length;
+    railTimeLabel.textContent = fmtTime(new Date(selectedMs).toISOString());
+    railCountLabel.textContent = `${visibleCount} visible`;
+  }
+
+  function runDiffAB() {
+    const aIso = localInputToISO(diffAEl.value);
+    const bIso = localInputToISO(diffBEl.value);
+    if (!aIso || !bIso) {
+      diffSummary.textContent = "Pick two valid times first.";
+      return;
+    }
+    const aMs = new Date(aIso).getTime();
+    const bMs = new Date(bIso).getTime();
+    let fromMs = aMs;
+    let toMs = bMs;
+    let orderingNote = "";
+    if (aMs > bMs) {
+      fromMs = bMs;
+      toMs = aMs;
+      orderingNote = " (A/B reversed, compared earlier → later)";
+    } else if (aMs === bMs) {
+      diffSummary.textContent = "A and B are identical. Pick two distinct times.";
+      return;
+    }
+    const subjectFilter = queryEntityEl.value.trim() || null;
+    const atA = allFacts.filter((f) => (!subjectFilter || f.subject === subjectFilter) && isFactVisibleAt(f, fromMs));
+    const atB = allFacts.filter((f) => (!subjectFilter || f.subject === subjectFilter) && isFactVisibleAt(f, toMs));
+    const setA = new Set(atA.map(factIdentityKey));
+    const setB = new Set(atB.map(factIdentityKey));
+
+    const added = Array.from(setB).filter((k) => !setA.has(k));
+    const removed = Array.from(setA).filter((k) => !setB.has(k));
+    const subjectLabel = subjectFilter ? ` for ${subjectFilter}` : "";
+    diffSummary.innerHTML =
+      `<span class="diff-badge added">+${added.length} added</span>` +
+      `<span class="diff-badge removed">-${removed.length} removed</span>` +
+      `Comparing ${esc(fmtTime(new Date(fromMs).toISOString()))} → ${esc(fmtTime(new Date(toMs).toISOString()))}${esc(subjectLabel)}${esc(orderingNote)}.`;
+  }
+
+  function railSelectionFacts(atMs: number): WasmFact[] {
+    const entity = queryEntityEl.value.trim();
+    const pred = queryPredEl.value.trim();
+    return allFacts.filter((f) => {
+      if (!isFactVisibleAt(f, atMs)) return false;
+      if (entity && f.subject !== entity) return false;
+      if (pred && f.predicate !== pred) return false;
+      return true;
+    });
+  }
+
+  function renderRailSelection() {
+    if (railPoints.length === 0) return;
+    const selectedMs = railPoints[railSelectedIndex];
+    const facts = railSelectionFacts(selectedMs);
+    const entity = queryEntityEl.value.trim();
+    const pred = queryPredEl.value.trim();
+    const scope = [entity, pred].filter(Boolean).join(" · ");
+    const label = scope ? `${scope} @ ${fmtTime(new Date(selectedMs).toISOString())}` : `rail @ ${fmtTime(new Date(selectedMs).toISOString())}`;
+    viewMode = "rail";
+    renderFacts(facts, label);
   }
 
   // ── Replay from localStorage ──────────────────────────────────────────────
@@ -397,6 +656,10 @@ async function init() {
     lastRenderedFacts = facts;
     streamMode.textContent  = modeLabel;
     streamCount.textContent = `${facts.length} fact${facts.length !== 1 ? "s" : ""}`;
+    streamCount.classList.toggle("has-facts", facts.length > 0);
+    exportBtn.disabled = facts.length === 0;
+    renderEntityCards();
+    updateRail();
     if (facts.length === 0) {
       showEmpty("No facts found.");
     } else {
@@ -421,7 +684,7 @@ async function init() {
         : g.assert_number_fact(s, p, n);
     }
     if (t === "Boolean") {
-      const b = oRaw.trim().toLowerCase() === "true";
+      const b = parseBooleanInput(oRaw);
       return validFromISO
         ? g.assert_boolean_fact_at(s, p, b, validFromISO)
         : g.assert_boolean_fact(s, p, b);
@@ -437,6 +700,13 @@ async function init() {
       : g.assert_fact(s, p, oRaw);
   }
 
+  function parseBooleanInput(raw: string): boolean {
+    const normalized = raw.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+    throw new Error(`"${raw}" is not a valid boolean (use true or false)`);
+  }
+
   function buildLocalFact(
     factId: string,
     s: string, p: string,
@@ -447,7 +717,7 @@ async function init() {
     const vfISO   = validFromISO ?? now;
     let obj: WasmFactObject;
     if (t === "Number")  obj = { type: "Number",  value: parseFloat(oRaw) };
-    else if (t === "Boolean") obj = { type: "Boolean", value: oRaw.trim().toLowerCase() === "true" };
+    else if (t === "Boolean") obj = { type: "Boolean", value: parseBooleanInput(oRaw) };
     else if (t === "Entity")  obj = { type: "Entity",  value: oRaw };
     else                      obj = { type: "Text",    value: oRaw };
     return {
@@ -502,6 +772,8 @@ async function init() {
       if (viewMode === "all") {
         renderFacts(activeFacts(), "ALL");
         streamBody.scrollTop = streamBody.scrollHeight;
+      } else if (viewMode === "rail") {
+        renderRailSelection();
       }
     } catch (e) {
       setStatus(assertStatus, `Error: ${e}`, "err");
@@ -510,7 +782,9 @@ async function init() {
 
   assertBtn.addEventListener("click", assertFact);
   [subjectEl, predicateEl, objectEl, assertAtEl].forEach((el) =>
-    el.addEventListener("keydown", (e) => { if (e.key === "Enter") assertFact(); })
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) assertFact();
+    })
   );
 
   // ── Invalidate (event delegation on stream-body) ──────────────────────────
@@ -523,7 +797,7 @@ async function init() {
     if (!factId) return;
 
     const fact = allFacts.find(f => f.id === factId);
-    if (!fact || fact.expired_at !== null) return;
+    if (!fact || !isActiveFact(fact)) return;
 
     try {
       graph.invalidate_fact(factId);
@@ -537,6 +811,8 @@ async function init() {
       // Re-render current view
       if (viewMode === "all") {
         renderFacts(activeFacts(), "ALL");
+      } else if (viewMode === "rail") {
+        renderRailSelection();
       } else {
         // In query view, mark the row as invalidated in-place (no full re-render)
         const row = streamBody.querySelector(`.fact-row[data-id="${CSS.escape(factId)}"]`);
@@ -546,7 +822,7 @@ async function init() {
           if (btn) btn.disabled = true;
         }
       }
-      setStatus(queryStatus, `✗  retracted: ${fact.subject} · ${fact.predicate} · ${fmtValue(fact.object)}`, "err");
+      setStatus(queryStatus, `✓  retracted: ${fact.subject} · ${fact.predicate} · ${fmtValue(fact.object)}`, "ok");
     } catch (e) {
       setStatus(queryStatus, `Invalidation error: ${e}`, "err");
     }
@@ -607,7 +883,11 @@ async function init() {
     setStatus(queryStatus,  "", "");
     streamMode.textContent  = "ALL";
     streamCount.textContent = "0 facts";
+    streamCount.classList.remove("has-facts");
+    exportBtn.disabled = true;
     showEmpty("No facts yet.<br>Assert one above to begin.");
+    renderEntityCards();
+    updateRail();
   });
 
   // ── Query ─────────────────────────────────────────────────────────────────
@@ -646,15 +926,15 @@ async function init() {
         facts = allAbout.filter(f => {
           const from = new Date(f.valid_from).getTime();
           const to   = f.valid_to ? new Date(f.valid_to).getTime() : Infinity;
-          return from <= at && at < to && f.expired_at === null;
+          return from <= at && at < to && isActiveFact(f);
         });
         label = `${entity} @ ${fmtTime(atISO)}`;
       } else {
         // all_facts_about: full history — sort active first, invalidated after
         const allAbout = JSON.parse(graph.all_facts_about(entity)) as WasmFact[];
         // "active" = no valid-time end AND no transaction-time expiry
-        const active      = allAbout.filter(f => f.valid_to === null && f.expired_at === null);
-        const invalidated = allAbout.filter(f => f.valid_to !== null || f.expired_at !== null);
+        const active      = allAbout.filter(isActiveFact);
+        const invalidated = allAbout.filter(f => !isActiveFact(f));
         facts = [...active, ...invalidated];
         if (invalidated.length > 0) { historyDividerAt = active.length; }
         label = `all:${entity}`;
@@ -694,9 +974,15 @@ async function init() {
   }
 
   queryBtn.addEventListener("click", doQuery);
-  queryEntityEl.addEventListener("keydown", (e) => { if (e.key === "Enter") doQuery(); });
-  queryPredEl.addEventListener(  "keydown", (e) => { if (e.key === "Enter") doQuery(); });
-  queryAtEl.addEventListener(    "keydown", (e) => { if (e.key === "Enter") doQuery(); });
+  queryEntityEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) doQuery();
+  });
+  queryPredEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) doQuery();
+  });
+  queryAtEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) doQuery();
+  });
 
   // ── Show all ──────────────────────────────────────────────────────────────
 
@@ -706,14 +992,77 @@ async function init() {
     renderFacts(activeFacts(), "ALL");
   });
 
+  railScrubber.addEventListener("input", () => {
+    railSelectedIndex = Number(railScrubber.value);
+    renderRailSelection();
+  });
+
+  diffCompareBtn.addEventListener("click", runDiffAB);
+  entitySortRecentBtn.addEventListener("click", () => {
+    entitySortMode = "recent";
+    syncEntitySortButtons();
+    renderEntityCards();
+  });
+  entitySortAlphaBtn.addEventListener("click", () => {
+    entitySortMode = "alpha";
+    syncEntitySortButtons();
+    renderEntityCards();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    const target = e.target as HTMLElement | null;
+    const typingInField =
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      Boolean(target?.closest("[contenteditable='true']"));
+
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      queryEntityEl.focus();
+      queryEntityEl.select();
+      return;
+    }
+
+    if (!typingInField && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "s") {
+      entitySortMode = entitySortMode === "recent" ? "alpha" : "recent";
+      syncEntitySortButtons();
+      renderEntityCards();
+      return;
+    }
+
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && target) {
+      if (assertPanel?.contains(target)) {
+        e.preventDefault();
+        assertFact();
+        return;
+      }
+      if (queryPanel?.contains(target)) {
+        e.preventDefault();
+        doQuery();
+      }
+      return;
+    }
+
+    if (e.key === "Escape") {
+      tsTip.classList.remove("visible");
+    }
+  });
+
   // ── Initial render ────────────────────────────────────────────────────────
 
   if (allFacts.length > 0) {
+    syncEntitySortButtons();
     renderFacts(activeFacts(), "ALL");
   } else {
+    syncEntitySortButtons();
     showEmpty("No facts yet.<br>Assert one above to begin.");
     streamMode.textContent  = "ALL";
     streamCount.textContent = "0 facts";
+    streamCount.classList.remove("has-facts");
+    exportBtn.disabled = true;
+    renderEntityCards();
+    updateRail();
   }
 }
 
