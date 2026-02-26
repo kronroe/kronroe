@@ -48,18 +48,15 @@ jobs:
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'crates/**'
-              - '.github/workflows/ci.yml'
             wasm:
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'crates/core/**'
               - 'crates/wasm/**'
-              - '.github/workflows/ci.yml'
             site:
               - 'site/**'
               - 'firebase.json'
               - '.firebaserc'
-              - '.github/workflows/ci.yml'
 
   # ─── Tests ────────────────────────────────────────────────────────────────
 
