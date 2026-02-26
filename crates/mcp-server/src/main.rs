@@ -33,7 +33,20 @@ fn main() -> Result<()> {
     let mut writer = stdout.lock();
 
     loop {
-        let maybe = read_message(&mut reader)?;
+        let maybe = match read_message(&mut reader) {
+            Ok(m) => m,
+            Err(e) => {
+                // Malformed framing should not kill the server — return JSON-RPC
+                // parse error (-32700) and continue reading the next message.
+                let err_resp = json!({
+                    "jsonrpc": "2.0",
+                    "id": null,
+                    "error": { "code": -32700, "message": format!("Parse error: {e}") }
+                });
+                write_message(&mut writer, &err_resp)?;
+                continue;
+            }
+        };
         let Some(request) = maybe else {
             break;
         };
@@ -386,10 +399,16 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
 }
 
 fn parse_works_at(text: &str) -> Option<(&str, &str)> {
-    let lower = text.to_lowercase();
-    let idx = lower.find(" works at ")?;
-    let subject = text.get(0..idx)?.trim();
-    let employer = text.get(idx + " works at ".len()..)?.trim();
+    // ASCII-case-insensitive byte search on the original string.
+    // Avoids the old `to_lowercase()` approach which could shift byte offsets
+    // for non-ASCII characters (e.g. 'İ' → "i\u{307}"), causing silent data loss.
+    let needle = b" works at ";
+    let idx = text
+        .as_bytes()
+        .windows(needle.len())
+        .position(|w| w.eq_ignore_ascii_case(needle))?;
+    let subject = text.get(..idx)?.trim();
+    let employer = text.get(idx + needle.len()..)?.trim();
     if subject.is_empty() || employer.is_empty() {
         return None;
     }

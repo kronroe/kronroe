@@ -33,7 +33,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        run: cargo install wasm-pack --locked
 
       - name: Build WASM package
         run: wasm-pack build crates/wasm --target web --out-dir ../../site/public/pkg --no-typescript
@@ -73,6 +73,7 @@ jobs:
         env:
           PLAYGROUND_URL: ${{ steps.deploy.outputs.details_url }}
         run: |
+          set -o pipefail
           URL="${PLAYGROUND_URL:-https://kronroe.web.app}"
           echo "Smoke testing ${URL}"
           node scripts/smoke-playground.mjs "${URL}" | tee smoke-result.json
