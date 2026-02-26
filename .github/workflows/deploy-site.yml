@@ -55,9 +55,35 @@ jobs:
         working-directory: site
 
       - name: Deploy to Firebase Hosting
+        id: deploy
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KRONROE }}
           channelId: live
           projectId: kronroe
+
+      - name: Install Playwright (Chromium)
+        run: |
+          npm install --no-save playwright@1.51.1
+          npx playwright install --with-deps chromium
+        working-directory: site
+
+      - name: Run post-deploy smoke test
+        env:
+          PLAYGROUND_URL: ${{ steps.deploy.outputs.details_url }}
+        run: |
+          URL="${PLAYGROUND_URL:-https://kronroe.web.app}"
+          echo "Smoke testing ${URL}"
+          node scripts/smoke-playground.mjs "${URL}" | tee smoke-result.json
+          {
+            echo "## Playground Smoke Test"
+            echo ""
+            echo "- URL: ${URL}"
+            echo "- Workflow: `${{ github.workflow }}`"
+            echo ""
+            echo '```json'
+            cat smoke-result.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+        working-directory: site
