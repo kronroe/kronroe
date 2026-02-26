@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Kronroe Logo Mark — Signal Cut</title>
+  <desc>Sharper, enterprise-style K mark with directional signal cuts and tighter silhouette.</desc>
+  <rect x="52" y="52" width="408" height="408" rx="28" ry="28" fill="#5441B4"/>
+
+  <path d="M 174 134 L 174 378" stroke="#F7F4FF" stroke-width="30" stroke-linecap="round" fill="none"/>
+  <path d="M 196 256 L 332 150" stroke="#6FD0C7" stroke-width="26" stroke-linecap="round" fill="none"/>
+  <path d="M 196 256 L 332 362" stroke="#C96683" stroke-width="26" stroke-linecap="round" fill="none"/>
+
+  <path d="M 334 150 L 390 118" stroke="#6FD0C7" stroke-width="6" stroke-linecap="round" opacity="0.9" fill="none"/>
+  <path d="M 334 362 L 390 394" stroke="#C96683" stroke-width="6" stroke-linecap="round" opacity="0.9" fill="none"/>
+
+  <path d="M 388 108 L 404 120 L 388 132" fill="#6FD0C7" opacity="0.9"/>
+  <path d="M 388 380 L 404 392 L 388 404" fill="#C96683" opacity="0.9"/>
+</svg>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Kronroe Logo — Light Variant</title>
+  
+  <defs>
+    <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  
+  <!-- Cream container with violet border -->
+  <rect x="32" y="32" width="448" height="448" rx="64" ry="64" fill="#FBF8F2" stroke="#7C5CFC" stroke-width="8"/>
+  
+  <!-- Spine (violet) -->
+  <path 
+    d="M 195 128 C 194 132, 196 145, 195 160 C 194 180, 196 200, 195 220 C 194 240, 196 260, 195 280 C 194 300, 196 320, 195 340 C 194 355, 196 370, 195 384" 
+    stroke="#7C5CFC" stroke-width="36" stroke-linecap="round" fill="none"
+  />
+  
+  <!-- Upper arm (aqua) -->
+  <path 
+    d="M 200 262 C 210 252, 225 238, 245 222 C 260 210, 278 196, 295 183 C 310 172, 328 160, 345 148" 
+    stroke="#0d8a8a" stroke-width="32" stroke-linecap="round" fill="none"
+  />
+  
+  <!-- Lower arm (rose) -->
+  <path 
+    d="M 200 262 C 210 272, 225 286, 245 302 C 260 314, 278 328, 295 341 C 310 352, 328 364, 345 376" 
+    stroke="#c43060" stroke-width="32" stroke-linecap="round" fill="none"
+  />
+  
+  <!-- Edge lines -->
+  <line x1="350" y1="145" x2="420" y2="100" stroke="#0d8a8a" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+  <line x1="350" y1="379" x2="420" y2="424" stroke="#c43060" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+  
+  <!-- Nodes with darker stroke for cream contrast -->
+  <circle cx="432" cy="90" r="18" fill="#5CFCFC" stroke="#0d8a8a" stroke-width="3"/>
+  <circle cx="432" cy="434" r="18" fill="#FC5C8A" stroke="#c43060" stroke-width="3"/>
+</svg>

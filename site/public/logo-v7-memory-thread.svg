@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Kronroe Logo Mark — Memory Thread</title>
+  <desc>Time ring with a continuous memory thread and present anchor.</desc>
+  <rect x="52" y="52" width="408" height="408" rx="34" ry="34" fill="#5642BB"/>
+
+  <circle cx="256" cy="256" r="132" fill="none" stroke="#F6F2FF" stroke-width="22"/>
+
+  <path d="M 152 292 C 186 336, 240 346, 282 306 C 321 269, 315 218, 274 197 C 238 179, 203 197, 193 225"
+        fill="none" stroke="#74CEC5" stroke-width="18" stroke-linecap="round"/>
+  <path d="M 193 225 C 184 248, 193 272, 214 282 C 241 295, 276 285, 298 260"
+        fill="none" stroke="#CB6B89" stroke-width="14" stroke-linecap="round"/>
+
+  <circle cx="304" cy="254" r="10" fill="#F6F2FF"/>
+  <circle cx="148" cy="292" r="9" fill="#74CEC5"/>
+</svg>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Kronroe Logo Mark — Orbit Gate</title>
+  <desc>Icon-only mark using a directional gate and orbit path to represent guided exploration and decision flow.</desc>
+
+  <!-- Tile -->
+  <rect x="52" y="52" width="408" height="408" rx="34" ry="34" fill="#5642BB"/>
+
+  <!-- Gate form (not a letterform): structured, premium silhouette -->
+  <path d="M 162 128 L 162 384" stroke="#F7F4FF" stroke-width="28" stroke-linecap="round" fill="none"/>
+  <path d="M 162 128 L 338 128" stroke="#F7F4FF" stroke-width="28" stroke-linecap="round" fill="none"/>
+  <path d="M 162 384 L 338 384" stroke="#F7F4FF" stroke-width="28" stroke-linecap="round" fill="none"/>
+
+  <!-- Orbit path through the gate -->
+  <path d="M 214 320 C 256 276, 286 236, 346 194" stroke="#72CEC5" stroke-width="18" stroke-linecap="round" fill="none"/>
+  <path d="M 214 192 C 256 236, 286 276, 346 318" stroke="#CB6A88" stroke-width="18" stroke-linecap="round" fill="none"/>
+
+  <!-- Precision node + target cue -->
+  <circle cx="364" cy="182" r="10" fill="#72CEC5"/>
+  <circle cx="364" cy="330" r="10" fill="#CB6A88"/>
+  <circle cx="324" cy="256" r="8" fill="#F7F4FF" opacity="0.9"/>
+</svg>

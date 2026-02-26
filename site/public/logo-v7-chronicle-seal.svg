@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Kronroe Logo Mark — Chronicle Seal</title>
+  <desc>Layered epoch arcs converging into a recall core.</desc>
+  <rect x="52" y="52" width="408" height="408" rx="34" ry="34" fill="#5642BB"/>
+
+  <path d="M 126 318 A 170 170 0 0 1 386 318" fill="none" stroke="#F6F2FF" stroke-width="18" stroke-linecap="round"/>
+  <path d="M 150 300 A 138 138 0 0 1 362 300" fill="none" stroke="#74CEC5" stroke-width="14" stroke-linecap="round"/>
+  <path d="M 176 284 A 108 108 0 0 1 336 284" fill="none" stroke="#CB6B89" stroke-width="12" stroke-linecap="round"/>
+
+  <path d="M 256 172 L 256 332" fill="none" stroke="#F6F2FF" stroke-width="16" stroke-linecap="round"/>
+  <circle cx="256" cy="246" r="15" fill="#F6F2FF"/>
+  <circle cx="256" cy="246" r="7" fill="#5642BB"/>
+</svg>

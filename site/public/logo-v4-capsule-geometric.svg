@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Kronroe Logo Mark — Capsule Geometric</title>
+  <desc>Premium capsule mark with geometric K construction and restrained signal tails.</desc>
+  <rect x="44" y="64" width="424" height="384" rx="72" ry="72" fill="#5C49C6"/>
+
+  <path d="M 182 142 L 182 370" stroke="#F4F1FF" stroke-width="34" stroke-linecap="round" fill="none"/>
+  <path d="M 206 258 L 322 162" stroke="#67C9C0" stroke-width="30" stroke-linecap="round" fill="none"/>
+  <path d="M 206 258 L 322 354" stroke="#D06B89" stroke-width="30" stroke-linecap="round" fill="none"/>
+
+  <path d="M 322 162 L 378 126" stroke="#67C9C0" stroke-width="8" stroke-linecap="round" opacity="0.8" fill="none"/>
+  <path d="M 322 354 L 378 390" stroke="#D06B89" stroke-width="8" stroke-linecap="round" opacity="0.8" fill="none"/>
+</svg>

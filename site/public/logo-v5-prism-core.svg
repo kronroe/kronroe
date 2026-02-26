@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Kronroe Logo Mark — Prism Core</title>
+  <desc>A structured prism-inspired K mark with confident geometry and restrained signal accents.</desc>
+
+  <!-- Base tile -->
+  <rect x="52" y="52" width="408" height="408" rx="36" ry="36" fill="#5744BC"/>
+
+  <!-- Inner frame adds depth without playful effects -->
+  <rect x="84" y="84" width="344" height="344" rx="22" ry="22" fill="none" stroke="#7969D9" stroke-width="4" opacity="0.65"/>
+
+  <!-- Monogram core: engineered K -->
+  <path d="M 170 140 L 170 372" stroke="#F7F4FF" stroke-width="30" stroke-linecap="round" fill="none"/>
+  <path d="M 194 256 L 320 154" stroke="#72CEC5" stroke-width="24" stroke-linecap="round" fill="none"/>
+  <path d="M 194 256 L 320 358" stroke="#CC6A88" stroke-width="24" stroke-linecap="round" fill="none"/>
+
+  <!-- Prism cuts -->
+  <path d="M 324 154 L 374 122" stroke="#72CEC5" stroke-width="5" stroke-linecap="round" opacity="0.9" fill="none"/>
+  <path d="M 324 358 L 374 390" stroke="#CC6A88" stroke-width="5" stroke-linecap="round" opacity="0.9" fill="none"/>
+
+  <!-- Precision anchors (small, technical) -->
+  <rect x="378" y="112" width="12" height="12" rx="3" fill="#72CEC5"/>
+  <rect x="378" y="388" width="12" height="12" rx="3" fill="#CC6A88"/>
+</svg>

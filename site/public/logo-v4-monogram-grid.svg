@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Kronroe Logo Mark — Monogram Grid</title>
+  <desc>Square-shouldered monogram optimized for product interfaces and compact icon use.</desc>
+  <rect x="56" y="56" width="400" height="400" rx="40" ry="40" fill="#5A45BC"/>
+
+  <path d="M 168 138 L 168 374" stroke="#F6F2FF" stroke-width="32" stroke-linecap="round" fill="none"/>
+  <path d="M 192 256 L 330 148" stroke="#79D0C8" stroke-width="28" stroke-linecap="round" fill="none"/>
+  <path d="M 192 256 L 330 364" stroke="#CC6B87" stroke-width="28" stroke-linecap="round" fill="none"/>
+
+  <rect x="336" y="141" width="34" height="14" rx="7" fill="#79D0C8" opacity="0.9"/>
+  <rect x="336" y="357" width="34" height="14" rx="7" fill="#CC6B87" opacity="0.9"/>
+</svg>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Kronroe Logo Mark — Twin Pillars (Transparent)</title>
+  <desc>Past and future pillars bridged by a memory relay at the present moment, on transparent background.</desc>
+
+  <rect x="146" y="130" width="58" height="252" rx="20" fill="#F6F2FF"/>
+  <rect x="308" y="130" width="58" height="252" rx="20" fill="#F6F2FF"/>
+
+  <path d="M 204 256 C 232 214, 280 214, 308 256" fill="none" stroke="#74CEC5" stroke-width="16" stroke-linecap="round"/>
+  <path d="M 204 256 C 232 298, 280 298, 308 256" fill="none" stroke="#CB6B89" stroke-width="16" stroke-linecap="round"/>
+
+  <circle cx="256" cy="256" r="16" fill="#F6F2FF"/>
+  <circle cx="256" cy="256" r="7" fill="#CB6B89"/>
+</svg>

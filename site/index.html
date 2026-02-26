@@ -4,36 +4,64 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Kronroe — embedded temporal property graph database. Try it live in your browser." />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://excalidraw.com data:; img-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self';" />
     <title>Kronroe — Temporal Graph Playground</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <script type="module" src="/src/main.ts"></script>
     <style>
+      @font-face {
+        font-family: 'Virgil';
+        src: url('https://excalidraw.com/Virgil.woff2') format('woff2');
+        font-display: swap;
+      }
+
       :root {
-        --bg:         #060609;
-        --surface:    #0c0c14;
-        --surface-2:  #111120;
-        --border:     #1c1c2e;
-        --border-hi:  #2c2c44;
-        --lime:       #b4f542;
-        --lime-bg:    rgba(180, 245, 66, 0.08);
-        --lime-border:rgba(180, 245, 66, 0.2);
-        --blue:       #6499ff;
-        --blue-bg:    rgba(100, 153, 255, 0.1);
-        --blue-border:rgba(100, 153, 255, 0.22);
-        --orange:     #ff9f5a;
-        --orange-bg:  rgba(255, 159, 90, 0.1);
-        --orange-border:rgba(255, 159, 90, 0.22);
-        --text:       #dcdcf0;
-        --text-mid:   #8888aa;
-        --text-dim:   #44445a;
-        --green:      #52e88a;
-        --red:        #ff5f5f;
-        --mono:       "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
-        --display:    "Syne", sans-serif;
+        /* Layout palette — warm light */
+        --bg:         #FBF8F2;
+        --surface:    #FFFFFF;
+        --surface-2:  #F7F3ED;
+        --border:     rgba(46, 33, 28, 0.10);
+        --border-hi:  rgba(46, 33, 28, 0.18);
+
+        /* Brand colours */
+        --espresso:       #2E211C;
+        --violet:         #7C5CFC;
+        --violet-bg:      rgba(124, 92, 252, 0.08);
+        --violet-border:  rgba(124, 92, 252, 0.22);
+        --rose:           #FC5C8A;
+        --rose-bg:        rgba(252, 92, 138, 0.08);
+        --rose-border:    rgba(252, 92, 138, 0.22);
+        --rose-text:      #B53060;
+        --orchid:         #B45CFC;
+        --orchid-bg:      rgba(180, 92, 252, 0.08);
+        --orchid-border:  rgba(180, 92, 252, 0.22);
+        --lime:           #5A8A00;
+        --lime-bg:        rgba(90, 138, 0, 0.08);
+        --lime-border:    rgba(90, 138, 0, 0.20);
+        --orange:         #C04800;
+        --orange-bg:      rgba(192, 72, 0, 0.08);
+        --orange-border:  rgba(192, 72, 0, 0.20);
+
+        /* Semantic text */
+        --text:     #2E211C;
+        --text-mid: rgba(46, 33, 28, 0.52);
+        --text-dim: rgba(46, 33, 28, 0.36);
+
+        /* Status colours */
+        --green: #2E7D4F;
+        --red:   #C53030;
+
+        /* Typography */
+        --body:    "Quicksand", system-ui, sans-serif;
+        --hand:    "Virgil", ui-monospace, monospace;
+        --mono:    "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
+        --display: "Quicksand", system-ui, sans-serif;
+        --w-body:    500;
+        --w-label:   600;
+        --w-heading: 700;
       }
 
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -41,7 +69,8 @@
       body {
         background: var(--bg);
         color: var(--text);
-        font-family: var(--display);
+        font-family: var(--body);
+        font-weight: var(--w-body);
         min-height: 100vh;
         display: flex;
         flex-direction: column;
@@ -53,20 +82,8 @@
         content: "";
         position: fixed;
         inset: 0;
-        background-image: radial-gradient(circle, #18182e 1px, transparent 1px);
+        background-image: radial-gradient(circle, rgba(46, 33, 28, 0.07) 1px, transparent 1px);
         background-size: 34px 34px;
-        pointer-events: none;
-        z-index: 0;
-      }
-
-      /* Ambient glows */
-      body::after {
-        content: "";
-        position: fixed;
-        inset: 0;
-        background:
-          radial-gradient(ellipse 60% 40% at 15% 15%, rgba(100, 153, 255, 0.04) 0%, transparent 70%),
-          radial-gradient(ellipse 50% 40% at 85% 85%, rgba(180, 245, 66, 0.035) 0%, transparent 70%);
         pointer-events: none;
         z-index: 0;
       }
@@ -77,39 +94,37 @@
         z-index: 10;
         height: 52px;
         padding: 0 2.5rem;
-        border-bottom: 1px solid var(--border);
+        border-bottom: 1px solid rgba(46, 33, 28, 0.25);
         display: flex;
         align-items: center;
         gap: 0.875rem;
-        background: rgba(6, 6, 9, 0.85);
-        backdrop-filter: blur(10px);
+        background: rgb(0, 0, 0);
       }
 
       .logo {
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        font-family: var(--display);
-        font-size: 1rem;
-        font-weight: 800;
-        letter-spacing: -0.025em;
-        color: var(--text);
+        font-family: var(--body);
+        font-size: 1.1rem;
+        font-weight: 600;
+        letter-spacing: 0;
+        color: #fff;
       }
 
-      .logo-mark {
-        width: 24px;
-        height: 24px;
-        border: 1.5px solid var(--lime);
-        border-radius: 5px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+      .logo img {
+        display: block;
+        height: 32px;
+        width: auto;
+      }
+
+      .logo-wordmark {
         font-family: var(--mono);
-        font-size: 0.6rem;
-        font-weight: 700;
-        color: var(--lime);
-        letter-spacing: 0;
-        flex-shrink: 0;
+        font-size: 0.74rem;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.95);
       }
 
       .badge {
@@ -119,27 +134,33 @@
         letter-spacing: 0.1em;
         padding: 0.15rem 0.4rem;
         border-radius: 3px;
-        background: var(--lime-bg);
-        border: 1px solid var(--lime-border);
-        color: var(--lime);
+        background: rgba(180, 92, 252, 0.18);
+        border: 1px solid rgba(180, 92, 252, 0.35);
+        color: #C8A0FC;
       }
 
       .header-nav {
         margin-left: auto;
         display: flex;
         gap: 2rem;
-        font-family: var(--mono);
-        font-size: 0.72rem;
-        font-weight: 400;
-        letter-spacing: 0.02em;
+        font-family: var(--body);
+        font-size: 0.78rem;
+        font-weight: var(--w-label);
+        letter-spacing: 0;
+        opacity: 0.85;
       }
 
       .header-nav a {
-        color: var(--text-mid);
+        color: rgba(255, 255, 255, 0.60);
         text-decoration: none;
         transition: color 0.12s;
       }
-      .header-nav a:hover { color: var(--text); }
+      .header-nav a:hover { color: #fff; }
+      .header-nav a:focus-visible {
+        outline: 2px solid var(--violet);
+        outline-offset: 3px;
+        border-radius: 3px;
+      }
 
       /* ── Main grid ── */
       main {
@@ -162,23 +183,67 @@
       }
 
       .hero h1 {
-        font-family: var(--display);
+        font-family: var(--body);
         font-size: clamp(1.8rem, 3.8vw, 2.9rem);
-        font-weight: 800;
-        letter-spacing: -0.045em;
+        font-weight: var(--w-heading);
+        letter-spacing: -0.02em;
         line-height: 1.05;
         margin-bottom: 0.7rem;
       }
 
-      .hero h1 .lime { color: var(--lime); }
+      .hero h1 .lime {
+        font-family: var(--hand);
+        font-weight: 400;
+        color: var(--violet);
+      }
+
+      .temporal-accent {
+        color: var(--rose);
+        text-decoration: underline;
+        text-decoration-color: var(--rose);
+        text-underline-offset: 3px;
+        text-decoration-thickness: 2px;
+      }
 
       .hero .sub {
         font-family: var(--mono);
         font-size: 0.75rem;
-        color: var(--text-dim);
+        color: var(--text-mid);
         line-height: 1.65;
         letter-spacing: 0.01em;
         max-width: 480px;
+      }
+
+      .hero-guide {
+        margin-top: 0.9rem;
+        max-width: 560px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 0.55rem 0.7rem;
+      }
+
+      .hero-guide-label {
+        font-family: var(--mono);
+        font-size: 0.58rem;
+        letter-spacing: 0.08em;
+        color: var(--text-dim);
+        margin-bottom: 0.3rem;
+      }
+
+      .hero-guide-copy {
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        color: var(--text-mid);
+        line-height: 1.6;
+      }
+
+      .hero-guide-keys {
+        margin-top: 0.3rem;
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        color: var(--text-dim);
+        letter-spacing: 0.01em;
       }
 
       /* ── Controls column ── */
@@ -191,9 +256,15 @@
       /* ── Panel ── */
       .panel {
         background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 8px;
+        border: 1.5px solid rgba(46, 33, 28, 0.25);
+        border-radius: 10px 12px 11px 13px;
+        box-shadow: 1px 2px 0 rgba(46, 33, 28, 0.04);
         overflow: hidden;
+        transition: box-shadow 0.14s ease, border-color 0.14s ease;
+      }
+      .panel:focus-within {
+        border-color: var(--violet-border);
+        box-shadow: 0 0 0 2px var(--violet-bg), 1px 2px 0 rgba(46, 33, 28, 0.04);
       }
 
       .panel-hdr {
@@ -203,10 +274,10 @@
         display: flex;
         align-items: center;
         gap: 0.45rem;
-        font-family: var(--mono);
-        font-size: 0.62rem;
-        font-weight: 600;
-        letter-spacing: 0.1em;
+        font-family: var(--body);
+        font-size: 0.68rem;
+        font-weight: var(--w-label);
+        letter-spacing: 0.04em;
         text-transform: uppercase;
         color: var(--text-mid);
       }
@@ -215,7 +286,7 @@
         width: 5px;
         height: 5px;
         border-radius: 50%;
-        background: var(--lime);
+        background: var(--violet);
         flex-shrink: 0;
       }
 
@@ -234,9 +305,9 @@
       }
 
       input, select {
-        background: var(--bg);
-        border: 1px solid var(--border);
-        border-radius: 5px;
+        background: var(--surface-2);
+        border: 1.5px solid rgba(46, 33, 28, 0.18);
+        border-radius: 8px;
         color: var(--text);
         font-family: var(--mono);
         font-size: 0.75rem;
@@ -247,8 +318,12 @@
       }
 
       input:focus, select:focus {
-        border-color: rgba(180, 245, 66, 0.5);
-        background: rgba(180, 245, 66, 0.015);
+        border-color: var(--violet-border);
+        background: var(--violet-bg);
+      }
+      input:focus-visible, select:focus-visible, button:focus-visible {
+        outline: 2px solid var(--violet);
+        outline-offset: 1px;
       }
 
       input::placeholder { color: var(--text-dim); }
@@ -256,7 +331,7 @@
       select {
         appearance: none;
         cursor: pointer;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2344445a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23957060' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
         background-repeat: no-repeat;
         background-position: right 0.5rem center;
         padding-right: 1.6rem;
@@ -266,7 +341,7 @@
 
       /* datetime-local: hide calendar icon in webkit */
       input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-        filter: invert(0.35);
+        filter: invert(0.15) sepia(0.2);
         cursor: pointer;
       }
 
@@ -280,43 +355,58 @@
 
       .type-at-row select { width: auto; flex-shrink: 0; }
 
-      /* ── At-label (small annotation for optional timestamp fields) ── */
+      /* ── At-hint (bi-temporal timestamp label) ── */
       .at-hint {
-        font-family: var(--mono);
-        font-size: 0.6rem;
-        color: var(--text-dim);
-        letter-spacing: 0.06em;
+        font-family: var(--hand);
+        font-size: 0.72rem;
+        color: var(--rose);
+        letter-spacing: 0;
       }
 
       /* ── Buttons ── */
       button {
         cursor: pointer;
-        font-family: var(--mono);
-        font-size: 0.72rem;
-        font-weight: 600;
+        font-family: var(--body);
+        font-size: 0.78rem;
+        font-weight: var(--w-label);
         border: none;
-        border-radius: 5px;
+        border-radius: 8px;
         padding: 0.45rem 0.875rem;
         white-space: nowrap;
         transition: all 0.1s;
-        letter-spacing: 0.02em;
+        letter-spacing: 0;
       }
 
       .btn-primary {
-        background: var(--lime);
-        color: #060609;
+        background: var(--violet);
+        color: #fff;
+        border: 1.5px solid var(--espresso);
       }
-      .btn-primary:hover { background: #c8ff5c; }
+      .btn-primary:hover { background: #8d6ffd; }
+      .btn-primary:focus-visible {
+        outline-color: color-mix(in srgb, #fff 35%, var(--violet));
+      }
       .btn-primary:active { opacity: 0.88; }
 
       .btn-ghost {
         background: transparent;
-        border: 1px solid var(--border-hi);
+        border: 1.5px solid rgba(46, 33, 28, 0.18);
         color: var(--text-mid);
       }
       .btn-ghost:hover {
         border-color: var(--text-mid);
         color: var(--text);
+      }
+
+      /* Rose secondary actions */
+      #clear-btn, #show-all-btn {
+        border: 1.5px solid var(--rose);
+        color: var(--rose-text);
+      }
+      #clear-btn:hover, #show-all-btn:hover {
+        border-color: var(--rose);
+        color: var(--rose);
+        background: var(--rose-bg);
       }
 
       .btn-row {
@@ -326,10 +416,10 @@
 
       /* ── Example chips ── */
       .chips-label {
-        font-family: var(--mono);
+        font-family: var(--body);
         font-size: 0.6rem;
-        font-weight: 600;
-        letter-spacing: 0.1em;
+        font-weight: var(--w-label);
+        letter-spacing: 0.08em;
         color: var(--text-dim);
       }
 
@@ -345,22 +435,33 @@
         border-radius: 3px;
         color: var(--text-mid);
         cursor: pointer;
-        font-family: var(--mono);
-        font-size: 0.62rem;
+        font-family: var(--hand);
+        font-size: 0.72rem;
         font-weight: 400;
         padding: 0.175rem 0.4rem;
         transition: all 0.1s;
       }
 
       .chip:hover {
-        border-color: var(--lime-border);
-        color: var(--lime);
-        background: var(--lime-bg);
+        border-color: var(--violet-border);
+        color: var(--violet);
+        background: var(--violet-bg);
       }
 
+      /* Time-travel demo chip — orchid outline, full-width */
       .chip-demo {
-        border-color: var(--lime-border);
-        color: var(--lime);
+        background: transparent;
+        border-color: var(--orchid-border);
+        color: var(--orchid);
+        display: block;
+        width: 100%;
+        text-align: center;
+        padding: 0.35rem 0.875rem;
+      }
+      .chip-demo:hover {
+        background: var(--orchid-bg);
+        border-color: var(--orchid);
+        color: var(--orchid);
       }
 
       /* ── Status ── */
@@ -386,8 +487,9 @@
         display: flex;
         flex-direction: column;
         background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 8px;
+        border: 1.5px solid rgba(46, 33, 28, 0.25);
+        border-radius: 11px 13px 12px 10px;
+        box-shadow: 1px 2px 0 rgba(46, 33, 28, 0.04);
         overflow: hidden;
       }
 
@@ -405,18 +507,19 @@
         display: flex;
         align-items: center;
         gap: 0.45rem;
-        font-family: var(--mono);
-        font-size: 0.62rem;
-        font-weight: 600;
-        letter-spacing: 0.1em;
+        font-family: var(--body);
+        font-size: 0.68rem;
+        font-weight: var(--w-label);
+        letter-spacing: 0.04em;
         text-transform: uppercase;
         color: var(--text-mid);
       }
 
       #stream-count {
-        color: var(--lime);
+        color: var(--text-dim);
         font-weight: 600;
       }
+      #stream-count.has-facts { color: var(--lime); }
 
       .stream-hdr-right {
         display: flex;
@@ -449,8 +552,123 @@
         transition: color 0.15s, border-color 0.15s;
       }
       .btn-export:hover {
-        color: var(--lime);
-        border-color: var(--lime);
+        color: var(--violet);
+        border-color: var(--violet);
+      }
+      .btn-export:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+
+      .stream-visuals {
+        border-bottom: 1px solid var(--border);
+        background: color-mix(in srgb, var(--surface) 70%, var(--surface-2));
+        padding: 0.625rem 0.75rem;
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .viz-block {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 0.55rem 0.6rem;
+      }
+
+      .viz-label {
+        font-family: var(--mono);
+        font-size: 0.56rem;
+        letter-spacing: 0.08em;
+        color: var(--text-dim);
+        margin-bottom: 0.4rem;
+      }
+
+      .temporal-rail {
+        display: grid;
+        gap: 0.35rem;
+      }
+
+      .rail-track {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--surface-2);
+        height: 14px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .rail-dot {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        top: 3px;
+        transform: translateX(-50%);
+        opacity: 0.55;
+      }
+
+      .rail-dot.valid { background: var(--violet); }
+      .rail-dot.recorded { background: var(--orange); }
+      .rail-dot.invalidated { background: var(--rose); }
+      .rail-dot.active {
+        opacity: 1;
+        outline: 2px solid color-mix(in srgb, var(--violet) 40%, transparent);
+      }
+
+      .rail-controls {
+        display: grid;
+        gap: 0.3rem;
+      }
+
+      .rail-controls input[type="range"] {
+        width: 100%;
+        padding: 0;
+        background: transparent;
+        border: none;
+      }
+
+      .rail-meta {
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        color: var(--text-mid);
+        display: flex;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+
+      .diff-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 0.35rem;
+      }
+
+      .diff-summary {
+        margin-top: 0.45rem;
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        color: var(--text-mid);
+        line-height: 1.5;
+      }
+
+      .diff-badge {
+        display: inline-block;
+        padding: 0.08rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.58rem;
+        border: 1px solid var(--border);
+        margin-right: 0.3rem;
+      }
+
+      .diff-badge.added {
+        color: var(--green);
+        border-color: color-mix(in srgb, var(--green) 35%, var(--border));
+        background: color-mix(in srgb, var(--green) 10%, transparent);
+      }
+
+      .diff-badge.removed {
+        color: var(--rose-text);
+        border-color: color-mix(in srgb, var(--rose) 35%, var(--border));
+        background: var(--rose-bg);
       }
 
       .stream-body {
@@ -463,7 +681,7 @@
       }
 
       .stream-body::-webkit-scrollbar { width: 3px; }
-      .stream-body::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+      .stream-body::-webkit-scrollbar-thumb { background: rgba(46, 33, 28, 0.15); border-radius: 2px; }
       .stream-body::-webkit-scrollbar-track { background: transparent; }
 
       /* ── Empty state ── */
@@ -471,8 +689,8 @@
         margin: auto;
         text-align: center;
         color: var(--text-dim);
-        font-family: var(--mono);
-        font-size: 0.72rem;
+        font-family: var(--hand);
+        font-size: 0.88rem;
         line-height: 1.75;
         user-select: none;
       }
@@ -492,7 +710,7 @@
         align-items: center;
         gap: 0.3rem;
         padding: 0.3rem 0.25rem;
-        border-bottom: 1px solid rgba(28, 28, 46, 0.7);
+        border-bottom: 1px solid rgba(46, 33, 28, 0.07);
         font-family: var(--mono);
         font-size: 0.72rem;
         animation: fact-in 0.18s ease-out both;
@@ -500,6 +718,9 @@
 
       .fact-row.invalidated {
         opacity: 0.35;
+      }
+      .fact-row:not(.invalidated):hover {
+        background: rgba(124, 92, 252, 0.04);
       }
 
       /* ── Invalidate button on fact rows ── */
@@ -516,7 +737,7 @@
       }
       .btn-invalidate:hover {
         color: var(--red);
-        background: rgba(255, 95, 95, 0.12);
+        background: rgba(197, 48, 48, 0.10);
       }
       .btn-invalidate:disabled {
         cursor: default;
@@ -541,6 +762,15 @@
         to   { opacity: 1; transform: translateX(0); }
       }
 
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+
       .tag {
         font-size: 0.65rem;
         font-weight: 600;
@@ -550,9 +780,9 @@
         white-space: nowrap;
       }
 
-      .tag-s { background: var(--blue-bg);   color: var(--blue);   border: 1px solid var(--blue-border); }
-      .tag-p { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
-      .tag-o { background: var(--lime-bg);   color: var(--lime);   border: 1px solid var(--lime-border); }
+      .tag-s { background: var(--violet-bg);  color: var(--violet);  border: 1px solid var(--violet-border); }
+      .tag-p { background: var(--orange-bg);  color: var(--orange);  border: 1px solid var(--orange-border); }
+      .tag-o { background: var(--lime-bg);    color: var(--lime);    border: 1px solid var(--lime-border); }
 
       .sep {
         color: var(--border-hi);
@@ -581,7 +811,7 @@
       #ts-tooltip {
         position: fixed;
         z-index: 9999;
-        background: var(--surface-2);
+        background: var(--surface);
         border: 1px solid var(--border-hi);
         border-radius: 6px;
         padding: 0.55rem 0.7rem;
@@ -589,7 +819,7 @@
         pointer-events: none;
         transition: opacity 0.1s;
         min-width: 240px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 4px 20px rgba(46, 33, 28, 0.12);
       }
       #ts-tooltip.visible { opacity: 1; }
 
@@ -623,6 +853,131 @@
       .ts-val.ts-active  { color: var(--lime); }
       .ts-val.ts-expired { color: var(--red); }
 
+      .entity-cards {
+        border-top: 1px solid var(--border);
+        background: color-mix(in srgb, var(--surface) 78%, var(--surface-2));
+        padding: 0.5rem;
+        display: grid;
+        gap: 0.4rem;
+      }
+
+      .entity-cards-hdr {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+
+      .entity-cards-title {
+        margin-bottom: 0;
+      }
+
+      .entity-sort {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.22rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.12rem;
+      }
+
+      .entity-sort-btn {
+        border: none;
+        background: transparent;
+        color: var(--text-dim);
+        font-family: var(--mono);
+        font-size: 0.55rem;
+        letter-spacing: 0.04em;
+        border-radius: 4px;
+        padding: 0.12rem 0.34rem;
+      }
+
+      .entity-sort-btn.active {
+        background: var(--violet-bg);
+        color: var(--violet);
+      }
+
+      .entity-cards-body {
+        display: grid;
+        gap: 0.4rem;
+        max-height: 190px;
+        overflow: auto;
+      }
+
+      .entity-card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        overflow: hidden;
+      }
+
+      .entity-card summary {
+        list-style: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.42rem 0.55rem;
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        color: var(--text-mid);
+      }
+
+      .entity-card summary::-webkit-details-marker { display: none; }
+
+      .entity-title {
+        color: var(--text);
+        font-size: 0.66rem;
+        font-weight: 600;
+      }
+
+      .entity-stats {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+      }
+
+      .entity-stat {
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.06rem 0.28rem;
+      }
+
+      .entity-stat.current {
+        color: var(--green);
+        border-color: color-mix(in srgb, var(--green) 28%, var(--border));
+        background: color-mix(in srgb, var(--green) 8%, transparent);
+      }
+
+      .entity-stat.history {
+        color: var(--rose-text);
+        border-color: var(--rose-border);
+        background: var(--rose-bg);
+      }
+
+      .entity-body {
+        border-top: 1px solid var(--border);
+        padding: 0.35rem 0.55rem 0.5rem;
+        display: grid;
+        gap: 0.25rem;
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        color: var(--text-mid);
+      }
+
+      .entity-line {
+        display: flex;
+        align-items: center;
+        gap: 0.28rem;
+      }
+
+      .entity-line .k {
+        color: var(--text-dim);
+        min-width: 56px;
+      }
+
       /* ── Loading overlay ── */
       .loading-overlay {
         position: fixed;
@@ -643,11 +998,12 @@
       }
 
       .loading-wordmark {
-        font-family: var(--display);
-        font-size: 2rem;
-        font-weight: 800;
-        letter-spacing: -0.04em;
-        color: var(--text);
+        font-family: var(--mono);
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--violet);
       }
 
       .loading-track {
@@ -660,7 +1016,7 @@
 
       .loading-fill {
         height: 100%;
-        background: var(--lime);
+        background: var(--violet);
         border-radius: 1px;
         animation: track 1.4s ease-in-out infinite alternate;
       }
@@ -683,13 +1039,14 @@
         z-index: 1;
         border-top: 1px solid var(--border);
         padding: 0.75rem 2.5rem;
-        font-family: var(--mono);
+        font-family: var(--body);
+        font-weight: var(--w-body);
         font-size: 0.67rem;
         color: var(--text-dim);
         display: flex;
         align-items: center;
         gap: 1.5rem;
-        background: rgba(6, 6, 9, 0.6);
+        background: rgba(46, 33, 28, 0.04);
       }
 
       footer a { color: var(--text-dim); text-decoration: none; transition: color 0.12s; }
@@ -706,8 +1063,19 @@
         .hero { grid-column: 1; }
         .stream-body { min-height: 300px; }
         header { padding: 0 1.25rem; }
+        .triple { grid-template-columns: 1fr; }
+        .type-at-row {
+          grid-template-columns: 1fr;
+          align-items: stretch;
+        }
+        .type-at-row select { width: 100%; }
+        .btn-row, .qrow {
+          flex-wrap: wrap;
+        }
+        .qrow button { width: 100%; }
         .header-nav { display: none; }
         footer { padding: 0.75rem 1.25rem; gap: 1rem; }
+        .diff-row { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -725,8 +1093,8 @@
     <!-- Header -->
     <header>
       <div class="logo">
-        <div class="logo-mark">K</div>
-        Kronroe
+        <img src="/logo-v3x6-violet.svg" alt="Kronroe" height="32" style="display:block;" />
+        <span class="logo-wordmark">KRONROE</span>
       </div>
       <div class="badge">WASM</div>
       <nav class="header-nav">
@@ -739,15 +1107,20 @@
     <!-- Main -->
     <main>
       <section class="hero">
-        <h1>Bi-temporal graph.<br><span class="lime">In your browser.</span></h1>
+        <h1>Bi-<span class="temporal-accent">temporal</span> graph.<br><span class="lime">In your browser.</span></h1>
         <p class="sub">// Pure Rust → WebAssembly. Every fact carries four timestamps.<br>// No server. No network. No schema.</p>
+        <div class="hero-guide">
+          <div class="hero-guide-label">QUICK START</div>
+          <div class="hero-guide-copy">1) Click a TRY chip. 2) Press Assert. 3) Enter that subject in Find and press Find.</div>
+          <div class="hero-guide-keys">Shortcuts: Ctrl/Cmd+K focus Find · Ctrl/Cmd+Enter submit panel</div>
+        </div>
       </section>
 
       <!-- Left: controls -->
       <div class="controls">
 
         <!-- Assert -->
-        <div class="panel">
+        <div class="panel" id="assert-panel">
           <div class="panel-hdr">
             <div class="pip"></div>
             Assert fact
@@ -777,20 +1150,20 @@
             <button class="chip chip-demo" id="time-demo-btn" title="Runs a bi-temporal scenario: assert in the past, retract now, then compare point-in-time query results.">
               Time-travel demo
             </button>
-            <div class="status" id="assert-status"></div>
+            <div class="status" id="assert-status" role="status" aria-live="polite"></div>
           </div>
         </div>
 
-        <!-- Query -->
-        <div class="panel">
+        <!-- Find -->
+        <div class="panel" id="query-panel">
           <div class="panel-hdr">
             <div class="pip"></div>
-            Query entity
+            Find entity
           </div>
           <div class="panel-body">
             <div class="qrow">
               <input id="query-entity" placeholder="entity (e.g. alice)" />
-              <button class="btn-primary" id="query-btn">Query →</button>
+              <button class="btn-primary" id="query-btn">Find →</button>
             </div>
             <div class="qrow">
               <input id="query-pred" placeholder="predicate (optional)" />
@@ -800,7 +1173,7 @@
               <input type="datetime-local" id="query-at" title="point in time — leave blank for current facts" />
               <span class="at-hint">at&nbsp;time</span>
             </div>
-            <div class="status" id="query-status"></div>
+            <div class="status" id="query-status" role="status" aria-live="polite"></div>
           </div>
         </div>
 
@@ -815,14 +1188,51 @@
             <span id="stream-count">0 facts</span>
           </div>
           <div class="stream-hdr-right">
-            <button class="btn-export" id="export-btn" title="Download visible facts as JSON">↓ JSON</button>
+            <button class="btn-export" id="export-btn" title="Download visible facts as JSON" disabled>↓ JSON</button>
             <span id="stream-mode">ALL</span>
+          </div>
+        </div>
+        <div class="stream-visuals">
+          <div class="viz-block">
+            <div class="viz-label">TEMPORAL RAIL</div>
+            <div class="temporal-rail">
+              <div class="rail-track" id="rail-valid-track" title="valid_from events"></div>
+              <div class="rail-track" id="rail-recorded-track" title="recorded/retracted events"></div>
+              <div class="rail-controls">
+                <input type="range" id="rail-scrubber" min="0" max="0" step="1" value="0" disabled />
+                <div class="rail-meta">
+                  <span id="rail-time-label">No temporal points yet.</span>
+                  <span id="rail-count-label">0 visible</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="viz-block">
+            <div class="viz-label">TIME DIFF A/B</div>
+            <div class="diff-row">
+              <input type="datetime-local" id="diff-a" title="Timestamp A" />
+              <input type="datetime-local" id="diff-b" title="Timestamp B" />
+              <button class="btn-ghost" id="diff-compare-btn">Compare</button>
+            </div>
+            <div class="diff-summary" id="diff-summary">Pick two points in time to compare state changes.</div>
           </div>
         </div>
         <div class="stream-body" id="stream-body">
           <div class="empty">
             <span class="empty-glyph">◈</span>
             No facts yet.<br>Assert one above to begin.
+          </div>
+        </div>
+        <div class="entity-cards" id="entity-cards">
+          <div class="entity-cards-hdr">
+            <span class="viz-label entity-cards-title">ENTITY STORIES</span>
+            <div class="entity-sort" role="group" aria-label="Sort entity stories">
+              <button class="entity-sort-btn active" id="entity-sort-recent" aria-pressed="true">Recent</button>
+              <button class="entity-sort-btn" id="entity-sort-alpha" aria-pressed="false">A-Z</button>
+            </div>
+          </div>
+          <div class="entity-cards-body" id="entity-cards-body">
+            <div class="status">Entity story cards appear here after facts are loaded.</div>
           </div>
         </div>
       </div>
