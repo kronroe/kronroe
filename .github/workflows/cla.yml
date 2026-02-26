@@ -7,7 +7,6 @@ on:
     types: [opened, closed, synchronize]
 
 permissions:
-  actions: write
   contents: write
   pull-requests: write
   statuses: write
@@ -20,12 +19,44 @@ jobs:
       (github.event_name == 'pull_request_target' && github.event.action != 'closed')
 
     steps:
+      - name: Ensure cla-signatures branch exists
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const branch = "cla-signatures";
+            const ref = `heads/${branch}`;
+            const fullRef = `refs/heads/${branch}`;
+
+            try {
+              await github.rest.git.getRef({ owner, repo, ref });
+              core.info(`${branch} already exists`);
+              return;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+            const mainRef = await github.rest.git.getRef({
+              owner,
+              repo,
+              ref: "heads/main",
+            });
+
+            await github.rest.git.createRef({
+              owner,
+              repo,
+              ref: fullRef,
+              sha: mainRef.data.object.sha,
+            });
+            core.info(`Created ${branch} at ${mainRef.data.object.sha}`);
+
       - name: CLA Assistant
         uses: contributor-assistant/github-action@v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signatures are stored in a dedicated branch in this repo.
-          # The branch (cla-signatures) is created automatically on first signature.
+          # A pre-step ensures the branch exists before CLA Assistant runs.
           PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_TOKEN }}
         with:
           # Path to the CLA document in this repo
