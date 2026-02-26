@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kronroe Logo Preview — V3×V6 Hybrid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --violet: #7C5CFC;
+    --aqua: #5CFCFC;
+    --rose: #FC5C8A;
+    --orchid: #B45CFC;
+    --espresso: #2E211C;
+    --lime: #b4f542;
+    --cream: #FBF8F2;
+    --text-mid: #5D4C46;
+    --aqua-text: #0d8a8a;
+    --rose-text: #c43060;
+    --violet-text: #5a3cc0;
+  }
+  
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--cream);
+    color: var(--espresso);
+    padding: 40px;
+  }
+  
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 2.5rem;
+    color: var(--espresso);
+    margin-bottom: 8px;
+  }
+  
+  .subtitle {
+    font-size: 1.1rem;
+    color: var(--text-mid);
+    margin-bottom: 48px;
+  }
+  
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1.3rem;
+    color: var(--violet-text);
+    margin-bottom: 20px;
+    margin-top: 48px;
+  }
+  
+  .logo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+    margin-bottom: 48px;
+  }
+  
+  .logo-card {
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    border: 1.5px solid #e8e2da;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  
+  .logo-card h3 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--espresso);
+  }
+  
+  .logo-card p {
+    font-size: 0.85rem;
+    color: var(--text-mid);
+    text-align: center;
+    line-height: 1.5;
+  }
+  
+  .logo-card img, .logo-card svg {
+    max-width: 200px;
+    height: auto;
+  }
+  
+  /* Size test strip */
+  .size-strip {
+    display: flex;
+    align-items: flex-end;
+    gap: 40px;
+    padding: 32px;
+    background: white;
+    border-radius: 16px;
+    border: 1.5px solid #e8e2da;
+    margin-bottom: 48px;
+  }
+  
+  .size-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .size-label {
+    font-size: 0.75rem;
+    color: var(--text-mid);
+    font-weight: 500;
+  }
+  
+  /* Nav bar mockups */
+  .nav-mockup {
+    display: flex;
+    align-items: center;
+    padding: 12px 24px;
+    border-radius: 12px;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  
+  .nav-dark {
+    background: var(--espresso);
+  }
+  
+  .nav-light {
+    background: var(--cream);
+    border: 1.5px solid var(--espresso);
+  }
+  
+  .nav-logo {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+  
+  .nav-wordmark {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.25rem;
+  }
+  
+  .nav-dark .nav-wordmark { color: var(--cream); }
+  .nav-light .nav-wordmark { color: var(--espresso); }
+  
+  .nav-links {
+    margin-left: auto;
+    display: flex;
+    gap: 24px;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+  
+  .nav-dark .nav-links { color: #8a7d76; }
+  .nav-light .nav-links { color: var(--text-mid); }
+  
+  .nav-links span:hover { color: var(--violet); cursor: pointer; }
+  
+  /* Story section */
+  .story {
+    background: white;
+    border-radius: 16px;
+    border: 2px solid var(--violet);
+    padding: 32px;
+    margin-top: 48px;
+  }
+  
+  .story h2 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    color: var(--violet-text);
+    margin-bottom: 20px;
+  }
+  
+  .story-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    align-items: baseline;
+  }
+  
+  .story-element {
+    font-weight: 600;
+    min-width: 180px;
+    flex-shrink: 0;
+  }
+  
+  .story-meaning {
+    color: var(--text-mid);
+    line-height: 1.5;
+  }
+  
+  .el-spine { color: var(--espresso); }
+  .el-aqua { color: var(--aqua-text); }
+  .el-rose { color: var(--rose-text); }
+  .el-edges { color: var(--espresso); }
+  .el-violet { color: var(--violet-text); }
+</style>
+</head>
+<body>
+
+<h1>Kronroe Logo — V3×V6 Hybrid</h1>
+<p class="subtitle">Sketchy colour arms + extending edges + precise node dots</p>
+
+<p class="section-title">Three Contexts</p>
+<div class="logo-grid">
+  <div class="logo-card">
+    <h3>On Violet (Primary)</h3>
+    <!-- Inline SVG for violet variant -->
+    <svg viewBox="0 0 512 512" width="200" height="200">
+      <defs>
+        <filter id="ng1" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+          <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+        </filter>
+      </defs>
+      <rect x="32" y="32" width="448" height="448" rx="64" ry="64" fill="#7C5CFC"/>
+      <path d="M 195 128 C 194 132, 196 145, 195 160 C 194 180, 196 200, 195 220 C 194 240, 196 260, 195 280 C 194 300, 196 320, 195 340 C 194 355, 196 370, 195 384" stroke="#FFFFFF" stroke-width="36" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <path d="M 200 262 C 210 252, 225 238, 245 222 C 260 210, 278 196, 295 183 C 310 172, 328 160, 345 148" stroke="#5CFCFC" stroke-width="32" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <path d="M 200 262 C 210 272, 225 286, 245 302 C 260 314, 278 328, 295 341 C 310 352, 328 364, 345 376" stroke="#FC5C8A" stroke-width="32" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <line x1="350" y1="145" x2="420" y2="100" stroke="#5CFCFC" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+      <line x1="350" y1="379" x2="420" y2="424" stroke="#FC5C8A" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+      <circle cx="432" cy="90" r="24" fill="#5CFCFC" filter="url(#ng1)" opacity="0.25"/>
+      <circle cx="432" cy="90" r="18" fill="#5CFCFC"/>
+      <circle cx="432" cy="434" r="24" fill="#FC5C8A" filter="url(#ng1)" opacity="0.25"/>
+      <circle cx="432" cy="434" r="18" fill="#FC5C8A"/>
+    </svg>
+    <p>Hero usage. White spine, coloured arms, node dots glow.</p>
+  </div>
+  
+  <div class="logo-card">
+    <h3>On Espresso (Dark)</h3>
+    <svg viewBox="0 0 512 512" width="200" height="200">
+      <defs>
+        <filter id="ng2" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+          <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+        </filter>
+      </defs>
+      <rect x="32" y="32" width="448" height="448" rx="64" ry="64" fill="#2E211C"/>
+      <path d="M 195 128 C 194 132, 196 145, 195 160 C 194 180, 196 200, 195 220 C 194 240, 196 260, 195 280 C 194 300, 196 320, 195 340 C 194 355, 196 370, 195 384" stroke="#7C5CFC" stroke-width="36" stroke-linecap="round" fill="none"/>
+      <path d="M 200 262 C 210 252, 225 238, 245 222 C 260 210, 278 196, 295 183 C 310 172, 328 160, 345 148" stroke="#5CFCFC" stroke-width="32" stroke-linecap="round" fill="none"/>
+      <path d="M 200 262 C 210 272, 225 286, 245 302 C 260 314, 278 328, 295 341 C 310 352, 328 364, 345 376" stroke="#FC5C8A" stroke-width="32" stroke-linecap="round" fill="none"/>
+      <line x1="350" y1="145" x2="420" y2="100" stroke="#5CFCFC" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+      <line x1="350" y1="379" x2="420" y2="424" stroke="#FC5C8A" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+      <circle cx="432" cy="90" r="24" fill="#5CFCFC" filter="url(#ng2)" opacity="0.3"/>
+      <circle cx="432" cy="90" r="18" fill="#5CFCFC"/>
+      <circle cx="432" cy="434" r="24" fill="#FC5C8A" filter="url(#ng2)" opacity="0.3"/>
+      <circle cx="432" cy="434" r="18" fill="#FC5C8A"/>
+    </svg>
+    <p>Dark mode. Violet spine glows, nodes like stars.</p>
+  </div>
+  
+  <div class="logo-card">
+    <h3>On Cream (Light)</h3>
+    <svg viewBox="0 0 512 512" width="200" height="200">
+      <rect x="32" y="32" width="448" height="448" rx="64" ry="64" fill="#FBF8F2" stroke="#7C5CFC" stroke-width="8"/>
+      <path d="M 195 128 C 194 132, 196 145, 195 160 C 194 180, 196 200, 195 220 C 194 240, 196 260, 195 280 C 194 300, 196 320, 195 340 C 194 355, 196 370, 195 384" stroke="#7C5CFC" stroke-width="36" stroke-linecap="round" fill="none"/>
+      <path d="M 200 262 C 210 252, 225 238, 245 222 C 260 210, 278 196, 295 183 C 310 172, 328 160, 345 148" stroke="#0d8a8a" stroke-width="32" stroke-linecap="round" fill="none"/>
+      <path d="M 200 262 C 210 272, 225 286, 245 302 C 260 314, 278 328, 295 341 C 310 352, 328 364, 345 376" stroke="#c43060" stroke-width="32" stroke-linecap="round" fill="none"/>
+      <line x1="350" y1="145" x2="420" y2="100" stroke="#0d8a8a" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+      <line x1="350" y1="379" x2="420" y2="424" stroke="#c43060" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+      <circle cx="432" cy="90" r="18" fill="#5CFCFC" stroke="#0d8a8a" stroke-width="3"/>
+      <circle cx="432" cy="434" r="18" fill="#FC5C8A" stroke="#c43060" stroke-width="3"/>
+    </svg>
+    <p>Light mode. Outlined box, accessibility-safe colours.</p>
+  </div>
+</div>
+
+<p class="section-title">Scale Test</p>
+<div class="size-strip">
+  <div class="size-item">
+    <span class="size-label">200px</span>
+    <svg viewBox="0 0 512 512" width="200" height="200">
+      <rect x="32" y="32" width="448" height="448" rx="64" ry="64" fill="#7C5CFC"/>
+      <path d="M 195 128 C 194 132, 196 145, 195 160 C 194 180, 196 200, 195 220 C 194 240, 196 260, 195 280 C 194 300, 196 320, 195 340 C 194 355, 196 370, 195 384" stroke="#FFFFFF" stroke-width="36" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <path d="M 200 262 C 210 252, 225 238, 245 222 C 260 210, 278 196, 295 183 C 310 172, 328 160, 345 148" stroke="#5CFCFC" stroke-width="32" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <path d="M 200 262 C 210 272, 225 286, 245 302 C 260 314, 278 328, 295 341 C 310 352, 328 364, 345 376" stroke="#FC5C8A" stroke-width="32" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <line x1="350" y1="145" x2="420" y2="100" stroke="#5CFCFC" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+      <line x1="350" y1="379" x2="420" y2="424" stroke="#FC5C8A" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+      <circle cx="432" cy="90" r="18" fill="#5CFCFC"/>
+      <circle cx="432" cy="434" r="18" fill="#FC5C8A"/>
+    </svg>
+  </div>
+  <div class="size-item">
+    <span class="size-label">96px</span>
+    <svg viewBox="0 0 512 512" width="96" height="96">
+      <rect x="32" y="32" width="448" height="448" rx="64" ry="64" fill="#7C5CFC"/>
+      <path d="M 195 128 C 194 132, 196 145, 195 160 C 194 180, 196 200, 195 220 C 194 240, 196 260, 195 280 C 194 300, 196 320, 195 340 C 194 355, 196 370, 195 384" stroke="#FFFFFF" stroke-width="36" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <path d="M 200 262 C 210 252, 225 238, 245 222 C 260 210, 278 196, 295 183 C 310 172, 328 160, 345 148" stroke="#5CFCFC" stroke-width="32" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <path d="M 200 262 C 210 272, 225 286, 245 302 C 260 314, 278 328, 295 341 C 310 352, 328 364, 345 376" stroke="#FC5C8A" stroke-width="32" stroke-linecap="round" fill="none" opacity="0.95"/>
+      <line x1="350" y1="145" x2="420" y2="100" stroke="#5CFCFC" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+      <line x1="350" y1="379" x2="420" y2="424" stroke="#FC5C8A" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+      <circle cx="432" cy="90" r="18" fill="#5CFCFC"/>
+      <circle cx="432" cy="434" r="18" fill="#FC5C8A"/>
+    </svg>
+  </div>
+  <div class="size-item">
+    <span class="size-label">48px</span>
+    <svg viewBox="0 0 512 512" width="48" height="48">
+      <rect x="32" y="32" width="448" height="448" rx="64" ry="64" fill="#7C5CFC"/>
+      <path d="M 195 128 C 194 132, 196 145, 195 160 C 194 180, 196 200, 195 220 C 194 240, 196 260, 195 280 C 194 300, 196 320, 195 340 C 194 355, 196 370, 195 384" stroke="#FFFFFF" stroke-width="36" stroke-linecap="round" fill="none"/>
+      <path d="M 200 262 C 210 252, 225 238, 245 222 C 260 210, 278 196, 295 183 C 310 172, 328 160, 345 148" stroke="#5CFCFC" stroke-width="32" stroke-linecap="round" fill="none"/>
+      <path d="M 200 262 C 210 272, 225 286, 245 302 C 260 314, 278 328, 295 341 C 310 352, 328 364, 345 376" stroke="#FC5C8A" stroke-width="32" stroke-linecap="round" fill="none"/>
+      <circle cx="432" cy="90" r="18" fill="#5CFCFC"/>
+      <circle cx="432" cy="434" r="18" fill="#FC5C8A"/>
+    </svg>
+  </div>
+  <div class="size-item">
+    <span class="size-label">32px (nav)</span>
+    <svg viewBox="0 0 32 32" width="32" height="32">
+      <rect x="2" y="2" width="28" height="28" rx="6" ry="6" fill="#7C5CFC"/>
+      <line x1="11" y1="8" x2="11" y2="24" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+      <line x1="12" y1="16" x2="21" y2="9" stroke="#5CFCFC" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="12" y1="16" x2="21" y2="23" stroke="#FC5C8A" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="23" cy="7" r="2.5" fill="#5CFCFC"/>
+      <circle cx="23" cy="25" r="2.5" fill="#FC5C8A"/>
+    </svg>
+  </div>
+  <div class="size-item">
+    <span class="size-label">16px (favicon)</span>
+    <svg viewBox="0 0 32 32" width="16" height="16">
+      <rect x="2" y="2" width="28" height="28" rx="6" ry="6" fill="#7C5CFC"/>
+      <line x1="11" y1="8" x2="11" y2="24" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+      <line x1="12" y1="16" x2="21" y2="9" stroke="#5CFCFC" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="12" y1="16" x2="21" y2="23" stroke="#FC5C8A" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="23" cy="7" r="2.5" fill="#5CFCFC"/>
+      <circle cx="23" cy="25" r="2.5" fill="#FC5C8A"/>
+    </svg>
+  </div>
+</div>
+
+<p class="section-title">Nav Bar Mockups</p>
+
+<!-- Dark nav -->
+<div class="nav-mockup nav-dark">
+  <svg viewBox="0 0 32 32" width="32" height="32" class="nav-logo">
+    <rect x="2" y="2" width="28" height="28" rx="6" ry="6" fill="#7C5CFC"/>
+    <line x1="11" y1="8" x2="11" y2="24" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+    <line x1="12" y1="16" x2="21" y2="9" stroke="#5CFCFC" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="12" y1="16" x2="21" y2="23" stroke="#FC5C8A" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="23" cy="7" r="2.5" fill="#5CFCFC"/>
+    <circle cx="23" cy="25" r="2.5" fill="#FC5C8A"/>
+  </svg>
+  <span class="nav-wordmark">Kronroe</span>
+  <div class="nav-links">
+    <span>Playground</span>
+    <span>Docs</span>
+    <span>Python</span>
+    <span>WASM</span>
+    <span>GitHub</span>
+  </div>
+</div>
+
+<!-- Light nav -->
+<div class="nav-mockup nav-light">
+  <svg viewBox="0 0 32 32" width="32" height="32" class="nav-logo">
+    <rect x="2" y="2" width="28" height="28" rx="6" ry="6" fill="#FBF8F2" stroke="#7C5CFC" stroke-width="2"/>
+    <line x1="11" y1="8" x2="11" y2="24" stroke="#7C5CFC" stroke-width="3" stroke-linecap="round"/>
+    <line x1="12" y1="16" x2="21" y2="9" stroke="#0d8a8a" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="12" y1="16" x2="21" y2="23" stroke="#c43060" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="23" cy="7" r="2.5" fill="#5CFCFC" stroke="#0d8a8a" stroke-width="1"/>
+    <circle cx="23" cy="25" r="2.5" fill="#FC5C8A" stroke="#c43060" stroke-width="1"/>
+  </svg>
+  <span class="nav-wordmark">Kronroe</span>
+  <div class="nav-links">
+    <span>Playground</span>
+    <span>Docs</span>
+    <span>Python</span>
+    <span>WASM</span>
+    <span>GitHub</span>
+  </div>
+</div>
+
+<div class="story">
+  <h2>What This Logo Says</h2>
+  <div class="story-row">
+    <span class="story-element el-spine">Sketchy white spine</span>
+    <span class="story-meaning">"A human built this. With care. With imperfection. With soul."</span>
+  </div>
+  <div class="story-row">
+    <span class="story-element el-aqua">Aqua upper arm</span>
+    <span class="story-meaning">"Data flows upward. Queries. Facts. The technical layer."</span>
+  </div>
+  <div class="story-row">
+    <span class="story-element el-rose">Rose lower arm</span>
+    <span class="story-meaning">"People connect below. Entities. Relationships. The human layer."</span>
+  </div>
+  <div class="story-row">
+    <span class="story-element el-edges">Extending edge lines</span>
+    <span class="story-meaning">"This doesn't stop at the border. It reaches out. It connects to your world."</span>
+  </div>
+  <div class="story-row">
+    <span class="story-element el-aqua">Precise node dots</span>
+    <span class="story-meaning">"The engine underneath is exact. Reliable. Engineered."</span>
+  </div>
+  <div class="story-row">
+    <span class="story-element el-violet">Violet container</span>
+    <span class="story-meaning">"This is Kronroe. Confident. Present. Unmistakable."</span>
+  </div>
+</div>
+
+</body>
+</html>
