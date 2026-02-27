@@ -65,6 +65,12 @@ pub enum KronroeError {
     InvalidEmbedding(String),
     #[error("internal error: {0}")]
     Internal(String),
+    #[error(
+        "schema version mismatch: file has version {found}, \
+         this build expects version {expected}; \
+         see https://github.com/kronroe/kronroe for migration guidance"
+    )]
+    SchemaMismatch { found: u64, expected: u64 },
 }
 
 impl From<redb::DatabaseError> for KronroeError {
@@ -328,6 +334,27 @@ impl Fact {
 // Storage
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Schema version
+// ---------------------------------------------------------------------------
+
+/// Current on-disk schema version.
+///
+/// ## Version history
+///
+/// | Version | Date | What changed |
+/// |---------|------|--------------|
+/// | 1 | 2026-02-27 | Initial committed format. Tables: `facts`, `idempotency`, `embeddings` (feature=vector), `embedding_meta` (feature=vector). Key: `"{subject}:{predicate}:{fact_id}"`. Value: JSON `Fact`. |
+///
+/// A file whose stored version differs from this constant cannot be opened —
+/// [`TemporalGraph::open`] returns [`KronroeError::SchemaMismatch`].
+const SCHEMA_VERSION: u64 = 1;
+
+/// Single-row database metadata table.
+/// Key `"schema_version"` stores the [`SCHEMA_VERSION`] stamped when the file
+/// was first created. Checked on every subsequent open.
+const META: TableDefinition<&str, u64> = TableDefinition::new("meta");
+
 /// Composite string key: `"{subject}:{predicate}:{fact_id}"`.
 ///
 /// The ULID-based fact_id is time-sortable, so facts for the same
@@ -412,6 +439,30 @@ impl TemporalGraph {
                 write_txn.open_table(EMBEDDINGS)?;
                 write_txn.open_table(EMBEDDING_META)?;
             }
+
+            // Stamp or verify the schema version.  Extract to owned before any
+            // mutable borrow (redb AccessGuard borrow rule — see CLAUDE.md).
+            {
+                let mut meta = write_txn.open_table(META)?;
+                let stored: Option<u64> = meta.get("schema_version")?.map(|g| g.value());
+                match stored {
+                    None => {
+                        // New file, or file created before versioning was added —
+                        // both are treated as schema v1 (the initial committed format).
+                        meta.insert("schema_version", SCHEMA_VERSION)?;
+                    }
+                    Some(v) if v == SCHEMA_VERSION => {
+                        // File is current — nothing to do.
+                    }
+                    Some(v) => {
+                        return Err(KronroeError::SchemaMismatch {
+                            found: v,
+                            expected: SCHEMA_VERSION,
+                        });
+                    }
+                }
+            }
+
             write_txn.commit()?;
         }
         #[cfg(feature = "vector")]
@@ -1984,5 +2035,41 @@ mod tests {
             Some(jun),
             "expired_at should be set (TSQL-2 transaction time)"
         );
+    }
+
+    #[test]
+    fn schema_version_is_stamped_and_mismatch_is_detected() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("versioned.kronroe");
+        let path_str = path.to_str().unwrap();
+
+        // Create — version should be stamped.
+        let _db = TemporalGraph::open(path_str).unwrap();
+        drop(_db);
+
+        // Reopen — should succeed (version matches).
+        let _db2 = TemporalGraph::open(path_str).unwrap();
+        drop(_db2);
+
+        // Tamper: write a future version to simulate a file written by a newer build.
+        {
+            use redb::Database;
+            let raw = Database::create(path_str).unwrap();
+            let txn = raw.begin_write().unwrap();
+            let mut meta = txn.open_table(META).unwrap();
+            meta.insert("schema_version", SCHEMA_VERSION + 1).unwrap();
+            drop(meta);
+            txn.commit().unwrap();
+        }
+
+        // Opening should return SchemaMismatch, not silently corrupt data.
+        match TemporalGraph::open(path_str) {
+            Err(KronroeError::SchemaMismatch { found, expected }) => {
+                assert_eq!(found, SCHEMA_VERSION + 1);
+                assert_eq!(expected, SCHEMA_VERSION);
+            }
+            Ok(_) => panic!("expected SchemaMismatch but open succeeded"),
+            Err(e) => panic!("expected SchemaMismatch but got: {e}"),
+        }
     }
 }
