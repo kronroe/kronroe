@@ -25,7 +25,7 @@ kronroe/
 │   ├── core/           # `kronroe` crate — TemporalGraph engine
 │   ├── agent-memory/   # `kronroe-agent-memory` crate — AgentMemory API
 │   ├── ios/            # `kronroe-ios` crate — C FFI staticlib + cbindgen header + Swift Package
-│   ├── mcp-server/     # `kronroe-mcp` binary — stdio MCP server (remember/recall tools)
+│   ├── mcp-server/     # `kronroe-mcp` binary — stdio MCP server (5 tools)
 │   ├── python/         # `kronroe-py` crate — PyO3 bindings
 │   └── wasm/           # `kronroe-wasm` crate — WebAssembly bindings (browser)
 ├── packages/
@@ -34,7 +34,7 @@ kronroe/
 │   └── kronroe-mcp/    # pip shim — `kronroe-mcp` CLI entry point, delegates to binary
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml             # cargo test + clippy + fmt on every PR
+│   │   ├── ci.yml             # path-scoped Rust/WASM/site checks on relevant PRs
 │   │   ├── cla.yml            # CLA assistant bot (contributors must sign CLA)
 │   │   ├── ios.yml            # cross-compile check for aarch64-apple-ios targets
 │   │   ├── python-wheels.yml  # build Python wheels (Linux manylinux)
@@ -142,7 +142,7 @@ Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memo
 kronroe-agent-memory   ← agent ergonomics, Phase 1 memory API
 kronroe-py             ← Python/PyO3 bindings
 kronroe-wasm           ← browser WASM bindings (in-memory only)
-kronroe-mcp            ← stdio MCP server (remember/recall tools)
+kronroe-mcp            ← stdio MCP server (5 tools)
 kronroe-ios            ← C FFI staticlib + cbindgen header + Swift Package
         ↓
    kronroe (core)      ← TemporalGraph, bi-temporal storage, redb 3.1,
@@ -182,7 +182,7 @@ Future crates will layer on top: `crates/android/`.
 
 - PyO3 bindings exposing `KronroeDb` and `AgentMemory` Python classes
 - Built with `maturin` — `maturin develop -m crates/python/Cargo.toml` for local dev
-- `python-wheels.yml` builds Linux manylinux wheels on every push to `main`
+- `python-wheels.yml` builds Linux manylinux wheels on path-matching pushes to `main`
 - `python-publish.yml` publishes to PyPI via trusted publisher on release publish/workflow dispatch
 - macOS wheel build temporarily disabled in CI — add macOS runner to `python-wheels.yml` when needed
 - `fact_to_dict()` serialises all `Fact` fields (including all four timestamps) to Python dicts
