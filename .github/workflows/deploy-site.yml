@@ -24,13 +24,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
 
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
@@ -56,7 +56,7 @@ jobs:
 
       - name: Deploy to Firebase Hosting
         id: deploy
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: FirebaseExtended/action-hosting-deploy@e2eda2e106cfa35cdbcf4ac9ddaf6c4756df2c8c # v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KRONROE }}
@@ -73,15 +73,19 @@ jobs:
         env:
           PLAYGROUND_URL: ${{ steps.deploy.outputs.details_url }}
         run: |
-          set -o pipefail
+          set -euo pipefail
           URL="${PLAYGROUND_URL:-https://kronroe.web.app}"
           echo "Smoke testing ${URL}"
           node scripts/smoke-playground.mjs "${URL}" | tee smoke-result.json
+          if [ ! -s smoke-result.json ]; then
+            echo "ERROR: smoke test produced no output" >&2
+            exit 1
+          fi
           {
             echo "## Playground Smoke Test"
             echo ""
             echo "- URL: ${URL}"
-            echo "- Workflow: `${{ github.workflow }}`"
+            echo "- Workflow: \`${{ github.workflow }}\`"
             echo ""
             echo '```json'
             cat smoke-result.json
