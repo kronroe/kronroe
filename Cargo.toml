@@ -19,7 +19,7 @@ repository = "https://github.com/kronroe/kronroe"
 [workspace.dependencies]
 # Storage
 redb = "3.1"
-tantivy = { version = "0.22", default-features = false }
+tantivy = { version = "0.25", default-features = false }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
