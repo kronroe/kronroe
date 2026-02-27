@@ -264,26 +264,71 @@ This produces the evidence line we need.
 
 ## Evidence (fill in after executing)
 
-**Date executed:** _________
-**Simulator:** _________
-**iOS version:** _________
-**Build succeeded:** Yes / No
-**Package linked successfully:** Yes / No
+**Date executed:** 2026-02-27
+**Executor:** Claude Code (Tasks 2–4) / Rebekah (Task 5 simulator run)
+**Simulator:** _(fill in after Task 5)_
+**iOS version:** _(fill in after Task 5)_
+**Build succeeded:** _(fill in after Task 5)_
+**Package linked successfully:** Yes (Task 1 pre-completed)
+
+### Task 2 — KronroeStore.swift created
+
+File created at:
+`design/mobile/ios/KindlyRoe/KindlyRoe/Core/Memory/KronroeStore.swift`
+
+**⚠️ Action required:** Add this file to the Xcode project (right-click `Core/Memory` group
+→ "Add Files to KindlyRoe…" → select `KronroeStore.swift` → Add to KindlyRoe target).
+
+### Task 3 — Call sites wired in AdultChatView.swift
+
+Three call sites added to
+`design/mobile/ios/KindlyRoe/KindlyRoe/Journeys/Adult/Chat/AdultChatView.swift`:
+
+| Event | Location in file | Method called |
+|-------|-----------------|---------------|
+| Highlight confirmed | `messagesView` → `onHighlightChange` closure | `KronroeStore.shared.recordHighlight(messageId:category:)` |
+| Pin confirmed | `.sheet(isPresented: $showPinSheet)` → `onSave` closure | `KronroeStore.shared.recordPin(messageId:label:)` |
+| Annotation confirmed | `setupAutoDemoCallbacks` → `onShowNoteInput` closure | `KronroeStore.shared.recordAnnotation(messageId:text:)` |
+
+`FamilyChatView/FamilyChatViewModel` — no highlight/pin/annotation surfaces exist yet; no changes needed.
+
+### Task 4 — Diagnostic proof line
+
+`PROOF_MEMORY_STORE_JSON=` NSLog added inside `onHighlightChange` immediately after
+`recordHighlight`. Fires on every real user highlight action (not just during demo mode).
+
+### Task 5 — Simulator run
+
+**Status:** BLOCKED — see findings doc
+
+**Blocker:** `Sources/Kronroe/Kronroe.swift:86` fails to compile under Swift 6
+(Xcode 26 default). Error:
+
+```
+error: cannot convert value of type 'UnsafePointer<CChar>'
+to expected argument type 'UnsafeMutablePointer<CChar>'
+```
+
+Full details and fix options:
+`docs/ios-consumer-integration-findings.md` (Kronroe repo)
 
 **Console on first launch:**
 ```
-(paste 🗄️ [KronroeStore] Opened DB at: ... line here)
+(fill in after Blocker 2 is fixed and simulator run completes)
 ```
 
 **PROOF_MEMORY_STORE_JSON after highlight + pin + annotation:**
 ```json
-(paste JSON here)
+(fill in after Blocker 2 is fixed and simulator run completes)
 ```
 
-**Survived force-quit and relaunch:** Yes / No
+**Survived force-quit and relaunch:** (fill in after fix)
 
 **Surprises or issues:**
--
+- xcodeproj gem v1.27.0 uses wrong key (`path` vs `relativePath`) for
+  `XCLocalSwiftPackageReference` — required manual correction. See findings doc.
+- Swift 6 pointer coercion error blocks compilation. Quick fix: add
+  `.swiftLanguageVersion(.v5)` to the Kronroe target in `Package.swift`.
 
 ---
 
