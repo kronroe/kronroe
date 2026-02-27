@@ -1,5 +1,3 @@
-#![allow(clippy::useless_conversion)]
-
 use ::chrono::Utc;
 use ::kronroe::{Fact, TemporalGraph, Value};
 use kronroe_agent_memory::AgentMemory;
@@ -26,18 +24,15 @@ fn py_to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
 }
 
 fn fact_to_dict<'py>(py: Python<'py>, fact: &Fact) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("id", fact.id.0.clone())?;
     d.set_item("subject", fact.subject.clone())?;
     d.set_item("predicate", fact.predicate.clone())?;
-    d.set_item(
-        "object",
-        match &fact.object {
-            Value::Text(v) | Value::Entity(v) => v.into_py(py),
-            Value::Number(v) => v.into_py(py),
-            Value::Boolean(v) => v.into_py(py),
-        },
-    )?;
+    match &fact.object {
+        Value::Text(v) | Value::Entity(v) => d.set_item("object", v)?,
+        Value::Number(v) => d.set_item("object", v)?,
+        Value::Boolean(v) => d.set_item("object", v)?,
+    };
     d.set_item(
         "object_type",
         match fact.object {
