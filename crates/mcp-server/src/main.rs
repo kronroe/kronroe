@@ -487,6 +487,53 @@ mod tests {
         assert!(err.to_string().contains("exceeds max allowed"));
     }
 
+    // ── read_message robustness tests (I7 audit finding) ────────────
+
+    #[test]
+    fn read_message_rejects_non_numeric_content_length() {
+        let raw = b"Content-Length: abc\r\n\r\n";
+        let mut cursor = Cursor::new(raw.to_vec());
+        let err = read_message(&mut cursor).expect_err("non-numeric length must fail");
+        assert!(err.to_string().contains("invalid Content-Length"));
+    }
+
+    #[test]
+    fn read_message_rejects_missing_content_length() {
+        let raw = b"X-Custom: foo\r\n\r\n{}";
+        let mut cursor = Cursor::new(raw.to_vec());
+        let err = read_message(&mut cursor).expect_err("missing header must fail");
+        assert!(err.to_string().contains("missing Content-Length"));
+    }
+
+    #[test]
+    fn read_message_rejects_invalid_json() {
+        let body = b"not valid json";
+        let raw = format!("Content-Length: {}\r\n\r\n", body.len());
+        let mut payload = raw.into_bytes();
+        payload.extend_from_slice(body);
+        let mut cursor = Cursor::new(payload);
+        let err = read_message(&mut cursor).expect_err("bad JSON must fail");
+        assert!(err.to_string().contains("invalid JSON"));
+    }
+
+    #[test]
+    fn read_message_returns_none_on_eof() {
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        let result = read_message(&mut cursor).unwrap();
+        assert!(result.is_none(), "EOF should return None, not error");
+    }
+
+    #[test]
+    fn read_message_parses_valid_frame() {
+        let body = br#"{"jsonrpc":"2.0","method":"initialize","id":1}"#;
+        let raw = format!("Content-Length: {}\r\n\r\n", body.len());
+        let mut payload = raw.into_bytes();
+        payload.extend_from_slice(body);
+        let mut cursor = Cursor::new(payload);
+        let msg = read_message(&mut cursor).unwrap().unwrap();
+        assert_eq!(msg["method"], "initialize");
+    }
+
     #[test]
     fn recall_rejects_excessive_limit() {
         let mut state = temp_state();
@@ -613,5 +660,67 @@ mod tests {
             .and_then(JsonValue::as_array)
             .unwrap();
         assert_eq!(facts.len(), 1, "same remember key must not duplicate note");
+    }
+
+    // ── parse_works_at regression tests (C3 audit finding) ──────────
+
+    #[test]
+    fn parse_works_at_ascii() {
+        let (s, e) = parse_works_at("alice works at Acme").unwrap();
+        assert_eq!(s, "alice");
+        assert_eq!(e, "Acme");
+    }
+
+    #[test]
+    fn parse_works_at_case_insensitive() {
+        let (s, e) = parse_works_at("Bob WORKS AT BigCorp").unwrap();
+        assert_eq!(s, "Bob");
+        assert_eq!(e, "BigCorp");
+    }
+
+    #[test]
+    fn parse_works_at_turkish_i() {
+        // İ (U+0130) expands from 2 bytes to 3 bytes under to_lowercase().
+        // The old implementation used to_lowercase() byte offsets on the
+        // original string, causing silent data loss for this input.
+        let (s, e) = parse_works_at("İshaan works at Acme").unwrap();
+        assert_eq!(s, "İshaan");
+        assert_eq!(e, "Acme");
+    }
+
+    #[test]
+    fn parse_works_at_accented_names() {
+        let (s, e) = parse_works_at("René works at Müller GmbH").unwrap();
+        assert_eq!(s, "René");
+        assert_eq!(e, "Müller GmbH");
+    }
+
+    #[test]
+    fn parse_works_at_cjk_subject() {
+        let (s, e) = parse_works_at("田中太郎 works at トヨタ").unwrap();
+        assert_eq!(s, "田中太郎");
+        assert_eq!(e, "トヨタ");
+    }
+
+    #[test]
+    fn parse_works_at_emoji_in_employer() {
+        let (s, e) = parse_works_at("alice works at 🚀 Labs").unwrap();
+        assert_eq!(s, "alice");
+        assert_eq!(e, "🚀 Labs");
+    }
+
+    #[test]
+    fn parse_works_at_empty_subject_returns_none() {
+        assert!(parse_works_at(" works at Acme").is_none());
+    }
+
+    #[test]
+    fn parse_works_at_empty_employer_returns_none() {
+        assert!(parse_works_at("alice works at ").is_none());
+    }
+
+    #[test]
+    fn parse_works_at_no_match_returns_none() {
+        assert!(parse_works_at("alice is employed by Acme").is_none());
     }
 }
