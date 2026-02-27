@@ -1593,6 +1593,182 @@ mod tests {
         );
     }
 
+    // ── HalfLifeDays temporal decay edge cases (I14 audit finding) ─────
+
+    #[test]
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    fn hybrid_decay_zero_age_gives_max_positive_adjustment() {
+        // A fact queried at exactly its valid_from has age=0,
+        // decay=1.0, adjustment = (1.0 - 0.5) * 2.0 * scale = +scale.
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let t = dt("2026-01-01T00:00:00Z");
+
+        db.assert_fact_with_embedding("doc", "note", "keyword", t, vec![1.0, 0.0])
+            .unwrap();
+
+        let params = HybridParams {
+            k: 1,
+            candidate_window: 10,
+            rank_constant: 60,
+            text_weight: 0.5,
+            vector_weight: 0.5,
+            temporal_weight: 1.0,
+            temporal_adjustment: TemporalAdjustment::HalfLifeDays { days: 90.0 },
+            fusion: HybridFusionStrategy::Rrf,
+        };
+
+        // Query at exactly valid_from — age = 0 days.
+        let hits = db
+            .search_hybrid_experimental("keyword", &[1.0, 0.0], params, Some(t))
+            .unwrap();
+        assert_eq!(hits.len(), 1);
+
+        // temporal_scale = 0.1 * 1.0 = 0.1
+        // adjustment = (1.0 - 0.5) * 2.0 * 0.1 = +0.1
+        let adj = hits[0].1.temporal_adjustment;
+        assert!(
+            (adj - 0.1).abs() < 1e-9,
+            "zero-age adjustment should be +0.1, got {adj}"
+        );
+    }
+
+    #[test]
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    fn hybrid_decay_one_half_life_gives_zero_adjustment() {
+        // A fact exactly one half-life old has decay=0.5,
+        // adjustment = (0.5 - 0.5) * 2.0 * scale = 0.0.
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let t = dt("2026-01-01T00:00:00Z");
+
+        db.assert_fact_with_embedding("doc", "note", "keyword", t, vec![1.0, 0.0])
+            .unwrap();
+
+        let half_life_days = 90.0_f32;
+        let params = HybridParams {
+            k: 1,
+            candidate_window: 10,
+            rank_constant: 60,
+            text_weight: 0.5,
+            vector_weight: 0.5,
+            temporal_weight: 1.0,
+            temporal_adjustment: TemporalAdjustment::HalfLifeDays {
+                days: half_life_days,
+            },
+            fusion: HybridFusionStrategy::Rrf,
+        };
+
+        // Query exactly 90 days later.
+        let query_time = t + chrono::Duration::days(90);
+        let hits = db
+            .search_hybrid_experimental("keyword", &[1.0, 0.0], params, Some(query_time))
+            .unwrap();
+        assert_eq!(hits.len(), 1);
+
+        let adj = hits[0].1.temporal_adjustment;
+        assert!(
+            adj.abs() < 1e-6,
+            "one-half-life-old adjustment should be ~0.0, got {adj}"
+        );
+    }
+
+    #[test]
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    fn hybrid_decay_very_old_fact_gives_negative_adjustment() {
+        // A fact many half-lives old has decay≈0,
+        // adjustment ≈ (0 - 0.5) * 2.0 * scale = -scale.
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let t = dt("2000-01-01T00:00:00Z");
+
+        db.assert_fact_with_embedding("doc", "note", "keyword", t, vec![1.0, 0.0])
+            .unwrap();
+
+        let params = HybridParams {
+            k: 1,
+            candidate_window: 10,
+            rank_constant: 60,
+            text_weight: 0.5,
+            vector_weight: 0.5,
+            temporal_weight: 1.0,
+            temporal_adjustment: TemporalAdjustment::HalfLifeDays { days: 30.0 },
+            fusion: HybridFusionStrategy::Rrf,
+        };
+
+        // Query 26 years later — ~316 half-lives, decay ≈ 0.
+        let query_time = dt("2026-01-01T00:00:00Z");
+        let hits = db
+            .search_hybrid_experimental("keyword", &[1.0, 0.0], params, Some(query_time))
+            .unwrap();
+        assert_eq!(hits.len(), 1);
+
+        // temporal_scale = 0.1 * 1.0 = 0.1
+        // adjustment ≈ -0.1 (clamped)
+        let adj = hits[0].1.temporal_adjustment;
+        assert!(
+            (adj - (-0.1)).abs() < 1e-6,
+            "very old fact adjustment should be ~-0.1, got {adj}"
+        );
+    }
+
+    #[test]
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    fn hybrid_decay_none_gives_zero_adjustment() {
+        // TemporalAdjustment::None should produce no adjustment regardless of weight.
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let t = dt("2020-01-01T00:00:00Z");
+
+        db.assert_fact_with_embedding("doc", "note", "keyword", t, vec![1.0, 0.0])
+            .unwrap();
+
+        let params = HybridParams {
+            k: 1,
+            candidate_window: 10,
+            rank_constant: 60,
+            text_weight: 0.5,
+            vector_weight: 0.5,
+            temporal_weight: 1.0,
+            temporal_adjustment: TemporalAdjustment::None,
+            fusion: HybridFusionStrategy::Rrf,
+        };
+
+        let hits = db
+            .search_hybrid_experimental(
+                "keyword",
+                &[1.0, 0.0],
+                params,
+                Some(dt("2026-01-01T00:00:00Z")),
+            )
+            .unwrap();
+        assert_eq!(hits.len(), 1);
+        assert!(
+            hits[0].1.temporal_adjustment.abs() < 1e-12,
+            "TemporalAdjustment::None should give zero adjustment"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "hybrid-experimental")]
+    fn hybrid_rejects_zero_half_life_days() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let params = HybridParams {
+            k: 1,
+            candidate_window: 10,
+            rank_constant: 60,
+            text_weight: 0.5,
+            vector_weight: 0.5,
+            temporal_weight: 1.0,
+            temporal_adjustment: TemporalAdjustment::HalfLifeDays { days: 0.0 },
+            fusion: HybridFusionStrategy::Rrf,
+        };
+
+        let err = db
+            .search_hybrid_experimental("test", &[], params, None)
+            .expect_err("zero half-life days should be rejected");
+        assert!(
+            err.to_string().contains("must be > 0"),
+            "error should mention days must be > 0: {err}"
+        );
+    }
+
     #[test]
     fn half_open_interval_boundary_at_valid_from() {
         // Fact valid at [valid_from, valid_to). Query exactly at valid_from
