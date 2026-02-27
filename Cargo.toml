@@ -34,7 +34,7 @@ ulid = "1"
 # Error handling
 thiserror = "1"
 anyhow = "1"
-pyo3 = { version = "0.22", features = ["abi3-py39", "extension-module"] }
+pyo3 = { version = "0.24", features = ["abi3-py39", "extension-module"] }
 
 # Testing
 tempfile = "3"

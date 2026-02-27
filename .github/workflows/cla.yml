@@ -51,8 +51,8 @@ jobs:
           custom-pr-sign-comment: |
             ✅ Thank you for signing the CLA! Your contribution can now be reviewed.
 
-          # Allowlist — repo owner never needs to sign
-          allowlist: rebekahcole,Becky9012
+          # Allowlist — repo owner and bots never need to sign
+          allowlist: rebekahcole,Becky9012,dependabot[bot]
 
           # Lock PRs from unsigned contributors
           lock-pullrequest-aftermerge: false
