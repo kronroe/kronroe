@@ -73,26 +73,36 @@ struct PyKronroeDb {
 impl PyKronroeDb {
     #[classmethod]
     fn open(_cls: &Bound<'_, PyType>, path: &str) -> PyResult<Self> {
-        let inner = TemporalGraph::open(path).map_err(to_py_err)?;
+        let path = path.to_owned();
+        let inner = Python::with_gil(|py| py.allow_threads(|| TemporalGraph::open(&path)))
+            .map_err(to_py_err)?;
         Ok(Self { inner })
     }
 
     fn assert_fact(
         &self,
+        py: Python<'_>,
         subject: &str,
         predicate: &str,
         object: &Bound<'_, PyAny>,
     ) -> PyResult<String> {
         let value = py_to_value(object)?;
-        let id = self
-            .inner
-            .assert_fact(subject, predicate, value, Utc::now())
+        let subject = subject.to_owned();
+        let predicate = predicate.to_owned();
+        let id = py
+            .allow_threads(|| {
+                self.inner
+                    .assert_fact(&subject, &predicate, value, Utc::now())
+            })
             .map_err(to_py_err)?;
         Ok(id.0)
     }
 
     fn search(&self, py: Python<'_>, query: &str, limit: usize) -> PyResult<Vec<Py<PyDict>>> {
-        let facts = self.inner.search(query, limit).map_err(to_py_err)?;
+        let query = query.to_owned();
+        let facts = py
+            .allow_threads(|| self.inner.search(&query, limit))
+            .map_err(to_py_err)?;
         facts_to_pylist(py, facts)
     }
 }
@@ -106,31 +116,41 @@ struct PyAgentMemory {
 impl PyAgentMemory {
     #[classmethod]
     fn open(_cls: &Bound<'_, PyType>, path: &str) -> PyResult<Self> {
-        let inner = AgentMemory::open(path).map_err(to_py_err)?;
+        let path = path.to_owned();
+        let inner = Python::with_gil(|py| py.allow_threads(|| AgentMemory::open(&path)))
+            .map_err(to_py_err)?;
         Ok(Self { inner })
     }
 
     fn assert_fact(
         &self,
+        py: Python<'_>,
         subject: &str,
         predicate: &str,
         object: &Bound<'_, PyAny>,
     ) -> PyResult<String> {
         let value = py_to_value(object)?;
-        let id = self
-            .inner
-            .assert(subject, predicate, value)
+        let subject = subject.to_owned();
+        let predicate = predicate.to_owned();
+        let id = py
+            .allow_threads(|| self.inner.assert(&subject, &predicate, value))
             .map_err(to_py_err)?;
         Ok(id.0)
     }
 
     fn facts_about(&self, py: Python<'_>, entity: &str) -> PyResult<Vec<Py<PyDict>>> {
-        let facts = self.inner.facts_about(entity).map_err(to_py_err)?;
+        let entity = entity.to_owned();
+        let facts = py
+            .allow_threads(|| self.inner.facts_about(&entity))
+            .map_err(to_py_err)?;
         facts_to_pylist(py, facts)
     }
 
     fn search(&self, py: Python<'_>, query: &str, limit: usize) -> PyResult<Vec<Py<PyDict>>> {
-        let facts = self.inner.search(query, limit).map_err(to_py_err)?;
+        let query = query.to_owned();
+        let facts = py
+            .allow_threads(|| self.inner.search(&query, limit))
+            .map_err(to_py_err)?;
         facts_to_pylist(py, facts)
     }
 
@@ -144,9 +164,10 @@ impl PyAgentMemory {
         let at = at_rfc3339
             .parse()
             .map_err(|_| PyValueError::new_err("invalid RFC3339 datetime"))?;
-        let facts = self
-            .inner
-            .facts_about_at(entity, predicate, at)
+        let entity = entity.to_owned();
+        let predicate = predicate.to_owned();
+        let facts = py
+            .allow_threads(|| self.inner.facts_about_at(&entity, &predicate, at))
             .map_err(to_py_err)?;
         facts_to_pylist(py, facts)
     }
