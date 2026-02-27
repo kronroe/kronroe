@@ -7,7 +7,8 @@ on:
     types: [opened, closed, synchronize]
 
 permissions:
-  contents: read
+  actions: write
+  contents: write
   pull-requests: write
   statuses: write
 
@@ -23,16 +24,15 @@ jobs:
         uses: contributor-assistant/github-action@v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # PAT used by contributor-assistant to write signatures in the private repo.
+          # Signatures are stored in a dedicated branch in this repo.
+          # The branch (cla-signatures) is created automatically on first signature.
           PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_TOKEN }}
         with:
           # Path to the CLA document in this repo
           path-to-document: 'https://github.com/kronroe/kronroe/blob/main/CLA.md'
 
-          # Store signatures in a dedicated private repository.
-          remote-organization-name: 'kronroe'
-          remote-repository-name: 'kronroe-cla-signatures'
-          branch: 'main'
+          # Branch and file where signatures are stored
+          branch: 'cla-signatures'
           path-to-signatures: 'signatures/cla-v1.json'
 
           # Message shown on the PR when CLA has not been signed
