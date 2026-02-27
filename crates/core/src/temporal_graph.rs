@@ -63,6 +63,8 @@ pub enum KronroeError {
     Search(String),
     #[error("invalid embedding: {0}")]
     InvalidEmbedding(String),
+    #[error("internal error: {0}")]
+    Internal(String),
 }
 
 impl From<redb::DatabaseError> for KronroeError {
@@ -807,7 +809,7 @@ impl TemporalGraph {
         // correctly from redb on the next open().
         self.vector_index
             .lock()
-            .unwrap()
+            .map_err(|_| KronroeError::Internal("vector index lock poisoned".into()))?
             .insert(fact_id.clone(), embedding)?;
 
         Ok(fact_id)
@@ -842,7 +844,10 @@ impl TemporalGraph {
         // Return a clear error rather than silently producing zero-scored results
         // (which `cosine_similarity` would return for mismatched lengths).
         {
-            let idx = self.vector_index.lock().unwrap();
+            let idx = self
+                .vector_index
+                .lock()
+                .map_err(|_| KronroeError::Internal("vector index lock poisoned".into()))?;
             if let Some(d) = idx.dim() {
                 if query.len() != d {
                     return Err(KronroeError::InvalidEmbedding(format!(
@@ -869,7 +874,7 @@ impl TemporalGraph {
         let hits = self
             .vector_index
             .lock()
-            .unwrap()
+            .map_err(|_| KronroeError::Internal("vector index lock poisoned".into()))?
             .search(query, k, &valid_ids);
 
         let results = hits
