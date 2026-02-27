@@ -83,7 +83,13 @@ public final class KronroeGraph {
         guard let ptr = kronroe_last_error_message() else {
             return "unknown error"
         }
-        defer { kronroe_string_free(ptr) }
-        return String(cString: ptr)
+        // Copy to String before freeing. The XCFramework header declares
+        // `kronroe_last_error_message` as returning `const char *`, so Swift 6
+        // infers `ptr` as UnsafePointer<CChar>. We own this allocation and must
+        // free it via `kronroe_string_free(char *)` — UnsafeMutablePointer(mutating:)
+        // is the correct Swift 6 pattern for recovering the mutable pointer.
+        let message = String(cString: ptr)
+        kronroe_string_free(UnsafeMutablePointer(mutating: ptr))
+        return message
     }
 }
