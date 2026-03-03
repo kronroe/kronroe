@@ -25,6 +25,7 @@ kronroe/
 │   ├── core/           # `kronroe` crate — TemporalGraph engine
 │   ├── agent-memory/   # `kronroe-agent-memory` crate — AgentMemory API
 │   ├── ios/            # `kronroe-ios` crate — C FFI staticlib + cbindgen header + Swift Package
+│   ├── android/        # `kronroe-android` crate — JNI cdylib + Kotlin wrapper
 │   ├── mcp-server/     # `kronroe-mcp` binary — stdio MCP server (5 tools)
 │   ├── python/         # `kronroe-py` crate — PyO3 bindings
 │   └── wasm/           # `kronroe-wasm` crate — WebAssembly bindings (browser)
@@ -37,6 +38,7 @@ kronroe/
 │   │   ├── ci.yml             # path-scoped Rust/WASM/site checks on relevant PRs
 │   │   ├── cla.yml            # CLA assistant bot (contributors must sign CLA)
 │   │   ├── ios.yml            # cross-compile check for aarch64-apple-ios targets
+│   │   ├── android.yml        # host tests + cross-compile for 4 Android targets
 │   │   ├── python-wheels.yml  # build Python wheels (Linux manylinux)
 │   │   ├── python-publish.yml # publish to PyPI via trusted publisher (release/workflow dispatch)
 │   │   └── deploy-site.yml    # Firebase Hosting live deploy + post-deploy smoke test
@@ -144,6 +146,7 @@ kronroe-py             ← Python/PyO3 bindings
 kronroe-wasm           ← browser WASM bindings (in-memory only)
 kronroe-mcp            ← stdio MCP server (5 tools)
 kronroe-ios            ← C FFI staticlib + cbindgen header + Swift Package
+kronroe-android        ← JNI cdylib + Kotlin wrapper
         ↓
    kronroe (core)      ← TemporalGraph, bi-temporal storage, redb 3.1,
                           tantivy full-text (feature: fulltext),
@@ -152,7 +155,7 @@ kronroe-ios            ← C FFI staticlib + cbindgen header + Swift Package
 
 See naming rules in `docs/NAMING-CONVENTIONS.md` before introducing or renaming crate entrypoints.
 
-Future crates will layer on top: `crates/android/`.
+Future crates will layer on top.
 
 ### WASM Notes (`crates/wasm`)
 
@@ -177,6 +180,22 @@ Future crates will layer on top: `crates/android/`.
 - Stable toolchain builds iOS targets cleanly — no nightly workaround needed (verified rustc 1.93.1)
 - XCFramework build artifacts (`crates/ios/build/`, `crates/ios/swift/KronroeFFI.xcframework/`)
   are gitignored — run `scripts/build-xcframework.sh` locally
+
+### Android Notes (`crates/android`)
+
+- `crates/android` is a hand-written JNI crate (`kronroe-android`) wrapping the core `TemporalGraph` API
+- `crate-type = ["cdylib", "lib"]` — `cdylib` produces `.so` for Android, `lib` allows `cargo test` on host
+- Two-layer architecture: Layer 1 is a pure Rust `KronroeGraphHandle` (testable without JVM/NDK),
+  Layer 2 is thin JNI bridge functions using `extern "system"` calling convention
+- Only external dependency: `jni` crate (JNI type definitions — `JNIEnv`, `JString`, `jlong`, etc.)
+- `default-features = false` on core dep — excludes tantivy (same as iOS)
+- Handle-as-jlong pattern: `Box::into_raw(Box::new(handle)) as jlong` for Kotlin↔Rust lifecycle
+- Thread-local `LAST_ERROR` for error messages (same pattern as iOS)
+- Kotlin wrapper at `crates/android/kotlin/com/kronroe/KronroeGraph.kt` — mirrors Swift `KronroeGraph`
+- `scripts/build-android-libs.sh` cross-compiles for 4 targets via `cargo-ndk`:
+  `aarch64-linux-android`, `armv7-linux-androideabi`, `x86_64-linux-android`, `i686-linux-android`
+- Size budget: ≤ 6 MB per arch (same as iOS)
+- Build artifacts (`crates/android/build/`) are gitignored
 
 ### Python Notes (`crates/python`)
 
@@ -245,7 +264,7 @@ Snapshot as of 2026-02-21. See GitHub milestones/issues for source of truth.
 | 0.6 | iOS XCFramework | ✅ Done locally (aarch64-apple-ios + Swift package scaffold, commit cc4287e) | Rebekah (local) |
 | 0.7 | Kindly Roe integration | ⬜ Not started | Rebekah (local) |
 | 0.8 | Vector index | ✅ Done — flat cosine similarity, zero deps, temporal filtering, PR #18 | — |
-| 0.9 | Android AAR (UniFFI) | ⬜ Not started | Claude can help |
+| 0.9 | Android JNI bindings | ✅ Done — hand-written JNI, Kotlin wrapper, CI workflow, 3 host tests | Claude |
 | 0.10 | WASM playground | 🟡 Site scaffold + Firebase Hosting config merged — need service account secret + custom domains | Claude can help |
 | 0.11 | CI pipeline | ✅ Done — `test` + `clippy` + `fmt` + iOS packaging + Python wheels all green | — |
 | 0.12 | Storage format commitment | ⬜ Not started | Rebekah decision |
@@ -345,6 +364,7 @@ Rebekah Cole — project owner & sole maintainer of Kronroe. Building Kindly Roe
 | ios | kronroe-ios | crates/ios/ |
 | mcp-server | kronroe-mcp | crates/mcp-server/ |
 | python | kronroe-py | crates/python/ |
+| android | kronroe-android | crates/android/ |
 | wasm | kronroe-wasm | crates/wasm/ |
 
 ## Preferences

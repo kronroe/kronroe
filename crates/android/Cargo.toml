@@ -1,0 +1,22 @@
+[package]
+name = "kronroe-android"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Android JNI bindings for Kronroe"
+
+[lib]
+name = "kronroe_android"
+path = "src/android_bindings.rs"
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+kronroe = { path = "../core", default-features = false }
+jni = { workspace = true }
+chrono = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

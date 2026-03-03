@@ -26,6 +26,9 @@ crates/ios/build/
 crates/ios/swift/KronroeFFI.xcframework/
 crates/ios/swift/.build/
 
+# Android packaging artifacts
+crates/android/build/
+
 # Firebase debug logs
 firebase-debug.log
 firestore-debug.log

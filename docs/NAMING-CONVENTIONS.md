@@ -9,6 +9,7 @@ This document defines repository naming conventions used to keep crate entrypoin
   - `crates/core/Cargo.toml` → `path = "src/temporal_graph.rs"`
   - `crates/agent-memory/Cargo.toml` → `path = "src/agent_memory.rs"`
   - `crates/ios/Cargo.toml` → `path = "src/ffi.rs"`
+  - `crates/android/Cargo.toml` → `path = "src/android_bindings.rs"`
   - `crates/mcp-server/Cargo.toml` → binary, uses `src/main.rs`
   - `crates/python/Cargo.toml` → `path = "src/python_bindings.rs"`
   - `crates/wasm/Cargo.toml` → `path = "src/wasm_bindings.rs"`

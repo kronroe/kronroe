@@ -54,8 +54,8 @@ Pure Rust. No C dependencies in the core engine.
 | Python bindings | `crates/python` | `PyO3` bindings for core + agent memory |
 | MCP server | `crates/mcp-server` | stdio transport, 5 tools |
 | iOS bindings | `crates/ios` | C FFI + XCFramework + Swift Package |
+| Android bindings | `crates/android` | Hand-written JNI + Kotlin wrapper |
 | WASM bindings | `crates/wasm` | In-memory backend only |
-| Android bindings | _(planned)_ | UniFFI Kotlin bindings |
 
 ## Workspace
 
@@ -67,7 +67,8 @@ kronroe/
 │   ├── mcp-server/     # kronroe-mcp — stdio MCP server binary
 │   ├── python/         # kronroe-py — PyO3 bindings
 │   ├── wasm/           # kronroe-wasm — WebAssembly bindings (in-memory)
-│   └── ios/            # kronroe-ios — C FFI staticlib + Swift Package
+│   ├── ios/            # kronroe-ios — C FFI staticlib + Swift Package
+│   └── android/        # kronroe-android — JNI cdylib + Kotlin wrapper
 ├── packages/
 │   └── kronroe-mcp/    # npm shim — npx kronroe-mcp
 ├── python/
@@ -141,6 +142,7 @@ db.invalidate_fact(&id, Utc::now())?;
 | Python bindings (`KronroeDb`, `AgentMemory`) | `crates/python/src/python_bindings.rs` | `cargo build -p kronroe-py` |
 | iOS package artifacts + behavior tests | `crates/ios` | `cargo test -p kronroe-ios` and `./crates/ios/scripts/run-swift-tests.sh` |
 | WASM bindings (in-memory engine, no persistent file backend) | `crates/wasm/src/wasm_bindings.rs` | `cargo build -p kronroe-wasm` |
+| Android JNI bindings + Kotlin wrapper | `crates/android/src/android_bindings.rs` | `cargo test -p kronroe-android` |
 | WASM playground live deploy + smoke verification | `.github/workflows/deploy-site.yml`, `site/scripts/smoke-playground.mjs` | merge to `main` triggers deploy + smoke summary |
 
 ### Experimental (feature-gated, API may change)
@@ -154,7 +156,6 @@ db.invalidate_fact(&id, Utc::now())?;
 
 | Capability | Status |
 |---|---|
-| Android AAR / Kotlin bindings (UniFFI path) | Planned |
 | Rich NLP extraction/planning layer beyond current `AgentMemory` primitives | Planned |
 
 ## Contributing
