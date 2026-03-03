@@ -30,12 +30,20 @@
 #[cfg(feature = "vector")]
 mod vector;
 
+#[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+mod hybrid;
+#[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+pub use hybrid::{HybridScoreBreakdown, HybridSearchParams, TemporalIntent, TemporalOperator};
+
 use chrono::{DateTime, Utc};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "hybrid-experimental")]
+#[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
 use std::cmp::Ordering;
-#[cfg(any(feature = "fulltext", feature = "hybrid-experimental"))]
+#[cfg(any(
+    feature = "fulltext",
+    all(feature = "hybrid-experimental", feature = "vector")
+))]
 use std::collections::HashMap;
 #[cfg(feature = "fulltext")]
 use tantivy::collector::TopDocs;
@@ -112,76 +120,6 @@ impl From<tantivy::query::QueryParserError> for KronroeError {
 }
 
 pub type Result<T> = std::result::Result<T, KronroeError>;
-
-/// Strategy options for hybrid retrieval experiments.
-#[cfg(feature = "hybrid-experimental")]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum HybridFusionStrategy {
-    /// Weighted Reciprocal Rank Fusion (RRF).
-    Rrf,
-}
-
-/// Optional temporal adjustment used by hybrid experimental ranking.
-#[cfg(feature = "hybrid-experimental")]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum TemporalAdjustment {
-    /// Disable temporal score adjustment.
-    None,
-    /// Exponential decay using the given half-life in days.
-    HalfLifeDays { days: f32 },
-}
-
-/// Internal parameters for hybrid experimental retrieval.
-#[cfg(feature = "hybrid-experimental")]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HybridParams {
-    /// Number of results requested.
-    pub k: usize,
-    /// Number of candidates to pull from each channel before fusion.
-    pub candidate_window: usize,
-    /// Weighted fusion strategy.
-    pub fusion: HybridFusionStrategy,
-    /// RRF rank constant.
-    pub rank_constant: usize,
-    /// Relative influence of the lexical channel.
-    pub text_weight: f32,
-    /// Relative influence of the vector channel.
-    pub vector_weight: f32,
-    /// Relative influence of the temporal adjustment.
-    pub temporal_weight: f32,
-    /// Temporal adjustment mode.
-    pub temporal_adjustment: TemporalAdjustment,
-}
-
-/// Score breakdown for one hybrid retrieval hit.
-#[cfg(feature = "hybrid-experimental")]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HybridScoreBreakdown {
-    /// Final score used for ranking.
-    pub final_score: f64,
-    /// Text-channel contribution from weighted RRF.
-    pub text_rrf_contrib: f64,
-    /// Vector-channel contribution from weighted RRF.
-    pub vector_rrf_contrib: f64,
-    /// Temporal contribution applied after fusion.
-    pub temporal_adjustment: f64,
-}
-
-#[cfg(feature = "hybrid-experimental")]
-impl Default for HybridParams {
-    fn default() -> Self {
-        Self {
-            k: 10,
-            candidate_window: 50,
-            fusion: HybridFusionStrategy::Rrf,
-            rank_constant: 60,
-            text_weight: 0.5,
-            vector_weight: 0.5,
-            temporal_weight: 0.0,
-            temporal_adjustment: TemporalAdjustment::None,
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Core types
@@ -936,45 +874,7 @@ impl TemporalGraph {
         Ok(results)
     }
 
-    #[cfg(feature = "hybrid-experimental")]
-    fn validate_hybrid_params(params: &HybridParams) -> Result<()> {
-        if params.k == 0 {
-            return Err(KronroeError::Search(
-                "hybrid-experimental: `k` must be >= 1".to_string(),
-            ));
-        }
-        if params.candidate_window == 0 {
-            return Err(KronroeError::Search(
-                "hybrid-experimental: `candidate_window` must be >= 1".to_string(),
-            ));
-        }
-        if params.rank_constant < 1 {
-            return Err(KronroeError::Search(
-                "hybrid-experimental: `rank_constant` must be >= 1".to_string(),
-            ));
-        }
-        if params.text_weight < 0.0 || params.vector_weight < 0.0 || params.temporal_weight < 0.0 {
-            return Err(KronroeError::Search(
-                "hybrid-experimental: weights must be non-negative".to_string(),
-            ));
-        }
-        if params.text_weight == 0.0 && params.vector_weight == 0.0 {
-            return Err(KronroeError::Search(
-                "hybrid-experimental: at least one of `text_weight` or `vector_weight` must be > 0"
-                    .to_string(),
-            ));
-        }
-        if let TemporalAdjustment::HalfLifeDays { days } = params.temporal_adjustment {
-            if days <= 0.0 {
-                return Err(KronroeError::Search(
-                    "hybrid-experimental: `HalfLifeDays.days` must be > 0".to_string(),
-                ));
-            }
-        }
-        Ok(())
-    }
-
-    #[cfg(feature = "hybrid-experimental")]
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
     fn search_ranked(&self, query: &str, limit: usize) -> Result<Vec<(FactId, usize)>> {
         if query.trim().is_empty() || limit == 0 {
             return Ok(Vec::new());
@@ -1016,20 +916,55 @@ impl TemporalGraph {
             .collect())
     }
 
-    /// Hybrid experimental retrieval: weighted text+vector RRF with deterministic ranking.
+    /// Hybrid retrieval: RRF fusion + two-stage intent-gated reranking.
     ///
-    /// The returned list is ordered by `final_score` descending, then by `FactId`
-    /// lexicographically to guarantee deterministic ties.
+    /// Combines full-text and vector search channels via Reciprocal Rank Fusion,
+    /// then applies a two-stage reranker (semantic pruning → temporal feasibility).
+    ///
+    /// Callers provide [`TemporalIntent`] and [`TemporalOperator`] to express what
+    /// kind of time query they're making; the reranker adapts its scoring strategy
+    /// accordingly.
+    ///
+    /// For timeless queries, an adaptive vector-dominance path adjusts weights
+    /// based on the signal balance in the top candidates. For temporal queries,
+    /// the reranker applies feasibility filtering and intent-weighted scoring.
     #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
-    pub fn search_hybrid_experimental(
+    pub fn search_hybrid(
         &self,
         text_query: &str,
         vector_query: &[f32],
-        params: HybridParams,
+        params: HybridSearchParams,
         at: Option<DateTime<Utc>>,
     ) -> Result<Vec<(Fact, HybridScoreBreakdown)>> {
-        Self::validate_hybrid_params(&params)?;
+        // ── Validation ──────────────────────────────────────────────────
+        if params.k == 0 {
+            return Err(KronroeError::Search(
+                "search_hybrid: `k` must be >= 1".to_string(),
+            ));
+        }
+        if params.candidate_window == 0 {
+            return Err(KronroeError::Search(
+                "search_hybrid: `candidate_window` must be >= 1".to_string(),
+            ));
+        }
+        if params.rank_constant < 1 {
+            return Err(KronroeError::Search(
+                "search_hybrid: `rank_constant` must be >= 1".to_string(),
+            ));
+        }
+        if params.text_weight < 0.0 || params.vector_weight < 0.0 {
+            return Err(KronroeError::Search(
+                "search_hybrid: weights must be non-negative".to_string(),
+            ));
+        }
+        if params.text_weight == 0.0 && params.vector_weight == 0.0 {
+            return Err(KronroeError::Search(
+                "search_hybrid: at least one of `text_weight` or `vector_weight` must be > 0"
+                    .to_string(),
+            ));
+        }
 
+        // ── Stage 0: Reciprocal Rank Fusion ─────────────────────────────
         let window = params.candidate_window;
         let text_ranked = self.search_ranked(text_query, window)?;
         let vec_ranked = self.search_by_vector_ranked(vector_query, window, at)?;
@@ -1066,42 +1001,30 @@ impl TemporalGraph {
             .map(|(id, breakdown)| (FactId(id), breakdown))
             .collect();
 
-        if !matches!(params.temporal_adjustment, TemporalAdjustment::None)
-            && params.temporal_weight > 0.0
-        {
-            let now = at.unwrap_or_else(Utc::now);
-            let temporal_scale = (0.1_f64 * params.temporal_weight as f64).max(0.0);
-            for (fact_id, breakdown) in &mut fused {
-                let fact = self.fact_by_id(fact_id)?;
-                let age_days = (now - fact.valid_from).num_seconds().max(0) as f64 / 86_400.0;
-                let adjustment = match params.temporal_adjustment {
-                    TemporalAdjustment::None => 0.0,
-                    TemporalAdjustment::HalfLifeDays { days } => {
-                        let decay = (-std::f64::consts::LN_2 * age_days / days as f64).exp();
-                        ((decay - 0.5) * 2.0 * temporal_scale)
-                            .clamp(-temporal_scale, temporal_scale)
-                    }
-                };
-                breakdown.temporal_adjustment = adjustment;
-                breakdown.final_score += adjustment;
-            }
-        }
-
+        // Sort by RRF score descending, FactId ascending for deterministic ties.
         fused.sort_by(|(a_id, a), (b_id, b)| {
             b.final_score
                 .partial_cmp(&a.final_score)
                 .unwrap_or(Ordering::Equal)
                 .then_with(|| a_id.0.cmp(&b_id.0))
         });
-        fused.truncate(params.k);
+        fused.truncate(window);
 
-        let mut out = Vec::with_capacity(fused.len());
+        // Resolve FactIds to full Facts for the reranker.
+        let mut resolved = Vec::with_capacity(fused.len());
         for (fact_id, breakdown) in fused {
             let fact = self.fact_by_id(&fact_id)?;
-            out.push((fact, breakdown));
+            resolved.push((fact, breakdown));
         }
 
-        Ok(out)
+        // ── Stages 1+2: Two-stage reranker ──────────────────────────────
+        Ok(hybrid::rerank_two_stage(
+            resolved,
+            params.k,
+            params.intent,
+            params.operator,
+            at,
+        ))
     }
 
     // Internal: scan facts table, filter by prefix, apply predicate.
@@ -1494,7 +1417,67 @@ mod tests {
 
     #[test]
     #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
-    fn hybrid_search_returns_hits_with_consistent_breakdown() {
+    fn hybrid_search_breakdown_sums_correctly() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let t = Utc::now();
+        db.assert_fact_with_embedding(
+            "alice",
+            "bio",
+            "expert Rust systems programmer",
+            t,
+            vec![1.0, 0.0, 0.0],
+        )
+        .unwrap();
+        db.assert_fact_with_embedding(
+            "bob",
+            "bio",
+            "Python data scientist",
+            t,
+            vec![0.0, 1.0, 0.0],
+        )
+        .unwrap();
+
+        let params = HybridSearchParams {
+            k: 5,
+            ..HybridSearchParams::default()
+        };
+        let hits = db
+            .search_hybrid("Rust", &[1.0, 0.0, 0.0], params, None)
+            .unwrap();
+        assert!(!hits.is_empty(), "hybrid search should return results");
+
+        for (_fact, breakdown) in &hits {
+            let expected = breakdown.text_rrf_contrib
+                + breakdown.vector_rrf_contrib
+                + breakdown.temporal_adjustment;
+            assert!(
+                (breakdown.final_score - expected).abs() < 1e-9,
+                "breakdown must sum to final_score"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    fn hybrid_search_rejects_zero_rank_constant() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        db.assert_fact_with_embedding("alice", "bio", "Rust", Utc::now(), vec![1.0, 0.0])
+            .unwrap();
+
+        let bad = HybridSearchParams {
+            rank_constant: 0,
+            ..HybridSearchParams::default()
+        };
+        let result = db.search_hybrid("Rust", &[1.0, 0.0], bad, None);
+        assert!(
+            matches!(result, Err(KronroeError::Search(_))),
+            "rank_constant=0 should return a validation error"
+        );
+    }
+
+    #[test]
+    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
+    fn search_hybrid_returns_reranked_results() {
         let db = TemporalGraph::open_in_memory().unwrap();
         let t = Utc::now();
         db.assert_fact_with_embedding(
@@ -1522,307 +1505,81 @@ mod tests {
         )
         .unwrap();
 
+        let params = HybridSearchParams {
+            k: 3,
+            ..HybridSearchParams::default()
+        };
         let hits = db
-            .search_hybrid_experimental("Rust", &[1.0, 0.0, 0.0], HybridParams::default(), None)
+            .search_hybrid("Rust", &[1.0, 0.0, 0.0], params, None)
             .unwrap();
-        assert!(!hits.is_empty(), "hybrid search should return results");
-
-        for (_fact, breakdown) in &hits {
-            let expected = breakdown.text_rrf_contrib
-                + breakdown.vector_rrf_contrib
-                + breakdown.temporal_adjustment;
-            assert!(
-                (breakdown.final_score - expected).abs() < 1e-9,
-                "breakdown must sum to final_score"
-            );
+        assert!(!hits.is_empty(), "search_hybrid should return results");
+        assert!(hits.len() <= 3);
+        // Both alice and carol match "Rust" in text and have high vector similarity
+        // to [1,0,0]. Bob (Python, orthogonal vector) should rank last.
+        let subjects: Vec<&str> = hits.iter().map(|(f, _)| f.subject.as_str()).collect();
+        assert!(
+            subjects[0] == "alice" || subjects[0] == "carol",
+            "a Rust-related fact should rank first, got {subjects:?}"
+        );
+        if subjects.len() == 3 {
+            assert_eq!(subjects[2], "bob", "bob should rank last, got {subjects:?}");
         }
     }
 
     #[test]
     #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
-    fn hybrid_search_ties_are_deterministic_by_fact_id() {
+    fn search_hybrid_temporal_query_filters_infeasible() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        let t = Utc::now();
-        db.assert_fact_with_embedding("doc-text", "bio", "rare-hybrid-token", t, vec![1.0, 0.0])
+        let jan2023 = dt("2023-01-01T00:00:00Z");
+        let jan2024 = dt("2024-01-01T00:00:00Z");
+        let jun2023 = dt("2023-06-01T00:00:00Z");
+
+        // Alice at BetaCorp: 2023-01 to 2024-01
+        db.assert_fact_with_embedding("alice", "works_at", "BetaCorp", jan2023, vec![1.0, 0.0])
             .unwrap();
-        db.assert_fact_with_embedding("doc-vector", "bio", "unrelated", t, vec![0.0, 1.0])
+        // Invalidate at jan2024 so it has a valid_to
+        let id1 = db
+            .current_facts("alice", "works_at")
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap()
+            .id;
+        db.invalidate_fact(&id1, jan2024).unwrap();
+
+        // Alice at Acme: 2024-01 onwards
+        db.assert_fact_with_embedding("alice", "works_at", "Acme", jan2024, vec![1.0, 0.0])
             .unwrap();
 
-        let params = HybridParams {
-            k: 2,
-            candidate_window: 1,
-            rank_constant: 60,
-            text_weight: 0.5,
-            vector_weight: 0.5,
-            temporal_weight: 0.0,
-            temporal_adjustment: TemporalAdjustment::None,
-            fusion: HybridFusionStrategy::Rrf,
+        // Query: "where did Alice work in mid-2023?" — BetaCorp was valid, Acme was not
+        let params = HybridSearchParams {
+            k: 5,
+            intent: TemporalIntent::HistoricalPoint,
+            operator: TemporalOperator::AsOf,
+            ..HybridSearchParams::default()
         };
-
         let hits = db
-            .search_hybrid_experimental("rare-hybrid-token", &[0.0, 1.0], params, None)
+            .search_hybrid("works_at", &[1.0, 0.0], params, Some(jun2023))
             .unwrap();
-        assert_eq!(hits.len(), 2);
+        assert!(!hits.is_empty(), "temporal query should return results");
+        // BetaCorp (valid at jun2023) should rank first; Acme (not yet valid) is infeasible.
+        let first_object = &hits[0].0.object;
         assert!(
-            (hits[0].1.final_score - hits[1].1.final_score).abs() < 1e-12,
-            "test setup must produce equal scores"
-        );
-        assert!(
-            hits[0].0.id.0 <= hits[1].0.id.0,
-            "tie-break should use FactId lexicographic order"
+            matches!(first_object, Value::Text(s) if s == "BetaCorp"),
+            "BetaCorp should rank first for jun-2023 AsOf query, got {first_object:?}"
         );
     }
 
     #[test]
     #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
-    fn hybrid_search_rejects_invalid_params() {
-        let db = TemporalGraph::open_in_memory().unwrap();
-        db.assert_fact_with_embedding("alice", "bio", "Rust", Utc::now(), vec![1.0, 0.0])
-            .unwrap();
-
-        let bad = HybridParams {
-            rank_constant: 0,
-            ..HybridParams::default()
-        };
-        let result = db.search_hybrid_experimental("Rust", &[1.0, 0.0], bad, None);
-        assert!(
-            matches!(result, Err(KronroeError::Search(_))),
-            "invalid params should return a validation error"
-        );
-    }
-
-    #[test]
-    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
-    fn hybrid_half_life_days_boosts_recent_facts() {
-        let db = TemporalGraph::open_in_memory().unwrap();
-
-        // Two facts with identical text and vector content, but different ages.
-        let old_time = dt("2020-01-01T00:00:00Z");
-        let recent_time = dt("2026-02-01T00:00:00Z");
-        let query_time = dt("2026-02-20T00:00:00Z");
-
-        db.assert_fact_with_embedding(
-            "old-doc",
-            "bio",
-            "temporal-keyword",
-            old_time,
-            vec![1.0, 0.0],
-        )
-        .unwrap();
-        db.assert_fact_with_embedding(
-            "new-doc",
-            "bio",
-            "temporal-keyword",
-            recent_time,
-            vec![1.0, 0.0],
-        )
-        .unwrap();
-
-        let params = HybridParams {
-            k: 2,
-            candidate_window: 10,
-            rank_constant: 60,
-            text_weight: 0.3,
-            vector_weight: 0.3,
-            temporal_weight: 0.4,
-            temporal_adjustment: TemporalAdjustment::HalfLifeDays { days: 90.0 },
-            fusion: HybridFusionStrategy::Rrf,
-        };
-
-        let hits = db
-            .search_hybrid_experimental("temporal-keyword", &[1.0, 0.0], params, Some(query_time))
-            .unwrap();
-        assert_eq!(hits.len(), 2, "should return both facts");
-
-        // The recent fact should rank higher due to temporal decay.
-        assert_eq!(
-            hits[0].0.subject, "new-doc",
-            "recent fact should rank first with half-life decay"
-        );
-
-        // Temporal adjustments should be non-zero and the recent one larger.
-        assert!(
-            hits[0].1.temporal_adjustment > hits[1].1.temporal_adjustment,
-            "recent fact temporal adjustment ({}) should exceed old fact ({})",
-            hits[0].1.temporal_adjustment,
-            hits[1].1.temporal_adjustment
-        );
-    }
-
-    // ── HalfLifeDays temporal decay edge cases (I14 audit finding) ─────
-
-    #[test]
-    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
-    fn hybrid_decay_zero_age_gives_max_positive_adjustment() {
-        // A fact queried at exactly its valid_from has age=0,
-        // decay=1.0, adjustment = (1.0 - 0.5) * 2.0 * scale = +scale.
-        let db = TemporalGraph::open_in_memory().unwrap();
-        let t = dt("2026-01-01T00:00:00Z");
-
-        db.assert_fact_with_embedding("doc", "note", "keyword", t, vec![1.0, 0.0])
-            .unwrap();
-
-        let params = HybridParams {
-            k: 1,
-            candidate_window: 10,
-            rank_constant: 60,
-            text_weight: 0.5,
-            vector_weight: 0.5,
-            temporal_weight: 1.0,
-            temporal_adjustment: TemporalAdjustment::HalfLifeDays { days: 90.0 },
-            fusion: HybridFusionStrategy::Rrf,
-        };
-
-        // Query at exactly valid_from — age = 0 days.
-        let hits = db
-            .search_hybrid_experimental("keyword", &[1.0, 0.0], params, Some(t))
-            .unwrap();
-        assert_eq!(hits.len(), 1);
-
-        // temporal_scale = 0.1 * 1.0 = 0.1
-        // adjustment = (1.0 - 0.5) * 2.0 * 0.1 = +0.1
-        let adj = hits[0].1.temporal_adjustment;
-        assert!(
-            (adj - 0.1).abs() < 1e-9,
-            "zero-age adjustment should be +0.1, got {adj}"
-        );
-    }
-
-    #[test]
-    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
-    fn hybrid_decay_one_half_life_gives_zero_adjustment() {
-        // A fact exactly one half-life old has decay=0.5,
-        // adjustment = (0.5 - 0.5) * 2.0 * scale = 0.0.
-        let db = TemporalGraph::open_in_memory().unwrap();
-        let t = dt("2026-01-01T00:00:00Z");
-
-        db.assert_fact_with_embedding("doc", "note", "keyword", t, vec![1.0, 0.0])
-            .unwrap();
-
-        let half_life_days = 90.0_f32;
-        let params = HybridParams {
-            k: 1,
-            candidate_window: 10,
-            rank_constant: 60,
-            text_weight: 0.5,
-            vector_weight: 0.5,
-            temporal_weight: 1.0,
-            temporal_adjustment: TemporalAdjustment::HalfLifeDays {
-                days: half_life_days,
-            },
-            fusion: HybridFusionStrategy::Rrf,
-        };
-
-        // Query exactly 90 days later.
-        let query_time = t + chrono::Duration::days(90);
-        let hits = db
-            .search_hybrid_experimental("keyword", &[1.0, 0.0], params, Some(query_time))
-            .unwrap();
-        assert_eq!(hits.len(), 1);
-
-        let adj = hits[0].1.temporal_adjustment;
-        assert!(
-            adj.abs() < 1e-6,
-            "one-half-life-old adjustment should be ~0.0, got {adj}"
-        );
-    }
-
-    #[test]
-    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
-    fn hybrid_decay_very_old_fact_gives_negative_adjustment() {
-        // A fact many half-lives old has decay≈0,
-        // adjustment ≈ (0 - 0.5) * 2.0 * scale = -scale.
-        let db = TemporalGraph::open_in_memory().unwrap();
-        let t = dt("2000-01-01T00:00:00Z");
-
-        db.assert_fact_with_embedding("doc", "note", "keyword", t, vec![1.0, 0.0])
-            .unwrap();
-
-        let params = HybridParams {
-            k: 1,
-            candidate_window: 10,
-            rank_constant: 60,
-            text_weight: 0.5,
-            vector_weight: 0.5,
-            temporal_weight: 1.0,
-            temporal_adjustment: TemporalAdjustment::HalfLifeDays { days: 30.0 },
-            fusion: HybridFusionStrategy::Rrf,
-        };
-
-        // Query 26 years later — ~316 half-lives, decay ≈ 0.
-        let query_time = dt("2026-01-01T00:00:00Z");
-        let hits = db
-            .search_hybrid_experimental("keyword", &[1.0, 0.0], params, Some(query_time))
-            .unwrap();
-        assert_eq!(hits.len(), 1);
-
-        // temporal_scale = 0.1 * 1.0 = 0.1
-        // adjustment ≈ -0.1 (clamped)
-        let adj = hits[0].1.temporal_adjustment;
-        assert!(
-            (adj - (-0.1)).abs() < 1e-6,
-            "very old fact adjustment should be ~-0.1, got {adj}"
-        );
-    }
-
-    #[test]
-    #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
-    fn hybrid_decay_none_gives_zero_adjustment() {
-        // TemporalAdjustment::None should produce no adjustment regardless of weight.
-        let db = TemporalGraph::open_in_memory().unwrap();
-        let t = dt("2020-01-01T00:00:00Z");
-
-        db.assert_fact_with_embedding("doc", "note", "keyword", t, vec![1.0, 0.0])
-            .unwrap();
-
-        let params = HybridParams {
-            k: 1,
-            candidate_window: 10,
-            rank_constant: 60,
-            text_weight: 0.5,
-            vector_weight: 0.5,
-            temporal_weight: 1.0,
-            temporal_adjustment: TemporalAdjustment::None,
-            fusion: HybridFusionStrategy::Rrf,
-        };
-
-        let hits = db
-            .search_hybrid_experimental(
-                "keyword",
-                &[1.0, 0.0],
-                params,
-                Some(dt("2026-01-01T00:00:00Z")),
-            )
-            .unwrap();
-        assert_eq!(hits.len(), 1);
-        assert!(
-            hits[0].1.temporal_adjustment.abs() < 1e-12,
-            "TemporalAdjustment::None should give zero adjustment"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "hybrid-experimental")]
-    fn hybrid_rejects_zero_half_life_days() {
-        let db = TemporalGraph::open_in_memory().unwrap();
-        let params = HybridParams {
-            k: 1,
-            candidate_window: 10,
-            rank_constant: 60,
-            text_weight: 0.5,
-            vector_weight: 0.5,
-            temporal_weight: 1.0,
-            temporal_adjustment: TemporalAdjustment::HalfLifeDays { days: 0.0 },
-            fusion: HybridFusionStrategy::Rrf,
-        };
-
-        let err = db
-            .search_hybrid_experimental("test", &[], params, None)
-            .expect_err("zero half-life days should be rejected");
-        assert!(
-            err.to_string().contains("must be > 0"),
-            "error should mention days must be > 0: {err}"
-        );
+    fn search_hybrid_default_params_match_eval_winner() {
+        let params = HybridSearchParams::default();
+        assert_eq!(params.rank_constant, 60);
+        assert!((params.text_weight - 0.8).abs() < f32::EPSILON);
+        assert!((params.vector_weight - 0.2).abs() < f32::EPSILON);
+        assert_eq!(params.candidate_window, 50);
+        assert_eq!(params.intent, TemporalIntent::Timeless);
+        assert_eq!(params.operator, TemporalOperator::Current);
     }
 
     #[test]

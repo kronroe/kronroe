@@ -30,7 +30,7 @@
 
 use chrono::{DateTime, Utc};
 #[cfg(feature = "hybrid")]
-use kronroe::HybridParams;
+use kronroe::HybridSearchParams;
 use kronroe::{Fact, FactId, TemporalGraph, Value};
 
 pub use kronroe::KronroeError as Error;
@@ -176,8 +176,8 @@ impl AgentMemory {
     /// Retrieve memory facts by query.
     ///
     /// In `hybrid` mode, if an embedding is provided this uses Kronroe's
-    /// hybrid-experimental retrieval (text + vector fusion). Otherwise it falls
-    /// back to fulltext search.
+    /// stable hybrid retrieval (RRF fusion + two-stage intent-gated reranking).
+    /// Otherwise it falls back to fulltext search.
     pub fn recall(
         &self,
         query: &str,
@@ -187,14 +187,11 @@ impl AgentMemory {
     ) -> Result<Vec<Fact>> {
         #[cfg(feature = "hybrid")]
         if let Some(emb) = query_embedding {
-            let params = HybridParams {
+            let params = HybridSearchParams {
                 k: limit,
-                candidate_window: limit.max(20),
-                ..HybridParams::default()
+                ..HybridSearchParams::default()
             };
-            let hits = self
-                .graph
-                .search_hybrid_experimental(query, emb, params, None)?;
+            let hits = self.graph.search_hybrid(query, emb, params, None)?;
             return Ok(hits.into_iter().map(|(fact, _breakdown)| fact).collect());
         }
 
