@@ -105,7 +105,10 @@ Additional fact metadata fields:
 
 | Type | Description |
 |------|-------------|
-| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `assert_fact_idempotent`, `assert_fact_with_embedding`, `current_facts`, `facts_at`, `all_facts_about`, `fact_by_id`, `correct_fact`, `invalidate_fact`, `search`, `search_by_vector`, `search_hybrid_experimental` (feature-gated) |
+| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `assert_fact_idempotent`, `assert_fact_with_embedding`, `current_facts`, `facts_at`, `all_facts_about`, `fact_by_id`, `correct_fact`, `invalidate_fact`, `search`, `search_by_vector`, `search_hybrid` (feature-gated) |
+| `HybridSearchParams` | Stable hybrid search parameters — eval-proven defaults (rc=60, tw=0.8, vw=0.2) |
+| `TemporalIntent` | Caller's temporal intent: `Timeless`, `CurrentState`, `HistoricalPoint`, `HistoricalInterval` |
+| `TemporalOperator` | Temporal operator hint: `Current`, `AsOf`, `Before`, `By`, `During`, `After`, `Unknown` |
 | `Fact` | The fundamental unit of storage. Fully bi-temporal. |
 | `FactId` | ULID — lexicographically sortable, monotonic insertion order |
 | `Value` | `Text(String)` \| `Number(f64)` \| `Boolean(bool)` \| `Entity(String)` |
@@ -235,6 +238,23 @@ Future crates will layer on top.
   for historical point-in-time searches (`at = Some(t)`)
 - **Phase 1 path:** if HNSW is needed, fork `rust-cv/hnsw` (no_std, no rayon, ~350 lines,
   WASM-safe) — **not** `hnsw_rs` (hard rayon+mmap deps = can never work on WASM/iOS)
+
+### Hybrid Retrieval Notes (`crates/core`, feature: `hybrid-experimental`)
+
+- Enabled with `--features hybrid-experimental` (requires `vector` feature too)
+- **Two-stage architecture:** RRF fusion → intent-gated temporal reranker
+  (reranker logic in `crates/core/src/hybrid.rs`)
+- **API:** `search_hybrid(text_query, vector_query, HybridSearchParams, at)` — RRF fusion +
+  two-stage reranker in one call. Eval-proven defaults (rc=60, tw=0.8, vw=0.2)
+- **Caller provides intent:** `TemporalIntent` + `TemporalOperator` tell the reranker how to
+  score temporal feasibility. `Timeless` (default) disables temporal scoring entirely
+- **Timeless queries** use adaptive vector-dominance: the reranker inspects top-5 signal balance
+  and adjusts vector/text weights dynamically
+- **Temporal queries** use a two-stage pipeline: Stage 1 prunes to top-14 by semantic score,
+  Stage 2 filters infeasible facts and reranks by semantic + intent-weighted temporal signal
+- **Eval provenance:** promoted from `.ideas/evals/hybrid_eval_runner/` after 11 benchmark
+  passes — product gate passed with +19% semantic lift, +77% time-slice lift, <2% latency
+- **`agent-memory` integration:** `recall()` with `hybrid` feature uses `search_hybrid` automatically
 
 ## Rust / redb Gotchas
 
