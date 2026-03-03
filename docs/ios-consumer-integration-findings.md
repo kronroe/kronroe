@@ -199,9 +199,61 @@ Task 5 (simulator proof run) is blocked on Blocker 2 above.
 
 ---
 
+---
+
+## Blocker 3 — `simctl launch` blocks; log stream captures nothing on launch
+
+### What happened
+
+After the Swift 6 fix landed on Kronroe `main` and the build succeeded,
+the simulator task runner (Claude Code's Bash tool) hit a third blocker trying
+to complete Task 5 (the proof run).
+
+`xcrun simctl launch <uuid> com.kindlyroe.KindlyRoe` **blocks** — it does not
+return until the app process exits. Every invocation hung indefinitely, making
+it impossible to layer further commands (log stream, UI automation) after it.
+
+Additionally, `KronroeStore.shared` is a lazy `@MainActor` singleton. It is
+only initialised on the **first call site** — i.e. when the user highlights a
+message. Simply launching the app does not trigger the `🗄️ [KronroeStore] Opened DB`
+NSLog. The proof line only fires after real UI interaction.
+
+### What was tried
+
+| Attempt | Result |
+|---------|--------|
+| `xcrun simctl launch --console-pty` | NSLog output empty — NSLog routes to unified log, not stdout |
+| `xcrun simctl spawn ... log stream --predicate 'process == "KindlyRoe"'` | Stream started, 0 lines — app not yet interacted with |
+| `xcrun simctl io screenshot` | `Error creating the image (code=2)` — display not active |
+| `idb_companion` (installed at `/opt/homebrew/bin/`) | `idb` CLI not installed; companion alone is not enough |
+
+### Root cause
+
+The proof line requires UI interaction (tap a highlight category on a Roe
+message). That needs either:
+- `idb` CLI (`brew install fb-idb`) for programmatic touch events, or
+- Running the AutoDemo sequence inside the app (sets
+  `AutoDemoOrchestrator.shared.isEnabled = true`, which auto-highlights
+  messages using mock services), or
+- A human tapping the app in Simulator.
+
+### Status
+
+**BUILD SUCCEEDED** — the integration code compiles and links cleanly after
+the Swift 6 fix. The proof run itself was not completed by Claude Code.
+
+---
+
 ## Next steps for Kronroe
 
-1. Fix `Kronroe.swift:86` — see Blocker 2 options above
-2. Rebuild `KronroeFFI.xcframework` if the C header signature changes
-3. Re-run `crates/ios/scripts/build-xcframework.sh` after the fix
-4. Re-attempt the Kindly Roe simulator build — everything else is wired and ready
+1. ✅ Fix `Kronroe.swift:86` Swift 6 pointer error — confirmed fixed on `main`
+2. Run the Kindly Roe simulator yourself:
+   - Open Simulator, select iPhone 17 Pro
+   - Build and run (`⌘R`) from Xcode
+   - Select Adult journey → type any message → wait for Roe's reply
+   - Long-press the reply → select a highlight category
+   - Copy the `PROOF_MEMORY_STORE_JSON=` line from the Xcode console
+3. Paste the proof line into the Evidence section of
+   `docs/plans/ios-integration-proof.md` in both repos
+4. Optionally: install `idb` CLI (`brew install fb-idb`) to enable headless
+   proof runs in future (`idb ui tap <x> <y>` drives the simulator)
