@@ -38,6 +38,7 @@
 - `crates/python`: PyO3 bindings exposing `KronroeDb` + `AgentMemory`.
 - `crates/wasm`: browser bindings used by the playground.
 - `crates/ios`: C FFI + Swift wrapper + XCFramework build pipeline.
+- `crates/android`: hand-written JNI bindings + Kotlin wrapper + cross-compile CI.
 
 ### Why this matters
 - The architecture is already multi-surface and commercially useful for structured memory and temporal querying.
@@ -55,8 +56,10 @@
 
 ### Still open (per roadmap)
 - WASM playground deployment/channel completion.
-- Android AAR (UniFFI/Kotlin).
 - AgentMemory Phase 1 NLP + semantic recall/context assembly.
+
+### Completed since this review
+- Android JNI bindings (hand-written, not UniFFI) — `crates/android` with Kotlin wrapper and CI.
 
 ### Why this matters
 - Clarifies that remaining scope is mostly distribution/productization + advanced memory UX, not core-database viability.
@@ -102,6 +105,7 @@
   - fmt check
   - site build job
 - Separate iOS workflow builds XCFramework on PRs and main.
+- Separate Android workflow runs host tests + cross-compiles for 4 Android targets.
 - iOS size budget enforcement exists in `build-xcframework.sh` via `CHECK_SIZE_BUDGET=1` (< 6 MB compressed).
 
 ### Why this matters
@@ -197,7 +201,7 @@
 
 ### Step D: Distribution follow-through
 - Complete WASM deploy channel and docs.
-- Start Android AAR only after Phase 1 memory path is feature-complete in Rust core + API layers.
+- ~~Start Android AAR only after Phase 1 memory path is feature-complete in Rust core + API layers.~~ (Done — Android JNI bindings shipped.)
 
 ### Why this approach
 - Maximizes product value quickly:
@@ -206,7 +210,7 @@
   - avoids fragmentation across too many platform fronts
 
 ### Help notes
-- If capacity is tight, defer Android until AgentMemory Phase 1 is shippable.
+- ~~If capacity is tight, defer Android until AgentMemory Phase 1 is shippable.~~ (Android shipped ahead of schedule.)
 - If capacity increases, parallelize Step A (iOS proof) with Step B.1 (idempotency).
 
 ---

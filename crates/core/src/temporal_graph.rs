@@ -652,9 +652,9 @@ impl TemporalGraph {
         #[cfg(not(feature = "fulltext"))]
         {
             let _ = (query, limit);
-            return Err(KronroeError::Search(
+            Err(KronroeError::Search(
                 "fulltext feature is disabled for this build".to_string(),
-            ));
+            ))
         }
 
         #[cfg(feature = "fulltext")]
