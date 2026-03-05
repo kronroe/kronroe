@@ -18,6 +18,7 @@ default = ["fulltext"]
 fulltext = ["dep:tantivy"]
 vector = []
 hybrid-experimental = []
+contradiction = []
 
 [dependencies]
 redb = { workspace = true }
