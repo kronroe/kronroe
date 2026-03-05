@@ -31,6 +31,8 @@
 use chrono::{DateTime, Utc};
 #[cfg(feature = "hybrid")]
 use kronroe::HybridSearchParams;
+#[cfg(feature = "contradiction")]
+use kronroe::{ConflictPolicy, Contradiction};
 use kronroe::{Fact, FactId, TemporalGraph, Value};
 
 pub use kronroe::KronroeError as Error;
@@ -57,9 +59,10 @@ impl AgentMemory {
     /// let memory = AgentMemory::open("./my-agent.kronroe").unwrap();
     /// ```
     pub fn open(path: &str) -> Result<Self> {
-        Ok(Self {
-            graph: TemporalGraph::open(path)?,
-        })
+        let graph = TemporalGraph::open(path)?;
+        #[cfg(feature = "contradiction")]
+        Self::register_default_singletons(&graph)?;
+        Ok(Self { graph })
     }
 
     /// Store a structured fact with the current time as `valid_from`.
@@ -128,6 +131,57 @@ impl AgentMemory {
     /// Correct an existing fact by id, preserving temporal history.
     pub fn correct_fact(&self, fact_id: &FactId, new_value: impl Into<Value>) -> Result<FactId> {
         self.graph.correct_fact(fact_id, new_value, Utc::now())
+    }
+
+    // -----------------------------------------------------------------------
+    // Contradiction detection
+    // -----------------------------------------------------------------------
+
+    /// Register common agent-memory singleton predicates.
+    ///
+    /// Called automatically from `open()` when the `contradiction` feature
+    /// is enabled. These predicates typically have at most one active value
+    /// per subject at any point in time.
+    /// Register common agent-memory singleton predicates, preserving any
+    /// existing policy the caller may have set (e.g. `Reject`).
+    #[cfg(feature = "contradiction")]
+    fn register_default_singletons(graph: &TemporalGraph) -> Result<()> {
+        for predicate in &["works_at", "lives_in", "job_title", "email", "phone"] {
+            if !graph.is_singleton_predicate(predicate)? {
+                graph.register_singleton_predicate(predicate, ConflictPolicy::Warn)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Assert a structured fact with contradiction checking.
+    ///
+    /// Returns the fact ID and any detected contradictions. The behavior
+    /// depends on the predicate's conflict policy (set via
+    /// [`register_singleton_predicate`] on the underlying graph).
+    #[cfg(feature = "contradiction")]
+    pub fn assert_checked(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+    ) -> Result<(FactId, Vec<Contradiction>)> {
+        self.graph
+            .assert_fact_checked(subject, predicate, object, Utc::now())
+    }
+
+    /// Audit a subject for contradictions across all registered singletons.
+    ///
+    /// Scans only the given subject's facts — cost scales with the
+    /// subject's fact count, not the total database size.
+    #[cfg(feature = "contradiction")]
+    pub fn audit(&self, subject: &str) -> Result<Vec<Contradiction>> {
+        let singleton_preds = self.graph.singleton_predicates()?;
+        let mut contradictions = Vec::new();
+        for predicate in &singleton_preds {
+            contradictions.extend(self.graph.detect_contradictions(subject, predicate)?);
+        }
+        Ok(contradictions)
     }
 
     /// Store an unstructured memory episode as one fact.
@@ -380,6 +434,77 @@ mod tests {
         let hits = mem.recall("language", Some(&[1.0, 0.0]), 1).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].subject, "ep-rust");
+    }
+
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn assert_checked_detects_contradiction() {
+        let (mem, _tmp) = open_temp_memory();
+        // "works_at" is auto-registered as singleton by open()
+        mem.assert("alice", "works_at", "Acme").unwrap();
+        let (id, contradictions) = mem
+            .assert_checked("alice", "works_at", "Beta Corp")
+            .unwrap();
+        assert!(!id.0.is_empty());
+        assert_eq!(contradictions.len(), 1);
+        assert_eq!(contradictions[0].predicate, "works_at");
+    }
+
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn default_singletons_registered() {
+        let (mem, _tmp) = open_temp_memory();
+        // Verify that auto-registered singletons trigger contradiction detection.
+        mem.assert("bob", "lives_in", "London").unwrap();
+        let (_, contradictions) = mem.assert_checked("bob", "lives_in", "Paris").unwrap();
+        assert_eq!(
+            contradictions.len(),
+            1,
+            "lives_in should be a registered singleton"
+        );
+    }
+
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn audit_returns_contradictions_for_subject() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert("alice", "works_at", "Acme").unwrap();
+        mem.assert("alice", "works_at", "Beta").unwrap();
+        mem.assert("bob", "works_at", "Gamma").unwrap(); // No contradiction for bob.
+
+        let contradictions = mem.audit("alice").unwrap();
+        assert_eq!(contradictions.len(), 1);
+        assert_eq!(contradictions[0].subject, "alice");
+
+        let bob_contradictions = mem.audit("bob").unwrap();
+        assert!(bob_contradictions.is_empty());
+    }
+
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn reject_policy_survives_reopen() {
+        // Regression: open() must not overwrite a pre-set Reject policy with Warn.
+        let file = NamedTempFile::new().unwrap();
+        let path = file.path().to_str().unwrap().to_string();
+
+        // First open: set works_at to Reject.
+        {
+            let graph = kronroe::TemporalGraph::open(&path).unwrap();
+            graph
+                .register_singleton_predicate("works_at", ConflictPolicy::Reject)
+                .unwrap();
+            graph
+                .assert_fact("alice", "works_at", "Acme", Utc::now())
+                .unwrap();
+        }
+
+        // Second open via AgentMemory: default registration must not downgrade.
+        let mem = AgentMemory::open(&path).unwrap();
+        let result = mem.assert_checked("alice", "works_at", "Beta Corp");
+        assert!(
+            result.is_err(),
+            "Reject policy should survive AgentMemory::open() reopen"
+        );
     }
 
     #[cfg(feature = "hybrid")]
