@@ -105,10 +105,13 @@ Additional fact metadata fields:
 
 | Type | Description |
 |------|-------------|
-| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `assert_fact_idempotent`, `assert_fact_with_embedding`, `current_facts`, `facts_at`, `all_facts_about`, `fact_by_id`, `correct_fact`, `invalidate_fact`, `search`, `search_by_vector`, `search_hybrid` (feature-gated) |
+| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `assert_fact_idempotent`, `assert_fact_with_embedding`, `assert_fact_checked` (feature: contradiction), `current_facts`, `facts_at`, `all_facts_about`, `fact_by_id`, `correct_fact`, `invalidate_fact`, `search`, `search_by_vector`, `search_hybrid` (feature: hybrid-experimental+vector), `register_singleton_predicate`, `detect_contradictions`, `detect_all_contradictions` (feature: contradiction) |
 | `HybridSearchParams` | Stable hybrid search parameters — eval-proven defaults (rc=60, tw=0.8, vw=0.2) |
 | `TemporalIntent` | Caller's temporal intent: `Timeless`, `CurrentState`, `HistoricalPoint`, `HistoricalInterval` |
 | `TemporalOperator` | Temporal operator hint: `Current`, `AsOf`, `Before`, `By`, `During`, `After`, `Unknown` |
+| `Contradiction` | Detected conflict: two facts, same subject+predicate, different values, overlapping valid time (feature: contradiction) |
+| `PredicateCardinality` | `Singleton` (at most one active value) \| `MultiValued` (feature: contradiction) |
+| `ConflictPolicy` | Write-time behavior: `Allow` \| `Warn` \| `Reject` (feature: contradiction) |
 | `Fact` | The fundamental unit of storage. Fully bi-temporal. |
 | `FactId` | ULID — lexicographically sortable, monotonic insertion order |
 | `Value` | `Text(String)` \| `Number(f64)` \| `Boolean(bool)` \| `Entity(String)` |
@@ -256,6 +259,25 @@ Future crates will layer on top.
 - **Eval provenance:** promoted from `.ideas/evals/hybrid_eval_runner/` after 11 benchmark
   passes — product gate passed with +19% semantic lift, +77% time-slice lift, <2% latency
 - **`agent-memory` integration:** `recall()` with `hybrid` feature uses `search_hybrid` automatically
+
+### Contradiction Detection Notes (`crates/core`, feature: `contradiction`)
+
+- Enabled with `--features contradiction` — no new external dependencies
+- **Engine-native:** pure structural/temporal detection, no LLM required
+- **Predicate cardinality registry:** callers register predicates as `Singleton` (at most one
+  active value per subject at any time) or `MultiValued` (default for unregistered)
+- **Detection model:** Allen's interval algebra overlap check + structural value comparison
+- **Conflict severity:** `High` (full temporal containment), `Medium` (>30 day overlap), `Low` (≤30 day overlap)
+- **API:**
+  - `register_singleton_predicate(predicate, policy)` — persist cardinality to redb
+  - `detect_contradictions(subject, predicate)` — lazy pairwise scan
+  - `detect_all_contradictions()` — full scan across all registered singletons
+  - `assert_fact_checked(subject, predicate, object, valid_from)` — eager detection at write time
+- **ConflictPolicy:** `Allow` (store, no report), `Warn` (store + return contradictions),
+  `Reject` (block storage if contradictions found)
+- **`agent-memory` integration:** `open()` auto-registers common singletons (`works_at`,
+  `lives_in`, `job_title`, `email`, `phone`) with `Warn` policy. `assert_checked()` and
+  `audit(subject)` expose contradiction detection at the agent layer
 
 ## Rust / redb Gotchas
 

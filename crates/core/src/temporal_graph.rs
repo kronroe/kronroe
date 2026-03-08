@@ -35,6 +35,13 @@ mod hybrid;
 #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
 pub use hybrid::{HybridScoreBreakdown, HybridSearchParams, TemporalIntent, TemporalOperator};
 
+#[cfg(feature = "contradiction")]
+mod contradiction;
+#[cfg(feature = "contradiction")]
+pub use contradiction::{
+    ConflictPolicy, ConflictSeverity, Contradiction, PredicateCardinality, SuggestedResolution,
+};
+
 use chrono::{DateTime, Utc};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
@@ -73,6 +80,9 @@ pub enum KronroeError {
     InvalidEmbedding(String),
     #[error("internal error: {0}")]
     Internal(String),
+    #[cfg(feature = "contradiction")]
+    #[error("fact rejected: contradiction(s) detected")]
+    ContradictionRejected(Vec<contradiction::Contradiction>),
     #[error(
         "schema version mismatch: file has version {found}, \
          this build expects version {expected}; \
@@ -307,6 +317,11 @@ const FACTS: TableDefinition<&str, &str> = TableDefinition::new("facts");
 /// semantics for ingestion workflows.
 const IDEMPOTENCY: TableDefinition<&str, &str> = TableDefinition::new("idempotency");
 
+/// Predicate registry for contradiction detection.
+/// Key: predicate name. Value: JSON-encoded `(PredicateCardinality, ConflictPolicy)`.
+#[cfg(feature = "contradiction")]
+const PREDICATE_REGISTRY: TableDefinition<&str, &str> = TableDefinition::new("predicate_registry");
+
 /// Raw little-endian f32 bytes keyed by fact_id string.
 /// Written atomically alongside the fact row in `assert_fact_with_embedding`.
 #[cfg(feature = "vector")]
@@ -345,6 +360,8 @@ pub struct TemporalGraph {
     /// [`assert_fact_with_embedding`]: TemporalGraph::assert_fact_with_embedding
     #[cfg(feature = "vector")]
     vector_index: std::sync::Mutex<vector::VectorIndex>,
+    #[cfg(feature = "contradiction")]
+    contradiction_detector: std::sync::Mutex<contradiction::ContradictionDetector>,
 }
 
 impl TemporalGraph {
@@ -377,6 +394,10 @@ impl TemporalGraph {
                 write_txn.open_table(EMBEDDINGS)?;
                 write_txn.open_table(EMBEDDING_META)?;
             }
+            #[cfg(feature = "contradiction")]
+            {
+                write_txn.open_table(PREDICATE_REGISTRY)?;
+            }
 
             // Stamp or verify the schema version.  Extract to owned before any
             // mutable borrow (redb AccessGuard borrow rule — see CLAUDE.md).
@@ -408,10 +429,31 @@ impl TemporalGraph {
             let idx = Self::rebuild_vector_index_from_db(&db)?;
             std::sync::Mutex::new(idx)
         };
+        #[cfg(feature = "contradiction")]
+        let contradiction_detector = {
+            let mut det = contradiction::ContradictionDetector::new();
+            let read_txn = db.begin_read()?;
+            if let Ok(reg_table) = read_txn.open_table(PREDICATE_REGISTRY) {
+                for entry in reg_table.iter()? {
+                    let (k, v) = entry?;
+                    let predicate = k.value().to_string();
+                    if let Ok((cardinality, policy)) = serde_json::from_str::<(
+                        contradiction::PredicateCardinality,
+                        contradiction::ConflictPolicy,
+                    )>(v.value())
+                    {
+                        det.register(&predicate, cardinality, policy);
+                    }
+                }
+            }
+            std::sync::Mutex::new(det)
+        };
         Ok(Self {
             db,
             #[cfg(feature = "vector")]
             vector_index,
+            #[cfg(feature = "contradiction")]
+            contradiction_detector,
         })
     }
 
@@ -722,6 +764,250 @@ impl TemporalGraph {
         let old = self.fact_by_id(fact_id)?;
         self.invalidate_fact(fact_id, at)?;
         self.assert_fact(&old.subject, &old.predicate, new_value, at)
+    }
+
+    // -----------------------------------------------------------------------
+    // Contradiction detection
+    // -----------------------------------------------------------------------
+
+    /// Register a predicate as a singleton with the given conflict policy.
+    ///
+    /// Singleton predicates allow at most one active value per subject at any
+    /// point in valid time. When a new fact is asserted via
+    /// [`assert_fact_checked`], the engine checks for contradictions against
+    /// existing facts for the same `(subject, predicate)` pair.
+    ///
+    /// The registration is persisted to the database and survives reopens.
+    ///
+    /// [`assert_fact_checked`]: TemporalGraph::assert_fact_checked
+    #[cfg(feature = "contradiction")]
+    pub fn register_singleton_predicate(
+        &self,
+        predicate: &str,
+        policy: ConflictPolicy,
+    ) -> Result<()> {
+        let cardinality = PredicateCardinality::Singleton;
+        let encoded = serde_json::to_string(&(cardinality, policy))?;
+        let write_txn = self.db.begin_write()?;
+        {
+            let mut table = write_txn.open_table(PREDICATE_REGISTRY)?;
+            table.insert(predicate, encoded.as_str())?;
+        }
+        write_txn.commit()?;
+
+        let mut det = self
+            .contradiction_detector
+            .lock()
+            .map_err(|e| KronroeError::Internal(e.to_string()))?;
+        det.register(predicate, cardinality, policy);
+        Ok(())
+    }
+
+    /// Check whether a predicate is already registered as a singleton.
+    #[cfg(feature = "contradiction")]
+    pub fn is_singleton_predicate(&self, predicate: &str) -> Result<bool> {
+        let det = self
+            .contradiction_detector
+            .lock()
+            .map_err(|e| KronroeError::Internal(e.to_string()))?;
+        Ok(det.is_singleton(predicate))
+    }
+
+    /// List all registered singleton predicates.
+    #[cfg(feature = "contradiction")]
+    pub fn singleton_predicates(&self) -> Result<Vec<String>> {
+        let det = self
+            .contradiction_detector
+            .lock()
+            .map_err(|e| KronroeError::Internal(e.to_string()))?;
+        Ok(det.singleton_predicates().map(String::from).collect())
+    }
+
+    /// Detect contradictions for a specific `(subject, predicate)` pair.
+    ///
+    /// Scans all non-expired facts (including bounded-interval facts with
+    /// `valid_to` set) for the given subject and predicate and returns
+    /// pairwise contradictions. Only checks if the predicate is registered
+    /// as a singleton.
+    #[cfg(feature = "contradiction")]
+    pub fn detect_contradictions(
+        &self,
+        subject: &str,
+        predicate: &str,
+    ) -> Result<Vec<Contradiction>> {
+        // Copy singleton check out of the lock, then drop before I/O.
+        let is_singleton = {
+            let det = self
+                .contradiction_detector
+                .lock()
+                .map_err(|e| KronroeError::Internal(e.to_string()))?;
+            det.is_singleton(predicate)
+        };
+        if !is_singleton {
+            return Ok(Vec::new());
+        }
+
+        // Include bounded-interval facts (valid_to set), not just open-ended.
+        let prefix = format!("{subject}:{predicate}:");
+        let facts = self.scan_prefix(&prefix, |f| f.expired_at.is_none())?;
+        let mut contradictions = Vec::new();
+        for i in 0..facts.len() {
+            for j in (i + 1)..facts.len() {
+                if let Some(c) = contradiction::detect_pairwise(&facts[i], &facts[j]) {
+                    contradictions.push(c);
+                }
+            }
+        }
+        Ok(contradictions)
+    }
+
+    /// Detect all contradictions across every registered singleton predicate.
+    ///
+    /// Performs a full scan of the facts table and checks all registered
+    /// singleton predicates for pairwise contradictions.
+    #[cfg(feature = "contradiction")]
+    pub fn detect_all_contradictions(&self) -> Result<Vec<Contradiction>> {
+        let det = self
+            .contradiction_detector
+            .lock()
+            .map_err(|e| KronroeError::Internal(e.to_string()))?;
+
+        let singleton_preds: Vec<String> = det.singleton_predicates().map(String::from).collect();
+        drop(det); // Release lock before scan.
+
+        if singleton_preds.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Collect all active facts grouped by (subject, predicate).
+        let all_facts = self.scan_prefix("", |f| f.expired_at.is_none())?;
+        let mut groups: std::collections::HashMap<(String, String), Vec<Fact>> =
+            std::collections::HashMap::new();
+        for fact in all_facts {
+            if singleton_preds.contains(&fact.predicate) {
+                groups
+                    .entry((fact.subject.clone(), fact.predicate.clone()))
+                    .or_default()
+                    .push(fact);
+            }
+        }
+
+        let mut contradictions = Vec::new();
+        for ((_subj, _pred), facts) in &groups {
+            for i in 0..facts.len() {
+                for j in (i + 1)..facts.len() {
+                    if let Some(c) = contradiction::detect_pairwise(&facts[i], &facts[j]) {
+                        contradictions.push(c);
+                    }
+                }
+            }
+        }
+        Ok(contradictions)
+    }
+
+    /// Assert a fact with contradiction checking.
+    ///
+    /// Behavior depends on the predicate's [`ConflictPolicy`]:
+    /// - **Allow**: stores the fact, returns `(fact_id, [])`.
+    /// - **Warn**: stores the fact, returns `(fact_id, contradictions)`.
+    /// - **Reject**: if contradictions exist, returns
+    ///   `Err(ContradictionRejected(...))` and does **not** store the fact.
+    ///
+    /// For predicates not registered as singletons, this behaves identically
+    /// to [`assert_fact`].
+    ///
+    /// # Atomicity
+    ///
+    /// The contradiction check and the write happen inside a single redb
+    /// `WriteTransaction`. Since redb serialises write transactions, this
+    /// is race-free: no concurrent writer can insert a conflicting fact
+    /// between the check and the insert.
+    ///
+    /// Note: the predicate's conflict policy is read from the in-memory
+    /// detector *before* opening the write transaction. A concurrent
+    /// `register_singleton_predicate` call could change the policy between
+    /// that read and the write. In practice, predicates are registered once
+    /// at startup (e.g. in `AgentMemory::open`), not reconfigured at runtime.
+    ///
+    /// Also note: [`assert_fact`] bypasses contradiction checking entirely.
+    /// Strict singleton enforcement only applies when callers use this method.
+    ///
+    /// [`assert_fact`]: TemporalGraph::assert_fact
+    #[cfg(feature = "contradiction")]
+    pub fn assert_fact_checked(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+        valid_from: DateTime<Utc>,
+    ) -> Result<(FactId, Vec<Contradiction>)> {
+        let object = object.into();
+
+        let det = self
+            .contradiction_detector
+            .lock()
+            .map_err(|e| KronroeError::Internal(e.to_string()))?;
+        let policy = det.policy_for(predicate);
+        let is_singleton = det.is_singleton(predicate);
+        drop(det); // Release detector lock before I/O.
+
+        if !is_singleton || matches!(policy, ConflictPolicy::Allow) {
+            let fact_id = self.assert_fact(subject, predicate, object, valid_from)?;
+            return Ok((fact_id, Vec::new()));
+        }
+
+        // Single WriteTransaction for atomic check-and-write.
+        // redb serialises write transactions, so no concurrent writer can
+        // interleave between the scan and the insert.
+        let write_txn = self.db.begin_write()?;
+
+        // Scan existing facts inside the write transaction.
+        let prefix = format!("{subject}:{predicate}:");
+        let existing: Vec<Fact> = {
+            let table = write_txn.open_table(FACTS)?;
+            let mut results = Vec::new();
+            for entry in table.iter()? {
+                let (k, v) = entry?;
+                if k.value().starts_with(prefix.as_str()) {
+                    let fact: Fact = serde_json::from_str(v.value())?;
+                    if fact.expired_at.is_none() {
+                        results.push(fact);
+                    }
+                }
+            }
+            results
+        };
+
+        // Build a temporary fact for comparison.
+        let candidate = Fact::new(subject, predicate, object.clone(), valid_from);
+
+        let det = self
+            .contradiction_detector
+            .lock()
+            .map_err(|e| KronroeError::Internal(e.to_string()))?;
+        let contradictions = det.check_against(&candidate, &existing);
+        drop(det);
+
+        if matches!(policy, ConflictPolicy::Reject) && !contradictions.is_empty() {
+            // Drop the write transaction without committing (implicit rollback).
+            drop(write_txn);
+            return Err(KronroeError::ContradictionRejected(contradictions));
+        }
+
+        // Write the fact inside the same transaction.
+        let fact_id = Self::write_fact_in_txn(&write_txn, subject, predicate, object, valid_from)?;
+        write_txn.commit()?;
+
+        // Patch contradictions so conflicting_fact_id points to the
+        // actually-persisted fact, not the temporary candidate.
+        let contradictions: Vec<Contradiction> = contradictions
+            .into_iter()
+            .map(|mut c| {
+                c.conflicting_fact_id = fact_id.0.clone();
+                c
+            })
+            .collect();
+        Ok((fact_id, contradictions))
     }
 
     /// Assert a fact and durably persist its embedding in a single ACID transaction.
@@ -1883,5 +2169,125 @@ mod tests {
             Ok(_) => panic!("expected SchemaMismatch but open succeeded"),
             Err(e) => panic!("expected SchemaMismatch but got: {e}"),
         }
+    }
+
+    // -- Contradiction detection integration tests ----------------------------
+
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn register_and_detect_singleton_contradiction() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        db.register_singleton_predicate("works_at", ConflictPolicy::Warn)
+            .unwrap();
+
+        let t1 = Utc::now() - chrono::Duration::days(365);
+        let t2 = Utc::now() - chrono::Duration::days(30);
+        db.assert_fact("alice", "works_at", "Acme", t1).unwrap();
+        db.assert_fact("alice", "works_at", "Beta Corp", t2)
+            .unwrap();
+
+        let contradictions = db.detect_contradictions("alice", "works_at").unwrap();
+        assert_eq!(contradictions.len(), 1);
+        assert_eq!(contradictions[0].subject, "alice");
+        assert_eq!(contradictions[0].predicate, "works_at");
+    }
+
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn no_contradiction_for_unregistered_predicate() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        // "speaks_language" not registered → defaults to multi-valued
+        let t = Utc::now();
+        db.assert_fact("alice", "speaks_language", "English", t)
+            .unwrap();
+        db.assert_fact("alice", "speaks_language", "French", t)
+            .unwrap();
+
+        let contradictions = db
+            .detect_contradictions("alice", "speaks_language")
+            .unwrap();
+        assert!(contradictions.is_empty());
+    }
+
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn assert_fact_checked_warn_returns_contradictions() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        db.register_singleton_predicate("works_at", ConflictPolicy::Warn)
+            .unwrap();
+
+        let t1 = Utc::now() - chrono::Duration::days(30);
+        db.assert_fact("alice", "works_at", "Acme", t1).unwrap();
+
+        let (fact_id, contradictions) = db
+            .assert_fact_checked("alice", "works_at", "Beta Corp", Utc::now())
+            .unwrap();
+        assert!(!fact_id.0.is_empty(), "fact should be stored");
+        assert_eq!(contradictions.len(), 1, "should detect one contradiction");
+
+        // Regression: conflicting_fact_id must reference the actually-persisted
+        // fact, not the temporary candidate used during detection.
+        assert_eq!(
+            contradictions[0].conflicting_fact_id, fact_id.0,
+            "conflicting_fact_id should match the stored fact's ID"
+        );
+
+        // Verify the fact was actually stored.
+        let facts = db.current_facts("alice", "works_at").unwrap();
+        assert_eq!(facts.len(), 2);
+    }
+
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn assert_fact_checked_reject_blocks_storage() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        db.register_singleton_predicate("lives_in", ConflictPolicy::Reject)
+            .unwrap();
+
+        let t1 = Utc::now() - chrono::Duration::days(30);
+        db.assert_fact("alice", "lives_in", "London", t1).unwrap();
+
+        let result = db.assert_fact_checked("alice", "lives_in", "Paris", Utc::now());
+        assert!(result.is_err(), "should be rejected");
+        assert!(matches!(
+            result.unwrap_err(),
+            KronroeError::ContradictionRejected(ref cs) if cs.len() == 1
+        ));
+
+        // Verify the fact was NOT stored.
+        let facts = db.current_facts("alice", "lives_in").unwrap();
+        assert_eq!(facts.len(), 1);
+        assert!(matches!(&facts[0].object, Value::Text(s) if s == "London"));
+    }
+
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn detect_all_contradictions_across_subjects() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        db.register_singleton_predicate("works_at", ConflictPolicy::Warn)
+            .unwrap();
+        db.register_singleton_predicate("lives_in", ConflictPolicy::Warn)
+            .unwrap();
+
+        let t1 = Utc::now() - chrono::Duration::days(365);
+        let t2 = Utc::now() - chrono::Duration::days(30);
+
+        // Alice has contradictions on works_at.
+        db.assert_fact("alice", "works_at", "Acme", t1).unwrap();
+        db.assert_fact("alice", "works_at", "Beta", t2).unwrap();
+
+        // Bob has contradictions on lives_in.
+        db.assert_fact("bob", "lives_in", "London", t1).unwrap();
+        db.assert_fact("bob", "lives_in", "Paris", t2).unwrap();
+
+        // Carol has no contradictions (same value).
+        db.assert_fact("carol", "works_at", "Gamma", t1).unwrap();
+
+        let all = db.detect_all_contradictions().unwrap();
+        assert_eq!(all.len(), 2, "should find contradictions for alice and bob");
+
+        let subjects: Vec<&str> = all.iter().map(|c| c.subject.as_str()).collect();
+        assert!(subjects.contains(&"alice"));
+        assert!(subjects.contains(&"bob"));
     }
 }
