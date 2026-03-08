@@ -122,8 +122,9 @@ Additional fact metadata fields:
 |------|-------------|
 | `AgentMemory` | High-level API for AI agent use cases. Wraps `TemporalGraph`. |
 | `AssertParams` | Optional assertion parameters for explicit valid-time control. |
+| `RecallScore` | Per-channel signal breakdown: `Hybrid { rrf_score, text_contrib, vector_contrib, confidence }` \| `TextOnly { rank, bm25_score, confidence }` |
 
-Phase 1 methods are implemented (`remember`, `recall`, `assemble_context`).
+Phase 1 methods are implemented (`remember`, `recall`, `recall_scored`, `assemble_context`).
 Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memory.rs`.
 
 ### Key Types (`crates/python`)

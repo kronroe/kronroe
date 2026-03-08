@@ -587,6 +587,17 @@ impl TemporalGraph {
     /// Phase 0 implementation: builds an in-memory index at query time.
     /// This keeps search self-contained while we validate relevance behavior.
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<Fact>> {
+        self.search_scored(query, limit)
+            .map(|scored| scored.into_iter().map(|(fact, _)| fact).collect())
+    }
+
+    /// Full-text search returning facts with tantivy BM25 relevance scores.
+    ///
+    /// Each result is a `(Fact, f32)` pair where the `f32` is the BM25 score
+    /// from the full-text engine. Higher scores indicate stronger lexical
+    /// relevance to the query. Scores are comparable within a single query's
+    /// result set but not across different queries.
+    pub fn search_scored(&self, query: &str, limit: usize) -> Result<Vec<(Fact, f32)>> {
         #[cfg(not(feature = "fulltext"))]
         {
             let _ = (query, limit);
@@ -626,11 +637,11 @@ impl TemporalGraph {
                 facts.into_iter().map(|f| (f.id.0.clone(), f)).collect();
             let mut results = Vec::new();
 
-            for (_score, addr) in top_docs {
+            for (score, addr) in top_docs {
                 let retrieved = searcher.doc::<tantivy::schema::TantivyDocument>(addr)?;
                 if let Some(id_val) = retrieved.get_first(id_field).and_then(|v| v.as_str()) {
                     if let Some(fact) = facts_by_id.get(id_val) {
-                        results.push(fact.clone());
+                        results.push((fact.clone(), score));
                     }
                 }
             }
@@ -1672,6 +1683,50 @@ mod tests {
             results.iter().any(|f| f.subject == "alice"),
             "fuzzy search should match typo query"
         );
+    }
+
+    #[test]
+    #[cfg(feature = "fulltext")]
+    fn search_and_search_scored_same_ordering() {
+        let (db, _tmp) = open_temp_db();
+        let now = Utc::now();
+
+        db.assert_fact("alice", "works_at", "Acme Corp", now)
+            .unwrap();
+        db.assert_fact("alice", "has_alias", "ally", now).unwrap();
+        db.assert_fact("bob", "works_at", "Acme Industries", now)
+            .unwrap();
+
+        let plain = db.search("Acme", 10).unwrap();
+        let scored = db.search_scored("Acme", 10).unwrap();
+
+        assert_eq!(
+            plain.len(),
+            scored.len(),
+            "search and search_scored should return the same number of results"
+        );
+
+        // Order must match: search() is defined as search_scored() with scores stripped.
+        for (i, (fact, (scored_fact, score))) in plain.iter().zip(scored.iter()).enumerate() {
+            assert_eq!(
+                fact.id, scored_fact.id,
+                "result {i} should have the same fact ID"
+            );
+            assert!(
+                *score > 0.0,
+                "result {i} should have a positive BM25 score, got {score}"
+            );
+        }
+
+        // Scores should be in descending order (tantivy BM25 ranking).
+        for w in scored.windows(2) {
+            assert!(
+                w[0].1 >= w[1].1,
+                "scores should be descending: {} >= {}",
+                w[0].1,
+                w[1].1
+            );
+        }
     }
 
     // ------------------------------------------------------------------
