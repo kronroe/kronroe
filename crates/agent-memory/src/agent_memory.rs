@@ -34,6 +34,7 @@ use kronroe::{ConflictPolicy, Contradiction};
 use kronroe::{Fact, FactId, TemporalGraph, Value};
 #[cfg(feature = "hybrid")]
 use kronroe::{HybridScoreBreakdown, HybridSearchParams};
+use std::collections::HashSet;
 
 pub use kronroe::KronroeError as Error;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -130,6 +131,91 @@ impl RecallScore {
             confidence,
         }
     }
+}
+
+/// Options for recall queries, controlling retrieval behaviour.
+///
+/// Use [`RecallOptions::new`] to create with defaults, then chain builder
+/// methods to customise. The `#[non_exhaustive]` attribute ensures new
+/// fields can be added without breaking existing callers.
+///
+/// ```rust
+/// use kronroe_agent_memory::RecallOptions;
+///
+/// let opts = RecallOptions::new("what does alice do?")
+///     .with_limit(5)
+///     .with_min_confidence(0.6)
+///     .with_max_scored_rows(2_048);
+/// ```
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct RecallOptions<'a> {
+    /// The search query text.
+    pub query: &'a str,
+    /// Optional embedding for hybrid retrieval.
+    pub query_embedding: Option<&'a [f32]>,
+    /// Maximum number of results to return (default: 10).
+    pub limit: usize,
+    /// Minimum confidence threshold — facts below this are filtered out.
+    pub min_confidence: Option<f32>,
+    /// Maximum rows fetched per confidence-filtered recall batch (default: 4,096).
+    ///
+    /// Raising this increases recall depth at the cost of larger per-call work.
+    /// Lowering it improves bounded latency but may reduce results if strong hits
+    /// appear deeper in the result ranking.
+    pub max_scored_rows: usize,
+}
+
+const DEFAULT_MAX_SCORED_ROWS: usize = 4_096;
+
+impl<'a> RecallOptions<'a> {
+    /// Create options with defaults: limit=10, no embedding, no confidence filter.
+    pub fn new(query: &'a str) -> Self {
+        Self {
+            query,
+            query_embedding: None,
+            limit: 10,
+            min_confidence: None,
+            max_scored_rows: DEFAULT_MAX_SCORED_ROWS,
+        }
+    }
+
+    /// Set the query embedding for hybrid retrieval.
+    pub fn with_embedding(mut self, embedding: &'a [f32]) -> Self {
+        self.query_embedding = Some(embedding);
+        self
+    }
+
+    /// Set the maximum number of results.
+    pub fn with_limit(mut self, limit: usize) -> Self {
+        self.limit = limit;
+        self
+    }
+
+    /// Set a minimum confidence threshold to filter low-confidence facts.
+    pub fn with_min_confidence(mut self, min: f32) -> Self {
+        self.min_confidence = Some(min);
+        self
+    }
+
+    /// Set the maximum rows fetched per batch while applying confidence filters.
+    ///
+    /// Must be at least 1; `recall_scored_with_options` returns a `Search` error
+    /// for non-positive values.
+    pub fn with_max_scored_rows(mut self, max_scored_rows: usize) -> Self {
+        self.max_scored_rows = max_scored_rows;
+        self
+    }
+}
+
+fn normalize_min_confidence(min_confidence: f32) -> Result<f32> {
+    if !min_confidence.is_finite() {
+        return Err(Error::Search(format!(
+            "minimum confidence must be a finite number in [0.0, 1.0], got {min_confidence}"
+        )));
+    }
+
+    Ok(min_confidence.clamp(0.0, 1.0))
 }
 
 /// High-level agent memory store built on a Kronroe temporal graph.
@@ -336,6 +422,46 @@ impl AgentMemory {
             .map(|scored| scored.into_iter().map(|(fact, _)| fact).collect())
     }
 
+    /// Retrieve memory facts by query with an explicit minimum confidence threshold.
+    ///
+    /// This shares the same filtering semantics as
+    /// [`recall_scored_with_options`](Self::recall_scored_with_options), including
+    /// confidence filtering before final result truncation.
+    ///
+    /// ```rust,no_run
+    /// use kronroe_agent_memory::AgentMemory;
+    ///
+    /// let memory = AgentMemory::open("./agent.kronroe").unwrap();
+    /// memory.assert_with_confidence("alice", "works_at", "Acme", 0.95).unwrap();
+    /// memory.assert_with_confidence("alice", "worked_at", "Startup", 0.42).unwrap();
+    ///
+    /// let facts = memory
+    ///     .recall_with_min_confidence("alice", None, 10, 0.9)
+    ///     .unwrap();
+    /// assert!(facts.iter().all(|f| f.confidence >= 0.9));
+    /// ```
+    pub fn recall_with_min_confidence(
+        &self,
+        query: &str,
+        #[cfg(feature = "hybrid")] query_embedding: Option<&[f32]>,
+        #[cfg(not(feature = "hybrid"))] _query_embedding: Option<&[f32]>,
+        limit: usize,
+        min_confidence: f32,
+    ) -> Result<Vec<Fact>> {
+        let opts = RecallOptions::new(query)
+            .with_limit(limit)
+            .with_min_confidence(min_confidence);
+
+        #[cfg(feature = "hybrid")]
+        let opts = if let Some(embedding) = query_embedding {
+            opts.with_embedding(embedding)
+        } else {
+            opts
+        };
+
+        self.recall_with_options(&opts)
+    }
+
     /// Retrieve memory facts by query with per-channel signal breakdowns.
     ///
     /// Returns a `(Fact, RecallScore)` pair for each result. The result
@@ -389,6 +515,47 @@ impl AgentMemory {
             .collect())
     }
 
+    /// Retrieve memory facts using scored recall plus confidence filtering.
+    ///
+    /// Equivalent to [`recall_scored_with_options`](Self::recall_scored_with_options)
+    /// with only `limit` and `min_confidence` set, preserving the ordering and
+    /// pagination semantics introduced by the options-based path.
+    ///
+    /// ```rust,no_run
+    /// use kronroe_agent_memory::AgentMemory;
+    ///
+    /// let memory = AgentMemory::open("./agent.kronroe").unwrap();
+    /// memory.assert_with_confidence("alice", "works_at", "Acme", 0.95).unwrap();
+    /// memory.assert_with_confidence("alice", "visited", "London", 0.55).unwrap();
+    ///
+    /// let scored = memory
+    ///     .recall_scored_with_min_confidence("alice", None, 1, 0.9)
+    ///     .unwrap();
+    /// assert_eq!(scored.len(), 1);
+    /// assert!(scored[0].1.confidence() >= 0.9);
+    /// ```
+    pub fn recall_scored_with_min_confidence(
+        &self,
+        query: &str,
+        #[cfg(feature = "hybrid")] query_embedding: Option<&[f32]>,
+        #[cfg(not(feature = "hybrid"))] _query_embedding: Option<&[f32]>,
+        limit: usize,
+        min_confidence: f32,
+    ) -> Result<Vec<(Fact, RecallScore)>> {
+        let opts = RecallOptions::new(query)
+            .with_limit(limit)
+            .with_min_confidence(min_confidence);
+
+        #[cfg(feature = "hybrid")]
+        let opts = if let Some(embedding) = query_embedding {
+            opts.with_embedding(embedding)
+        } else {
+            opts
+        };
+
+        self.recall_scored_with_options(&opts)
+    }
+
     /// Build a token-bounded prompt context from recalled facts.
     ///
     /// Internally uses scored recall so results are ordered by relevance.
@@ -440,6 +607,136 @@ impl AgentMemory {
         }
 
         Ok(context)
+    }
+
+    /// Retrieve memory facts using [`RecallOptions`], with per-channel signal breakdowns.
+    ///
+    /// Like [`recall_scored`](Self::recall_scored) but accepts a `RecallOptions`
+    /// struct for cleaner parameter passing. When `min_confidence` is set, facts
+    /// with confidence below the threshold are filtered from the results. Filtering
+    /// occurs before truncating to the final `limit`, so low-confidence head
+    /// matches cannot consume the result budget.
+    pub fn recall_scored_with_options(
+        &self,
+        opts: &RecallOptions<'_>,
+    ) -> Result<Vec<(Fact, RecallScore)>> {
+        match opts.min_confidence {
+            Some(min_confidence) => {
+                let min_confidence = normalize_min_confidence(min_confidence)?;
+                if opts.limit == 0 {
+                    return Ok(Vec::new());
+                }
+                if opts.max_scored_rows == 0 {
+                    return Err(Error::Search(
+                        "max_scored_rows must be at least 1".to_string(),
+                    ));
+                }
+                let max_scored_rows = opts.max_scored_rows;
+                let is_hybrid_request = cfg!(feature = "hybrid") && opts.query_embedding.is_some();
+
+                // Hybrid ranking can be non-monotonic as `k` changes, so apply
+                // one-shot fetch at the confidence budget then filter locally.
+                if is_hybrid_request {
+                    let scored =
+                        self.recall_scored(opts.query, opts.query_embedding, max_scored_rows)?;
+                    let mut filtered = Vec::new();
+
+                    for (fact, score) in scored {
+                        if score.confidence() >= min_confidence {
+                            filtered.push((fact, score));
+                            if filtered.len() >= opts.limit {
+                                break;
+                            }
+                        }
+                    }
+
+                    return Ok(filtered);
+                }
+
+                let mut filtered = Vec::new();
+                let mut seen_fact_ids: HashSet<String> = HashSet::new();
+                let mut fetch_limit = opts.limit.max(1).min(max_scored_rows);
+                let mut consecutive_no_confidence_batches = 0u8;
+
+                loop {
+                    let scored =
+                        self.recall_scored(opts.query, opts.query_embedding, fetch_limit)?;
+                    let mut newly_seen = 0usize;
+                    let mut newly_confident = 0usize;
+
+                    if scored.is_empty() {
+                        break;
+                    }
+
+                    for (fact, score) in scored.iter() {
+                        if !seen_fact_ids.insert(fact.id.0.clone()) {
+                            continue;
+                        }
+                        newly_seen += 1;
+
+                        if score.confidence() >= min_confidence {
+                            filtered.push((fact.clone(), *score));
+                            newly_confident += 1;
+                            if filtered.len() >= opts.limit {
+                                return Ok(filtered);
+                            }
+                        }
+                    }
+
+                    if newly_seen == 0 || fetch_limit >= max_scored_rows {
+                        break;
+                    }
+
+                    // If the latest fetch returned fewer rows than requested,
+                    // we've reached the end of the result set.
+                    if scored.len() < fetch_limit {
+                        break;
+                    }
+
+                    // If we repeatedly fetch windows with zero confident rows,
+                    // jump directly to the hard budget to avoid repeated rescans.
+                    if newly_confident == 0 {
+                        consecutive_no_confidence_batches =
+                            consecutive_no_confidence_batches.saturating_add(1);
+                        if consecutive_no_confidence_batches >= 2 {
+                            fetch_limit = max_scored_rows;
+                            continue;
+                        }
+                    } else {
+                        consecutive_no_confidence_batches = 0;
+                    }
+
+                    fetch_limit = (fetch_limit.saturating_mul(2)).min(max_scored_rows);
+                }
+
+                Ok(filtered)
+            }
+            None => self.recall_scored(opts.query, opts.query_embedding, opts.limit),
+        }
+    }
+
+    /// Retrieve memory facts using [`RecallOptions`].
+    ///
+    /// Convenience wrapper over [`recall_scored_with_options`](Self::recall_scored_with_options)
+    /// that strips the score breakdowns.
+    pub fn recall_with_options(&self, opts: &RecallOptions<'_>) -> Result<Vec<Fact>> {
+        self.recall_scored_with_options(opts)
+            .map(|scored| scored.into_iter().map(|(fact, _)| fact).collect())
+    }
+
+    /// Store a structured fact with explicit confidence.
+    ///
+    /// Like [`assert`](Self::assert) but allows setting the confidence score
+    /// (clamped to \[0.0, 1.0\]).
+    pub fn assert_with_confidence(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+        confidence: f32,
+    ) -> Result<FactId> {
+        self.graph
+            .assert_fact_with_confidence(subject, predicate, object, Utc::now(), confidence)
     }
 }
 
@@ -945,5 +1242,301 @@ mod tests {
             ctx.contains("(0."),
             "context should contain hybrid RRF score tag, got: {ctx}"
         );
+    }
+
+    // -- RecallOptions + confidence tests -----------------------------------
+
+    #[test]
+    fn recall_options_default_limit() {
+        let opts = RecallOptions::new("test query");
+        assert_eq!(opts.limit, 10);
+        assert!(opts.query_embedding.is_none());
+        assert!(opts.min_confidence.is_none());
+        assert_eq!(opts.max_scored_rows, 4_096);
+    }
+
+    #[test]
+    fn assert_with_confidence_round_trip() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert_with_confidence("alice", "works_at", "Acme", 0.8)
+            .unwrap();
+
+        let facts = mem.facts_about("alice").unwrap();
+        assert_eq!(facts.len(), 1);
+        assert!(
+            (facts[0].confidence - 0.8).abs() < f32::EPSILON,
+            "confidence should be 0.8, got {}",
+            facts[0].confidence,
+        );
+    }
+
+    #[test]
+    fn assert_with_confidence_rejects_non_finite() {
+        let (mem, _tmp) = open_temp_memory();
+
+        for confidence in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let err = mem.assert_with_confidence("alice", "works_at", "Rust", confidence);
+            match err {
+                Err(Error::Search(msg)) => {
+                    assert!(msg.contains("finite"), "unexpected search error: {msg}")
+                }
+                _ => panic!("expected search error for confidence={confidence:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn recall_with_min_confidence_filters() {
+        let (mem, _tmp) = open_temp_memory();
+        // Store two facts with different confidence levels.
+        mem.assert_with_confidence("ep-low", "memory", "low confidence fact about Rust", 0.3)
+            .unwrap();
+        mem.assert_with_confidence("ep-high", "memory", "high confidence fact about Rust", 0.9)
+            .unwrap();
+
+        // Without filter: both returned.
+        let all = mem.recall("Rust", None, 10).unwrap();
+        assert_eq!(all.len(), 2, "both facts should be returned without filter");
+
+        // With min_confidence=0.5: only the high-confidence fact.
+        let opts = RecallOptions::new("Rust")
+            .with_limit(10)
+            .with_min_confidence(0.5);
+        let filtered = mem.recall_with_options(&opts).unwrap();
+        assert_eq!(
+            filtered.len(),
+            1,
+            "only high-confidence fact should pass filter"
+        );
+        assert!(
+            (filtered[0].confidence - 0.9).abs() < f32::EPSILON,
+            "surviving fact should have confidence 0.9, got {}",
+            filtered[0].confidence,
+        );
+    }
+
+    #[test]
+    fn assemble_context_shows_confidence_tag() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert_with_confidence("ep-test", "memory", "notable fact about testing", 0.7)
+            .unwrap();
+
+        let ctx = mem.assemble_context("testing", None, 500).unwrap();
+        assert!(
+            ctx.contains("conf:0.7"),
+            "context should include conf:0.7 tag for non-default confidence, got: {ctx}"
+        );
+    }
+
+    #[test]
+    fn recall_scored_with_options_respects_limit() {
+        let (mem, _tmp) = open_temp_memory();
+        for i in 0..5 {
+            mem.assert_with_confidence(
+                &format!("ep-{i}"),
+                "memory",
+                format!("fact number {i} about coding"),
+                1.0,
+            )
+            .unwrap();
+        }
+
+        let opts = RecallOptions::new("coding").with_limit(2);
+        let results = mem.recall_scored_with_options(&opts).unwrap();
+        assert!(
+            results.len() <= 2,
+            "should respect limit=2, got {} results",
+            results.len(),
+        );
+    }
+
+    #[test]
+    fn recall_scored_with_options_filters_confidence_before_limit() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert_with_confidence("low-1", "memory", "rust rust rust rust rust", 0.2)
+            .unwrap();
+        mem.assert_with_confidence("low-2", "memory", "rust rust rust rust rust", 0.1)
+            .unwrap();
+        mem.assert_with_confidence("high", "memory", "rust", 0.9)
+            .unwrap();
+
+        let opts = RecallOptions::new("rust")
+            .with_limit(1)
+            .with_min_confidence(0.9);
+        let results = mem.recall_scored_with_options(&opts).unwrap();
+
+        assert_eq!(
+            results.len(),
+            1,
+            "expected one surviving result after filtering"
+        );
+        assert_eq!(results[0].0.subject, "high");
+        assert!(
+            (results[0].1.confidence() - 0.9).abs() < f32::EPSILON,
+            "surviving result should keep confidence=0.9"
+        );
+    }
+
+    #[test]
+    fn recall_scored_with_options_normalizes_min_confidence_bounds() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert_with_confidence("high", "memory", "rust", 1.0)
+            .unwrap();
+        mem.assert_with_confidence("low", "memory", "rust", 0.1)
+            .unwrap();
+
+        let opts = RecallOptions::new("rust")
+            .with_limit(2)
+            .with_min_confidence(2.0);
+        let results = mem.recall_scored_with_options(&opts).unwrap();
+        assert_eq!(
+            results.len(),
+            1,
+            "min confidence above 1.0 should be clamped to 1.0"
+        );
+        assert!(
+            (results[0].1.confidence() - 1.0).abs() < f32::EPSILON,
+            "surviving row should use clamped threshold 1.0"
+        );
+
+        let opts = RecallOptions::new("rust")
+            .with_limit(2)
+            .with_min_confidence(-1.0);
+        let results = mem.recall_scored_with_options(&opts).unwrap();
+        assert_eq!(
+            results.len(),
+            2,
+            "min confidence below 0.0 should be clamped to 0.0"
+        );
+    }
+
+    #[test]
+    fn recall_scored_with_options_rejects_non_finite_min_confidence() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert_with_confidence("ep", "memory", "rust", 1.0)
+            .unwrap();
+
+        let opts = RecallOptions::new("rust")
+            .with_limit(2)
+            .with_min_confidence(f32::NAN);
+        let err = mem.recall_scored_with_options(&opts).unwrap_err();
+        match err {
+            Error::Search(msg) => assert!(
+                msg.contains("minimum confidence"),
+                "unexpected search error: {msg}"
+            ),
+            _ => panic!("expected search error for NaN min confidence, got {err:?}"),
+        }
+    }
+
+    #[test]
+    fn recall_scored_with_options_respects_scored_rows_cap() {
+        let (mem, _tmp) = open_temp_memory();
+        for i in 0..5 {
+            mem.assert_with_confidence(&format!("ep-{i}"), "memory", "rust and memory", 1.0)
+                .unwrap();
+        }
+
+        let opts = RecallOptions::new("rust")
+            .with_limit(5)
+            .with_min_confidence(0.0)
+            .with_max_scored_rows(2);
+        let results = mem.recall_scored_with_options(&opts).unwrap();
+        assert_eq!(
+            results.len(),
+            2,
+            "max_scored_rows should bound the effective recall window in filtered mode"
+        );
+    }
+
+    #[test]
+    fn recall_scored_with_options_rejects_zero_max_scored_rows() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert_with_confidence("ep", "memory", "rust", 1.0)
+            .unwrap();
+
+        let opts = RecallOptions::new("rust")
+            .with_limit(1)
+            .with_min_confidence(0.0)
+            .with_max_scored_rows(0);
+        let err = mem.recall_scored_with_options(&opts).unwrap_err();
+        match err {
+            Error::Search(msg) => assert!(
+                msg.contains("max_scored_rows"),
+                "unexpected search error: {msg}"
+            ),
+            _ => panic!("expected search error for max_scored_rows=0, got {err:?}"),
+        }
+    }
+
+    #[test]
+    fn recall_with_min_confidence_method_filters_before_limit() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert_with_confidence("low-1", "memory", "rust rust rust rust rust", 0.2)
+            .unwrap();
+        mem.assert_with_confidence("low-2", "memory", "rust rust rust rust rust", 0.1)
+            .unwrap();
+        mem.assert_with_confidence("high", "memory", "rust", 0.9)
+            .unwrap();
+
+        let results = mem
+            .recall_with_min_confidence("Rust", None, 1, 0.9)
+            .unwrap();
+
+        assert_eq!(
+            results.len(),
+            1,
+            "expected one surviving result after filtering"
+        );
+        assert_eq!(results[0].subject, "high");
+    }
+
+    #[test]
+    fn recall_scored_with_min_confidence_method_respects_limit() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert_with_confidence("low", "memory", "rust rust rust rust", 0.2)
+            .unwrap();
+        mem.assert_with_confidence("high-2", "memory", "rust", 0.95)
+            .unwrap();
+        mem.assert_with_confidence("high-1", "memory", "rust", 0.98)
+            .unwrap();
+
+        let scored = mem
+            .recall_scored_with_min_confidence("Rust", None, 2, 0.9)
+            .unwrap();
+
+        assert_eq!(scored.len(), 2, "expected exactly 2 surviving results");
+        assert!(scored[0].1.confidence() >= 0.9);
+        assert!(scored[1].1.confidence() >= 0.9);
+    }
+
+    #[test]
+    fn recall_scored_with_min_confidence_matches_options_path() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert_with_confidence("low", "memory", "rust rust rust", 0.2)
+            .unwrap();
+        mem.assert_with_confidence("high", "memory", "rust", 0.95)
+            .unwrap();
+        mem.assert_with_confidence("high-2", "memory", "rust for sure", 0.99)
+            .unwrap();
+
+        let method_results = mem
+            .recall_scored_with_min_confidence("Rust", None, 2, 0.9)
+            .unwrap()
+            .into_iter()
+            .map(|(fact, _)| fact.id.0)
+            .collect::<Vec<_>>();
+
+        let opts = RecallOptions::new("Rust")
+            .with_limit(2)
+            .with_min_confidence(0.9);
+        let options_results = mem
+            .recall_scored_with_options(&opts)
+            .unwrap()
+            .into_iter()
+            .map(|(fact, _)| fact.id.0)
+            .collect::<Vec<_>>();
+
+        assert_eq!(method_results, options_results);
     }
 }
