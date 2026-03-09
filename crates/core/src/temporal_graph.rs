@@ -265,6 +265,21 @@ impl Fact {
         }
     }
 
+    /// Return a copy with the given confidence.
+    ///
+    /// Non-finite values (NaN/inf) are ignored by this builder and leave the
+    /// previous confidence unchanged; explicit validation is enforced at write time.
+    pub fn with_confidence(mut self, confidence: f32) -> Self {
+        debug_assert!(
+            confidence.is_finite(),
+            "fact confidence is expected to be finite",
+        );
+        if confidence.is_finite() {
+            self.confidence = confidence.clamp(0.0, 1.0);
+        }
+        self
+    }
+
     /// Is this fact currently valid (valid time is open, not expired)?
     pub fn is_currently_valid(&self) -> bool {
         self.valid_to.is_none() && self.expired_at.is_none()
@@ -514,8 +529,17 @@ impl TemporalGraph {
         predicate: &str,
         object: Value,
         valid_from: DateTime<Utc>,
+        confidence: f32,
     ) -> Result<FactId> {
-        let fact = Fact::new(subject, predicate, object, valid_from);
+        let confidence = if confidence.is_finite() {
+            confidence.clamp(0.0, 1.0)
+        } else {
+            return Err(KronroeError::Search(
+                "confidence must be finite and in [0.0, 1.0], got non-finite value".into(),
+            ));
+        };
+
+        let fact = Fact::new(subject, predicate, object, valid_from).with_confidence(confidence);
         let fact_id = fact.id.clone();
         let key = format!("{}:{}:{}", subject, predicate, fact.id);
         let value = serde_json::to_string(&fact)?;
@@ -541,8 +565,41 @@ impl TemporalGraph {
         valid_from: DateTime<Utc>,
     ) -> Result<FactId> {
         let write_txn = self.db.begin_write()?;
-        let fact_id =
-            Self::write_fact_in_txn(&write_txn, subject, predicate, object.into(), valid_from)?;
+        let fact_id = Self::write_fact_in_txn(
+            &write_txn,
+            subject,
+            predicate,
+            object.into(),
+            valid_from,
+            1.0,
+        )?;
+        write_txn.commit()?;
+        Ok(fact_id)
+    }
+
+    /// Assert a new fact with explicit confidence and return its [`FactId`].
+    ///
+    /// Like [`assert_fact`] but allows setting the confidence score.
+    /// Confidence is clamped to \[0.0, 1.0\].
+    ///
+    /// [`assert_fact`]: TemporalGraph::assert_fact
+    pub fn assert_fact_with_confidence(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+        valid_from: DateTime<Utc>,
+        confidence: f32,
+    ) -> Result<FactId> {
+        let write_txn = self.db.begin_write()?;
+        let fact_id = Self::write_fact_in_txn(
+            &write_txn,
+            subject,
+            predicate,
+            object.into(),
+            valid_from,
+            confidence,
+        )?;
         write_txn.commit()?;
         Ok(fact_id)
     }
@@ -589,8 +646,14 @@ impl TemporalGraph {
             }
         }
 
-        let fact_id =
-            Self::write_fact_in_txn(&write_txn, subject, predicate, object.into(), valid_from)?;
+        let fact_id = Self::write_fact_in_txn(
+            &write_txn,
+            subject,
+            predicate,
+            object.into(),
+            valid_from,
+            1.0,
+        )?;
 
         {
             let mut idem_table = write_txn.open_table(IDEMPOTENCY)?;
@@ -995,7 +1058,8 @@ impl TemporalGraph {
         }
 
         // Write the fact inside the same transaction.
-        let fact_id = Self::write_fact_in_txn(&write_txn, subject, predicate, object, valid_from)?;
+        let fact_id =
+            Self::write_fact_in_txn(&write_txn, subject, predicate, object, valid_from, 1.0)?;
         write_txn.commit()?;
 
         // Patch contradictions so conflicting_fact_id points to the
@@ -1078,8 +1142,14 @@ impl TemporalGraph {
         }
 
         // --- fact row ---
-        let fact_id =
-            Self::write_fact_in_txn(&write_txn, subject, predicate, object.into(), valid_from)?;
+        let fact_id = Self::write_fact_in_txn(
+            &write_txn,
+            subject,
+            predicate,
+            object.into(),
+            valid_from,
+            1.0,
+        )?;
 
         // --- embedding bytes (little-endian f32) ---
         {
@@ -2289,5 +2359,66 @@ mod tests {
         let subjects: Vec<&str> = all.iter().map(|c| c.subject.as_str()).collect();
         assert!(subjects.contains(&"alice"));
         assert!(subjects.contains(&"bob"));
+    }
+
+    // -- Confidence tests ---------------------------------------------------
+
+    #[test]
+    fn fact_with_confidence_clamps() {
+        let now = Utc::now();
+        let too_high = Fact::new("s", "p", "v", now).with_confidence(1.5);
+        assert!((too_high.confidence - 1.0).abs() < f32::EPSILON);
+
+        let too_low = Fact::new("s", "p", "v", now).with_confidence(-0.3);
+        assert!((too_low.confidence - 0.0).abs() < f32::EPSILON);
+
+        let normal = Fact::new("s", "p", "v", now).with_confidence(0.7);
+        assert!((normal.confidence - 0.7).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn assert_fact_with_confidence_persists() {
+        let (db, _tmp) = open_temp_db();
+        let now = Utc::now();
+        let id = db
+            .assert_fact_with_confidence("alice", "works_at", "Acme", now, 0.7)
+            .unwrap();
+        let fact = db.fact_by_id(&id).unwrap();
+        assert!(
+            (fact.confidence - 0.7).abs() < f32::EPSILON,
+            "confidence should be 0.7, got {}",
+            fact.confidence,
+        );
+    }
+
+    #[test]
+    fn assert_fact_with_confidence_rejects_non_finite() {
+        let (db, _tmp) = open_temp_db();
+        let now = Utc::now();
+
+        for confidence in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let err = db.assert_fact_with_confidence("alice", "works_at", "Acme", now, confidence);
+            match err {
+                Err(KronroeError::Search(msg)) => assert!(
+                    msg.contains("non-finite"),
+                    "unexpected search message for {confidence:?}: {msg}"
+                ),
+                _ => panic!("expected search error for confidence={confidence:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn assert_fact_default_confidence() {
+        let (db, _tmp) = open_temp_db();
+        let id = db
+            .assert_fact("alice", "works_at", "Acme", Utc::now())
+            .unwrap();
+        let fact = db.fact_by_id(&id).unwrap();
+        assert!(
+            (fact.confidence - 1.0).abs() < f32::EPSILON,
+            "default confidence should be 1.0, got {}",
+            fact.confidence,
+        );
     }
 }

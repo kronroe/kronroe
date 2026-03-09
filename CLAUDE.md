@@ -105,14 +105,14 @@ Additional fact metadata fields:
 
 | Type | Description |
 |------|-------------|
-| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `assert_fact_idempotent`, `assert_fact_with_embedding`, `assert_fact_checked` (feature: contradiction), `current_facts`, `facts_at`, `all_facts_about`, `fact_by_id`, `correct_fact`, `invalidate_fact`, `search`, `search_by_vector`, `search_hybrid` (feature: hybrid-experimental+vector), `register_singleton_predicate`, `detect_contradictions`, `detect_all_contradictions` (feature: contradiction) |
+| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `assert_fact_with_confidence`, `assert_fact_idempotent`, `assert_fact_with_embedding`, `assert_fact_checked` (feature: contradiction), `current_facts`, `facts_at`, `all_facts_about`, `fact_by_id`, `correct_fact`, `invalidate_fact`, `search`, `search_by_vector`, `search_hybrid` (feature: hybrid-experimental+vector), `register_singleton_predicate`, `detect_contradictions`, `detect_all_contradictions` (feature: contradiction) |
 | `HybridSearchParams` | Stable hybrid search parameters — eval-proven defaults (rc=60, tw=0.8, vw=0.2) |
 | `TemporalIntent` | Caller's temporal intent: `Timeless`, `CurrentState`, `HistoricalPoint`, `HistoricalInterval` |
 | `TemporalOperator` | Temporal operator hint: `Current`, `AsOf`, `Before`, `By`, `During`, `After`, `Unknown` |
 | `Contradiction` | Detected conflict: two facts, same subject+predicate, different values, overlapping valid time (feature: contradiction) |
 | `PredicateCardinality` | `Singleton` (at most one active value) \| `MultiValued` (feature: contradiction) |
 | `ConflictPolicy` | Write-time behavior: `Allow` \| `Warn` \| `Reject` (feature: contradiction) |
-| `Fact` | The fundamental unit of storage. Fully bi-temporal. |
+| `Fact` | The fundamental unit of storage. Fully bi-temporal. `with_confidence(f32)` builder for non-default confidence. |
 | `FactId` | ULID — lexicographically sortable, monotonic insertion order |
 | `Value` | `Text(String)` \| `Number(f64)` \| `Boolean(bool)` \| `Entity(String)` |
 | `KronroeError` | Error type |
@@ -125,9 +125,10 @@ Additional fact metadata fields:
 |------|-------------|
 | `AgentMemory` | High-level API for AI agent use cases. Wraps `TemporalGraph`. |
 | `AssertParams` | Optional assertion parameters for explicit valid-time control. |
+| `RecallOptions` | Query options struct: `query`, `query_embedding`, `limit` (default 10), `min_confidence` filter. `#[non_exhaustive]` + builder methods. |
 | `RecallScore` | Per-channel signal breakdown: `Hybrid { rrf_score, text_contrib, vector_contrib, confidence }` \| `TextOnly { rank, bm25_score, confidence }` |
 
-Phase 1 methods are implemented (`remember`, `recall`, `recall_scored`, `assemble_context`).
+Phase 1 methods are implemented (`remember`, `recall`, `recall_scored`, `recall_with_options`, `recall_scored_with_options`, `assert_with_confidence`, `assemble_context`).
 Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memory.rs`.
 
 ### Key Types (`crates/python`)
@@ -295,7 +296,7 @@ Future crates will layer on top.
 
 ## Phase 0 Milestone Status
 
-Snapshot as of 2026-02-21. See GitHub milestones/issues for source of truth.
+Snapshot as of 2026-03-09. See GitHub milestones/issues for source of truth.
 
 | # | Milestone | Status | Who |
 |---|-----------|--------|-----|
@@ -305,12 +306,12 @@ Snapshot as of 2026-02-21. See GitHub milestones/issues for source of truth.
 | 0.4 | Python bindings (PyO3) | ✅ Done | — |
 | 0.5 | MCP server | ✅ Done — stdio server, 5 tools (remember/recall/facts_about/assert_fact/correct_fact), pip wrapper | — |
 | 0.6 | iOS XCFramework | ✅ Done locally (aarch64-apple-ios + Swift package scaffold, commit cc4287e) | Rebekah (local) |
-| 0.7 | Kindly Roe integration | ⬜ Not started | Rebekah (local) |
+| 0.7 | Kindly Roe integration | ✅ Done (PR #76-78 — KronroeMemoryStore + Swift 6 compat + simulator proof) | Rebekah (local) |
 | 0.8 | Vector index | ✅ Done — flat cosine similarity, zero deps, temporal filtering, PR #18 | — |
 | 0.9 | Android JNI bindings | ✅ Done — hand-written JNI, Kotlin wrapper, CI workflow, 3 host tests | Claude |
 | 0.10 | WASM playground | 🟡 Site scaffold + Firebase Hosting config merged — need service account secret + custom domains | Claude can help |
 | 0.11 | CI pipeline | ✅ Done — `test` + `clippy` + `fmt` + iOS packaging + Python wheels all green | — |
-| 0.12 | Storage format commitment | ⬜ Not started | Rebekah decision |
+| 0.12 | Storage format commitment | ✅ Done (PR #75 — schema version stamp + mismatch detection) | — |
 
 ## What Claude Can and Cannot Do in This Repo
 
