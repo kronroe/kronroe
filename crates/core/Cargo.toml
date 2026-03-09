@@ -19,6 +19,7 @@ fulltext = ["dep:tantivy"]
 vector = []
 hybrid-experimental = []
 contradiction = []
+uncertainty = []
 
 [dependencies]
 redb = { workspace = true }

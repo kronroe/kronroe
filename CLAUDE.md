@@ -105,14 +105,17 @@ Additional fact metadata fields:
 
 | Type | Description |
 |------|-------------|
-| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `assert_fact_with_confidence`, `assert_fact_idempotent`, `assert_fact_with_embedding`, `assert_fact_checked` (feature: contradiction), `current_facts`, `facts_at`, `all_facts_about`, `fact_by_id`, `correct_fact`, `invalidate_fact`, `search`, `search_by_vector`, `search_hybrid` (feature: hybrid-experimental+vector), `register_singleton_predicate`, `detect_contradictions`, `detect_all_contradictions` (feature: contradiction) |
+| `TemporalGraph` | Low-level engine: `open`, `open_in_memory`, `assert_fact`, `assert_fact_with_confidence`, `assert_fact_with_source`, `assert_fact_idempotent`, `assert_fact_with_embedding`, `assert_fact_checked` (feature: contradiction), `current_facts`, `facts_at`, `all_facts_about`, `fact_by_id`, `correct_fact`, `invalidate_fact`, `search`, `search_by_vector`, `search_hybrid` (feature: hybrid-experimental+vector), `register_singleton_predicate`, `detect_contradictions`, `detect_all_contradictions` (feature: contradiction), `register_predicate_volatility`, `register_source_weight`, `predicate_volatility`, `source_weight`, `effective_confidence` (feature: uncertainty) |
 | `HybridSearchParams` | Stable hybrid search parameters — eval-proven defaults (rc=60, tw=0.8, vw=0.2) |
 | `TemporalIntent` | Caller's temporal intent: `Timeless`, `CurrentState`, `HistoricalPoint`, `HistoricalInterval` |
 | `TemporalOperator` | Temporal operator hint: `Current`, `AsOf`, `Before`, `By`, `During`, `After`, `Unknown` |
 | `Contradiction` | Detected conflict: two facts, same subject+predicate, different values, overlapping valid time (feature: contradiction) |
 | `PredicateCardinality` | `Singleton` (at most one active value) \| `MultiValued` (feature: contradiction) |
 | `ConflictPolicy` | Write-time behavior: `Allow` \| `Warn` \| `Reject` (feature: contradiction) |
-| `Fact` | The fundamental unit of storage. Fully bi-temporal. `with_confidence(f32)` builder for non-default confidence. |
+| `PredicateVolatility` | Half-life in days for predicate age decay. `f64::INFINITY` = stable (feature: uncertainty) |
+| `SourceWeight` | Authority multiplier for fact source. Clamped to \[0.0, 2.0\], default 1.0 (feature: uncertainty) |
+| `EffectiveConfidence` | Query-time result: `value`, `base_confidence`, `age_decay`, `source_weight` (feature: uncertainty) |
+| `Fact` | The fundamental unit of storage. Fully bi-temporal. `with_confidence(f32)` and `with_source(impl Into<String>)` builders. |
 | `FactId` | ULID — lexicographically sortable, monotonic insertion order |
 | `Value` | `Text(String)` \| `Number(f64)` \| `Boolean(bool)` \| `Entity(String)` |
 | `KronroeError` | Error type |
@@ -125,10 +128,12 @@ Additional fact metadata fields:
 |------|-------------|
 | `AgentMemory` | High-level API for AI agent use cases. Wraps `TemporalGraph`. |
 | `AssertParams` | Optional assertion parameters for explicit valid-time control. |
-| `RecallOptions` | Query options struct: `query`, `query_embedding`, `limit` (default 10), `min_confidence` filter. `#[non_exhaustive]` + builder methods. |
-| `RecallScore` | Per-channel signal breakdown: `Hybrid { rrf_score, text_contrib, vector_contrib, confidence }` \| `TextOnly { rank, bm25_score, confidence }` |
+| `RecallOptions` | Query options struct: `query`, `query_embedding`, `limit` (default 10), `min_confidence` filter, `confidence_filter_mode`. `#[non_exhaustive]` + builder methods (`with_min_confidence`, `with_min_effective_confidence`, `with_max_scored_rows`). |
+| `RecallScore` | Per-channel signal breakdown: `Hybrid { rrf_score, text_contrib, vector_contrib, confidence, effective_confidence }` \| `TextOnly { rank, bm25_score, confidence, effective_confidence }` |
+| `ConfidenceFilterMode` | `Base` (raw fact confidence) \| `Effective` (uncertainty-aware). Used by `RecallOptions` to select filtering signal. |
 
-Phase 1 methods are implemented (`remember`, `recall`, `recall_scored`, `recall_with_options`, `recall_scored_with_options`, `assert_with_confidence`, `assemble_context`).
+Phase 1 methods are implemented (`remember`, `recall`, `recall_scored`, `recall_with_options`, `recall_scored_with_options`, `assert_with_confidence`, `assert_with_source`, `assemble_context`).
+Uncertainty methods (`register_volatility`, `register_source_weight`, `effective_confidence_for_fact`, `recall_scored_with_min_effective_confidence`) available with `uncertainty` feature.
 Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memory.rs`.
 
 ### Key Types (`crates/python`)
@@ -279,6 +284,30 @@ Future crates will layer on top.
 - **`agent-memory` integration:** `open()` auto-registers common singletons (`works_at`,
   `lives_in`, `job_title`, `email`, `phone`) with `Warn` policy. `assert_checked()` and
   `audit(subject)` expose contradiction detection at the agent layer
+
+### Uncertainty Model Notes (`crates/core`, feature: `uncertainty`)
+
+- Enabled with `--features uncertainty` — no new external dependencies, pure Rust math
+- **Engine-native:** computes effective confidence at query time, never stored back
+- **Formula:** `effective = base_confidence × age_decay × source_weight`, clamped to \[0.0, 1.0\]
+- **Age decay:** exponential half-life: `exp(-ln(2) × age_days / half_life_days)`. Age measured
+  from `valid_from` (real-world time), not `recorded_at` (database time)
+- **Predicate volatility registry:** per-predicate half-life in days. `f64::INFINITY` = stable
+  (no decay). Unregistered predicates default to stable
+- **Source authority weights:** per-source multiplier \[0.0, 2.0\]. `1.0` = neutral. Unknown = 1.0
+- **API:**
+  - `register_predicate_volatility(predicate, volatility)` — persist to redb + update in-memory
+  - `register_source_weight(source, weight)` — persist to redb + update in-memory
+  - `predicate_volatility(predicate) -> Option<PredicateVolatility>` — query current registration
+  - `source_weight(source) -> Option<SourceWeight>` — query current registration
+  - `effective_confidence(fact, at) -> EffectiveConfidence` — query-time computation
+  - `assert_fact_with_source(subject, predicate, object, valid_from, confidence, source)` — store with provenance
+- **Hybrid integration:** when both `uncertainty` and `hybrid-experimental` features are enabled,
+  the two-stage reranker uses per-predicate decay instead of the hardcoded 365-day half-life
+- **`agent-memory` integration:** `open()` auto-registers default volatilities (`works_at`: 730d,
+  `job_title`: 730d, `lives_in`: 1095d, `email`: 1460d, `phone`: 1095d, `born_in`: stable,
+  `full_name`: stable). `assert_with_source()`, `register_volatility()`, `register_source_weight()`
+  convenience methods. `RecallScore.effective_confidence` populated automatically
 
 ## Rust / redb Gotchas
 

@@ -42,6 +42,11 @@ pub use contradiction::{
     ConflictPolicy, ConflictSeverity, Contradiction, PredicateCardinality, SuggestedResolution,
 };
 
+#[cfg(feature = "uncertainty")]
+mod uncertainty;
+#[cfg(feature = "uncertainty")]
+pub use uncertainty::{EffectiveConfidence, PredicateVolatility, SourceWeight};
+
 use chrono::{DateTime, Utc};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
@@ -280,6 +285,16 @@ impl Fact {
         self
     }
 
+    /// Return a copy with the given source provenance marker.
+    ///
+    /// Source identifies where the fact came from (e.g. `"user:alice"`,
+    /// `"api:openai"`, `"episode:conv-42"`). Used by the uncertainty model
+    /// for authority weighting when the `uncertainty` feature is enabled.
+    pub fn with_source(mut self, source: impl Into<String>) -> Self {
+        self.source = Some(source.into());
+        self
+    }
+
     /// Is this fact currently valid (valid time is open, not expired)?
     pub fn is_currently_valid(&self) -> bool {
         self.valid_to.is_none() && self.expired_at.is_none()
@@ -337,6 +352,18 @@ const IDEMPOTENCY: TableDefinition<&str, &str> = TableDefinition::new("idempoten
 #[cfg(feature = "contradiction")]
 const PREDICATE_REGISTRY: TableDefinition<&str, &str> = TableDefinition::new("predicate_registry");
 
+/// Per-predicate volatility registry (half-life in days).
+/// Key: predicate name. Value: JSON-encoded `PredicateVolatility`.
+#[cfg(feature = "uncertainty")]
+const VOLATILITY_REGISTRY: TableDefinition<&str, &str> =
+    TableDefinition::new("volatility_registry");
+
+/// Per-source authority weights.
+/// Key: source string. Value: JSON-encoded `SourceWeight`.
+#[cfg(feature = "uncertainty")]
+const SOURCE_WEIGHT_REGISTRY: TableDefinition<&str, &str> =
+    TableDefinition::new("source_weight_registry");
+
 /// Raw little-endian f32 bytes keyed by fact_id string.
 /// Written atomically alongside the fact row in `assert_fact_with_embedding`.
 #[cfg(feature = "vector")]
@@ -377,6 +404,8 @@ pub struct TemporalGraph {
     vector_index: std::sync::Mutex<vector::VectorIndex>,
     #[cfg(feature = "contradiction")]
     contradiction_detector: std::sync::Mutex<contradiction::ContradictionDetector>,
+    #[cfg(feature = "uncertainty")]
+    uncertainty_engine: std::sync::Mutex<uncertainty::UncertaintyEngine>,
 }
 
 impl TemporalGraph {
@@ -412,6 +441,11 @@ impl TemporalGraph {
             #[cfg(feature = "contradiction")]
             {
                 write_txn.open_table(PREDICATE_REGISTRY)?;
+            }
+            #[cfg(feature = "uncertainty")]
+            {
+                write_txn.open_table(VOLATILITY_REGISTRY)?;
+                write_txn.open_table(SOURCE_WEIGHT_REGISTRY)?;
             }
 
             // Stamp or verify the schema version.  Extract to owned before any
@@ -463,12 +497,46 @@ impl TemporalGraph {
             }
             std::sync::Mutex::new(det)
         };
+        #[cfg(feature = "uncertainty")]
+        let uncertainty_engine = {
+            let mut engine = uncertainty::UncertaintyEngine::new();
+            let read_txn = db.begin_read()?;
+            if let Ok(vol_table) = read_txn.open_table(VOLATILITY_REGISTRY) {
+                for entry in vol_table.iter()? {
+                    let (k, v) = entry?;
+                    let vol: uncertainty::PredicateVolatility = serde_json::from_str(v.value())
+                        .map_err(|e| {
+                            KronroeError::Storage(format!(
+                                "invalid volatility registry entry for predicate '{}': {e}",
+                                k.value()
+                            ))
+                        })?;
+                    engine.register_volatility(k.value(), vol);
+                }
+            }
+            if let Ok(sw_table) = read_txn.open_table(SOURCE_WEIGHT_REGISTRY) {
+                for entry in sw_table.iter()? {
+                    let (k, v) = entry?;
+                    let sw: uncertainty::SourceWeight =
+                        serde_json::from_str(v.value()).map_err(|e| {
+                            KronroeError::Storage(format!(
+                                "invalid source-weight registry entry for source '{}': {e}",
+                                k.value()
+                            ))
+                        })?;
+                    engine.register_source_weight(k.value(), sw);
+                }
+            }
+            std::sync::Mutex::new(engine)
+        };
         Ok(Self {
             db,
             #[cfg(feature = "vector")]
             vector_index,
             #[cfg(feature = "contradiction")]
             contradiction_detector,
+            #[cfg(feature = "uncertainty")]
+            uncertainty_engine,
         })
     }
 
@@ -530,6 +598,7 @@ impl TemporalGraph {
         object: Value,
         valid_from: DateTime<Utc>,
         confidence: f32,
+        source: Option<&str>,
     ) -> Result<FactId> {
         let confidence = if confidence.is_finite() {
             confidence.clamp(0.0, 1.0)
@@ -539,7 +608,11 @@ impl TemporalGraph {
             ));
         };
 
-        let fact = Fact::new(subject, predicate, object, valid_from).with_confidence(confidence);
+        let mut fact =
+            Fact::new(subject, predicate, object, valid_from).with_confidence(confidence);
+        if let Some(src) = source {
+            fact = fact.with_source(src);
+        }
         let fact_id = fact.id.clone();
         let key = format!("{}:{}:{}", subject, predicate, fact.id);
         let value = serde_json::to_string(&fact)?;
@@ -572,6 +645,7 @@ impl TemporalGraph {
             object.into(),
             valid_from,
             1.0,
+            None,
         )?;
         write_txn.commit()?;
         Ok(fact_id)
@@ -599,6 +673,37 @@ impl TemporalGraph {
             object.into(),
             valid_from,
             confidence,
+            None,
+        )?;
+        write_txn.commit()?;
+        Ok(fact_id)
+    }
+
+    /// Assert a new fact with explicit confidence and source provenance.
+    ///
+    /// Like [`assert_fact_with_confidence`] but also records where the fact
+    /// came from. The source string is free-form (e.g. `"user:alice"`,
+    /// `"api:weather"`, `"episode:conv-42"`).
+    ///
+    /// [`assert_fact_with_confidence`]: TemporalGraph::assert_fact_with_confidence
+    pub fn assert_fact_with_source(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+        valid_from: DateTime<Utc>,
+        confidence: f32,
+        source: &str,
+    ) -> Result<FactId> {
+        let write_txn = self.db.begin_write()?;
+        let fact_id = Self::write_fact_in_txn(
+            &write_txn,
+            subject,
+            predicate,
+            object.into(),
+            valid_from,
+            confidence,
+            Some(source),
         )?;
         write_txn.commit()?;
         Ok(fact_id)
@@ -653,6 +758,7 @@ impl TemporalGraph {
             object.into(),
             valid_from,
             1.0,
+            None,
         )?;
 
         {
@@ -1058,8 +1164,9 @@ impl TemporalGraph {
         }
 
         // Write the fact inside the same transaction.
-        let fact_id =
-            Self::write_fact_in_txn(&write_txn, subject, predicate, object, valid_from, 1.0)?;
+        let fact_id = Self::write_fact_in_txn(
+            &write_txn, subject, predicate, object, valid_from, 1.0, None,
+        )?;
         write_txn.commit()?;
 
         // Patch contradictions so conflicting_fact_id points to the
@@ -1149,6 +1256,7 @@ impl TemporalGraph {
             object.into(),
             valid_from,
             1.0,
+            None,
         )?;
 
         // --- embedding bytes (little-endian f32) ---
@@ -1385,13 +1493,26 @@ impl TemporalGraph {
         }
 
         // ── Stages 1+2: Two-stage reranker ──────────────────────────────
-        Ok(hybrid::rerank_two_stage(
-            resolved,
-            params.k,
-            params.intent,
-            params.operator,
-            at,
-        ))
+        #[cfg(feature = "uncertainty")]
+        let reranked = {
+            let engine = self
+                .uncertainty_engine
+                .lock()
+                .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+            hybrid::rerank_two_stage_with_uncertainty(
+                resolved,
+                params.k,
+                params.intent,
+                params.operator,
+                at,
+                &engine,
+            )
+        };
+        #[cfg(not(feature = "uncertainty"))]
+        let reranked =
+            hybrid::rerank_two_stage(resolved, params.k, params.intent, params.operator, at);
+
+        Ok(reranked)
     }
 
     // Internal: scan facts table, filter by prefix, apply predicate.
@@ -1483,6 +1604,107 @@ impl TemporalGraph {
             })
             .collect();
         BooleanQuery::new(terms)
+    }
+
+    // -----------------------------------------------------------------------
+    // Uncertainty model
+    // -----------------------------------------------------------------------
+
+    /// Register a volatility profile for a predicate.
+    ///
+    /// Facts with this predicate will decay in effective confidence over time
+    /// according to the half-life. For example, `works_at` with a 730-day
+    /// half-life means after 2 years the age-decay multiplier is 0.5.
+    ///
+    /// The registration is persisted to the database and survives restarts.
+    #[cfg(feature = "uncertainty")]
+    pub fn register_predicate_volatility(
+        &self,
+        predicate: &str,
+        volatility: uncertainty::PredicateVolatility,
+    ) -> Result<()> {
+        let encoded = serde_json::to_string(&volatility)?;
+        let write_txn = self.db.begin_write()?;
+        {
+            let mut table = write_txn.open_table(VOLATILITY_REGISTRY)?;
+            table.insert(predicate, encoded.as_str())?;
+        }
+        write_txn.commit()?;
+        let mut engine = self
+            .uncertainty_engine
+            .lock()
+            .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+        engine.register_volatility(predicate, volatility);
+        Ok(())
+    }
+
+    /// Return the configured volatility for a predicate, if any.
+    #[cfg(feature = "uncertainty")]
+    pub fn predicate_volatility(
+        &self,
+        predicate: &str,
+    ) -> Result<Option<uncertainty::PredicateVolatility>> {
+        let engine = self
+            .uncertainty_engine
+            .lock()
+            .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+        Ok(engine.volatility_for(predicate).cloned())
+    }
+
+    /// Register an authority weight for a source identifier.
+    ///
+    /// Facts with this source will have their effective confidence multiplied
+    /// by the weight. Values > 1.0 boost (trusted source), < 1.0 penalise.
+    ///
+    /// The registration is persisted to the database and survives restarts.
+    #[cfg(feature = "uncertainty")]
+    pub fn register_source_weight(
+        &self,
+        source: &str,
+        weight: uncertainty::SourceWeight,
+    ) -> Result<()> {
+        let encoded = serde_json::to_string(&weight)?;
+        let write_txn = self.db.begin_write()?;
+        {
+            let mut table = write_txn.open_table(SOURCE_WEIGHT_REGISTRY)?;
+            table.insert(source, encoded.as_str())?;
+        }
+        write_txn.commit()?;
+        let mut engine = self
+            .uncertainty_engine
+            .lock()
+            .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+        engine.register_source_weight(source, weight);
+        Ok(())
+    }
+
+    /// Return the configured source weight, if any.
+    #[cfg(feature = "uncertainty")]
+    pub fn source_weight(&self, source: &str) -> Result<Option<uncertainty::SourceWeight>> {
+        let engine = self
+            .uncertainty_engine
+            .lock()
+            .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+        Ok(engine.source_weight_for(source).cloned())
+    }
+
+    /// Compute the effective confidence of a fact at a given point in time.
+    ///
+    /// Effective confidence = base confidence × age decay × source weight,
+    /// clamped to \[0.0, 1.0\]. Age is measured from `valid_from`.
+    ///
+    /// Returns an [`EffectiveConfidence`] with the final value and breakdown.
+    #[cfg(feature = "uncertainty")]
+    pub fn effective_confidence(
+        &self,
+        fact: &Fact,
+        at: DateTime<Utc>,
+    ) -> Result<uncertainty::EffectiveConfidence> {
+        let engine = self
+            .uncertainty_engine
+            .lock()
+            .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+        Ok(engine.effective_confidence(fact, at))
     }
 }
 
@@ -2420,5 +2642,181 @@ mod tests {
             "default confidence should be 1.0, got {}",
             fact.confidence,
         );
+    }
+
+    #[test]
+    fn fact_with_source_builder() {
+        let fact = Fact::new("alice", "works_at", "Acme", Utc::now()).with_source("user:rebekah");
+        assert_eq!(fact.source.as_deref(), Some("user:rebekah"));
+    }
+
+    #[test]
+    fn assert_fact_with_source_round_trip() {
+        let (db, _tmp) = open_temp_db();
+        let id = db
+            .assert_fact_with_source("alice", "works_at", "Acme", Utc::now(), 0.9, "api:openai")
+            .unwrap();
+        let fact = db.fact_by_id(&id).unwrap();
+        assert_eq!(fact.source.as_deref(), Some("api:openai"));
+        assert!((fact.confidence - 0.9).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn assert_fact_default_source_is_none() {
+        let (db, _tmp) = open_temp_db();
+        let id = db
+            .assert_fact("alice", "works_at", "Acme", Utc::now())
+            .unwrap();
+        let fact = db.fact_by_id(&id).unwrap();
+        assert!(fact.source.is_none(), "default source should be None");
+    }
+
+    #[test]
+    #[cfg(feature = "uncertainty")]
+    fn predicate_volatility_and_source_weight_accessors() {
+        use crate::{PredicateVolatility, SourceWeight};
+
+        let (db, _tmp) = open_temp_db();
+        db.register_predicate_volatility("works_at", PredicateVolatility::new(730.0))
+            .unwrap();
+        db.register_source_weight("user:owner", SourceWeight::new(1.2))
+            .unwrap();
+
+        let vol = db.predicate_volatility("works_at").unwrap();
+        assert_eq!(
+            vol.expect("volatility should be registered").half_life_days,
+            730.0
+        );
+        let sw = db.source_weight("user:owner").unwrap();
+        assert_eq!(sw.expect("source weight should be registered").weight, 1.2);
+    }
+
+    #[test]
+    #[cfg(feature = "uncertainty")]
+    fn register_volatility_persists() {
+        use crate::PredicateVolatility;
+
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        {
+            let db = TemporalGraph::open(&path).unwrap();
+            db.register_predicate_volatility("works_at", PredicateVolatility::new(730.0))
+                .unwrap();
+        }
+        // Reopen — volatility should survive.
+        let db = TemporalGraph::open(&path).unwrap();
+        let fact = db
+            .assert_fact("alice", "works_at", "Acme", Utc::now())
+            .unwrap();
+        let f = db.fact_by_id(&fact).unwrap();
+        let eff = db.effective_confidence(&f, Utc::now()).unwrap();
+        // Fresh fact + 730d half-life → decay ≈ 1.0
+        assert!(
+            eff.age_decay > 0.99,
+            "fresh fact should have decay near 1.0, got {}",
+            eff.age_decay
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "uncertainty")]
+    fn register_source_weight_persists() {
+        use crate::SourceWeight;
+
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        {
+            let db = TemporalGraph::open(&path).unwrap();
+            db.register_source_weight("user:owner", SourceWeight::new(1.5))
+                .unwrap();
+        }
+        let db = TemporalGraph::open(&path).unwrap();
+        let id = db
+            .assert_fact_with_source("alice", "works_at", "Acme", Utc::now(), 0.8, "user:owner")
+            .unwrap();
+        let f = db.fact_by_id(&id).unwrap();
+        let eff = db.effective_confidence(&f, Utc::now()).unwrap();
+        // 0.8 * 1.0 (fresh) * 1.5 = 1.2, clamped to 1.0
+        assert!(
+            (eff.value - 1.0).abs() < 1e-6,
+            "high source weight should boost to 1.0, got {}",
+            eff.value
+        );
+        assert!((eff.source_weight - 1.5).abs() < 1e-6);
+    }
+
+    #[test]
+    #[cfg(feature = "uncertainty")]
+    fn effective_confidence_query_time() {
+        use crate::PredicateVolatility;
+
+        let (db, _tmp) = open_temp_db();
+        db.register_predicate_volatility("works_at", PredicateVolatility::new(365.0))
+            .unwrap();
+        // Fact from 1 year ago.
+        let one_year_ago = Utc::now() - chrono::Duration::days(365);
+        let id = db
+            .assert_fact("alice", "works_at", "Acme", one_year_ago)
+            .unwrap();
+        let f = db.fact_by_id(&id).unwrap();
+        let eff = db.effective_confidence(&f, Utc::now()).unwrap();
+        // At exactly one half-life: decay ≈ 0.5, base = 1.0 → effective ≈ 0.5
+        assert!(
+            (eff.value - 0.5).abs() < 0.02,
+            "at half-life, expected ~0.5, got {}",
+            eff.value
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "uncertainty")]
+    fn init_rejects_corrupted_volatility_registry_entry() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        {
+            let db = TemporalGraph::open(&path).unwrap();
+            let write_txn = db.db.begin_write().unwrap();
+            {
+                let mut vol_table = write_txn.open_table(VOLATILITY_REGISTRY).unwrap();
+                vol_table.insert("broken", "not-json").unwrap();
+            }
+            write_txn.commit().unwrap();
+        }
+
+        match TemporalGraph::open(&path) {
+            Err(KronroeError::Storage(msg)) => {
+                assert!(msg.contains("invalid volatility registry"));
+            }
+            Err(err) => {
+                panic!("expected Storage error for corrupted volatility registry, got {err:?}")
+            }
+            Ok(_) => panic!("expected reopen to fail with corrupted volatility registry"),
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "uncertainty")]
+    fn init_rejects_corrupted_source_weight_registry_entry() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        {
+            let db = TemporalGraph::open(&path).unwrap();
+            let write_txn = db.db.begin_write().unwrap();
+            {
+                let mut sw_table = write_txn.open_table(SOURCE_WEIGHT_REGISTRY).unwrap();
+                sw_table.insert("trusted-api", "not-json").unwrap();
+            }
+            write_txn.commit().unwrap();
+        }
+
+        match TemporalGraph::open(&path) {
+            Err(KronroeError::Storage(msg)) => {
+                assert!(msg.contains("invalid source-weight registry"));
+            }
+            Err(err) => {
+                panic!("expected Storage error for corrupted source-weight registry, got {err:?}")
+            }
+            Ok(_) => panic!("expected reopen to fail with corrupted source-weight registry"),
+        }
     }
 }
