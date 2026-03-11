@@ -128,9 +128,9 @@ Additional fact metadata fields:
 |------|-------------|
 | `AgentMemory` | High-level API for AI agent use cases. Wraps `TemporalGraph`. |
 | `AssertParams` | Optional assertion parameters for explicit valid-time control. |
-| `RecallOptions` | Query options struct: `query`, `query_embedding`, `limit` (default 10), `min_confidence` filter, `confidence_filter_mode`. `#[non_exhaustive]` + builder methods (`with_min_confidence`, `with_min_effective_confidence`, `with_max_scored_rows`). |
+| `RecallOptions` | Query options struct: `query`, `query_embedding`, `limit` (default 10), `min_confidence` filter, `confidence_filter_mode`. `#[non_exhaustive]` + builder methods (`with_min_confidence`, `with_min_effective_confidence` (feature: uncertainty), `with_max_scored_rows`). |
 | `RecallScore` | Per-channel signal breakdown: `Hybrid { rrf_score, text_contrib, vector_contrib, confidence, effective_confidence }` \| `TextOnly { rank, bm25_score, confidence, effective_confidence }` |
-| `ConfidenceFilterMode` | `Base` (raw fact confidence) \| `Effective` (uncertainty-aware). Used by `RecallOptions` to select filtering signal. |
+| `ConfidenceFilterMode` | `Base` (raw fact confidence) \| `Effective` (uncertainty-aware, feature: uncertainty). Used by `RecallOptions` to select filtering signal. |
 
 Phase 1 methods are implemented (`remember`, `recall`, `recall_scored`, `recall_with_options`, `recall_scored_with_options`, `assert_with_confidence`, `assert_with_source`, `assemble_context`).
 Uncertainty methods (`register_volatility`, `register_source_weight`, `effective_confidence_for_fact`, `recall_scored_with_min_effective_confidence`) available with `uncertainty` feature.

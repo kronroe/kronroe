@@ -167,7 +167,11 @@ impl RecallScore {
 pub enum ConfidenceFilterMode {
     /// Filter using raw fact confidence.
     Base,
-    /// Filter using effective confidence (uncertainty-aware) if available.
+    /// Filter using effective confidence (uncertainty-aware).
+    ///
+    /// Only available when the `uncertainty` feature is enabled. Attempting to
+    /// construct this variant without the feature is a compile-time error.
+    #[cfg(feature = "uncertainty")]
     Effective,
 }
 
@@ -244,6 +248,9 @@ impl<'a> RecallOptions<'a> {
     ///
     /// Effective confidence is calculated as:
     /// `base_confidence × age_decay × source_weight`.
+    ///
+    /// Only available when the `uncertainty` feature is enabled.
+    #[cfg(feature = "uncertainty")]
     pub fn with_min_effective_confidence(mut self, min: f32) -> Self {
         self.min_confidence = Some(min);
         self.confidence_filter_mode = ConfidenceFilterMode::Effective;
@@ -617,6 +624,9 @@ impl AgentMemory {
     ///
     /// Equivalent to [`recall_scored_with_options`](Self::recall_scored_with_options)
     /// with only `limit` and `with_min_effective_confidence` set.
+    ///
+    /// Only available when the `uncertainty` feature is enabled.
+    #[cfg(feature = "uncertainty")]
     pub fn recall_scored_with_min_effective_confidence(
         &self,
         query: &str,
@@ -708,6 +718,7 @@ impl AgentMemory {
     ) -> Result<Vec<(Fact, RecallScore)>> {
         let score_for_filter = |score: &RecallScore| match opts.confidence_filter_mode {
             ConfidenceFilterMode::Base => score.confidence(),
+            #[cfg(feature = "uncertainty")]
             ConfidenceFilterMode::Effective => score
                 .effective_confidence()
                 .unwrap_or_else(|| score.confidence()),
