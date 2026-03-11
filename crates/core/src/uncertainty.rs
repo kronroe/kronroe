@@ -183,6 +183,18 @@ where
         {
             Ok(SourceWeight::new(value as f32).weight)
         }
+
+        fn visit_str<E>(self, value: &str) -> Result<f32, E>
+        where
+            E: de::Error,
+        {
+            let parsed = value.parse::<f32>().map_err(|_| {
+                E::custom(format!(
+                    "invalid source weight string '{value}'; expected a finite number"
+                ))
+            })?;
+            Ok(SourceWeight::new(parsed).weight)
+        }
     }
 
     deserializer.deserialize_any(SourceWeightVisitor)

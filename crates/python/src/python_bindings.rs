@@ -453,14 +453,15 @@ impl PyAgentMemory {
         .map_err(to_py_err)
     }
 
+    #[pyo3(signature = (entity, predicate, at))]
     fn facts_about_at(
         &self,
         py: Python<'_>,
         entity: &str,
         predicate: &str,
-        at_rfc3339: &str,
+        at: &str,
     ) -> PyResult<Vec<Py<PyDict>>> {
-        let at = at_rfc3339
+        let at = at
             .parse()
             .map_err(|_| PyValueError::new_err("invalid RFC3339 datetime"))?;
         let entity = entity.to_owned();

@@ -217,6 +217,10 @@ pub(crate) fn intent_gated_temporal_signal_with_uncertainty(
     at: Option<DateTime<Utc>>,
     engine: &crate::uncertainty::UncertaintyEngine,
 ) -> f64 {
+    if matches!(intent, TemporalIntent::Timeless) {
+        return 0.0;
+    }
+
     let t = at.unwrap_or_else(Utc::now);
     let eff = engine.effective_confidence(fact, t);
     let conf = eff.value.clamp(0.2, 1.0) as f64;

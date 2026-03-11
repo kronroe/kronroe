@@ -14,9 +14,23 @@ else
   cargo build -p kronroe-py
 fi
 
-MODULE_DYLIB="${REPO_ROOT}/target/debug/deps/libkronroe.dylib"
+case "$(uname -s)" in
+  Darwin) LIB_EXT="dylib" ;;
+  *) LIB_EXT="so" ;;
+esac
+
+MODULE_DYLIB="${REPO_ROOT}/target/debug/deps/libkronroe.${LIB_EXT}"
 if [[ ! -f "${MODULE_DYLIB}" ]]; then
-  echo "Expected extension artifact not found: ${MODULE_DYLIB}" >&2
+  MODULE_DYLIB="${REPO_ROOT}/target/debug/libkronroe.${LIB_EXT}"
+fi
+if [[ ! -f "${MODULE_DYLIB}" ]]; then
+  MODULE_DYLIB="$(
+    find "${REPO_ROOT}/target/debug" -maxdepth 3 -type f -name "libkronroe.${LIB_EXT}" 2>/dev/null \
+      | head -n 1
+  )"
+fi
+if [[ -z "${MODULE_DYLIB:-}" || ! -f "${MODULE_DYLIB}" ]]; then
+  echo "Expected extension artifact not found (libkronroe.${LIB_EXT}) under target/debug" >&2
   exit 1
 fi
 
