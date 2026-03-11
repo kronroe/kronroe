@@ -13,8 +13,12 @@ thread_local! {
 }
 
 fn set_last_error(msg: String) {
+    // Strip null bytes so CString::new never fails — a null byte in an error
+    // message would otherwise silently drop the entire error (CString::new
+    // returns Err, .ok() yields None, and the caller sees "no error").
+    let sanitized = msg.replace('\0', "\\0");
     LAST_ERROR.with(|cell| {
-        *cell.borrow_mut() = CString::new(msg).ok();
+        *cell.borrow_mut() = CString::new(sanitized).ok();
     });
 }
 
@@ -347,6 +351,21 @@ mod tests {
             msg.contains("graph handle is null"),
             "expected null-handle error, got: {msg}"
         );
+        unsafe { kronroe_string_free(msg_ptr) };
+    }
+
+    #[test]
+    fn ffi_last_error_sanitizes_null_bytes() {
+        clear_last_error();
+        set_last_error("broken\0message".to_string());
+
+        let msg_ptr = kronroe_last_error_message();
+        assert!(!msg_ptr.is_null(), "error message should be present");
+        let msg = unsafe { CStr::from_ptr(msg_ptr) }
+            .to_str()
+            .expect("valid utf8");
+        assert_eq!(msg, "broken\\0message");
+
         unsafe { kronroe_string_free(msg_ptr) };
     }
 }

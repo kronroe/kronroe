@@ -486,13 +486,17 @@ impl TemporalGraph {
                 for entry in reg_table.iter()? {
                     let (k, v) = entry?;
                     let predicate = k.value().to_string();
-                    if let Ok((cardinality, policy)) = serde_json::from_str::<(
+                    let (cardinality, policy) = serde_json::from_str::<(
                         contradiction::PredicateCardinality,
                         contradiction::ConflictPolicy,
                     )>(v.value())
-                    {
-                        det.register(&predicate, cardinality, policy);
-                    }
+                    .map_err(|e| {
+                        KronroeError::Storage(format!(
+                            "invalid predicate registry entry for '{}': {e}",
+                            predicate
+                        ))
+                    })?;
+                    det.register(&predicate, cardinality, policy);
                 }
             }
             std::sync::Mutex::new(det)
@@ -861,7 +865,8 @@ impl TemporalGraph {
         }
     }
 
-    /// Invalidate a fact by setting its `valid_to` timestamp.
+    /// Invalidate a fact by closing both its valid-time and transaction-time
+    /// windows (sets `valid_to` and `expired_at` to `at`).
     ///
     /// The fact is not deleted — its history is preserved. After invalidation,
     /// the fact will no longer appear in `current_facts()` but will still be
@@ -2817,6 +2822,32 @@ mod tests {
                 panic!("expected Storage error for corrupted source-weight registry, got {err:?}")
             }
             Ok(_) => panic!("expected reopen to fail with corrupted source-weight registry"),
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "contradiction")]
+    fn init_rejects_corrupted_predicate_registry_entry() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        {
+            let db = TemporalGraph::open(&path).unwrap();
+            let write_txn = db.db.begin_write().unwrap();
+            {
+                let mut table = write_txn.open_table(PREDICATE_REGISTRY).unwrap();
+                table.insert("works_at", "not-json").unwrap();
+            }
+            write_txn.commit().unwrap();
+        }
+
+        match TemporalGraph::open(&path) {
+            Err(KronroeError::Storage(msg)) => {
+                assert!(msg.contains("invalid predicate registry"));
+            }
+            Err(err) => {
+                panic!("expected Storage error for corrupted predicate registry, got {err:?}")
+            }
+            Ok(_) => panic!("expected reopen to fail with corrupted predicate registry"),
         }
     }
 }
