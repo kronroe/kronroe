@@ -26,7 +26,7 @@ kronroe/
 │   ├── agent-memory/   # `kronroe-agent-memory` crate — AgentMemory API
 │   ├── ios/            # `kronroe-ios` crate — C FFI staticlib + cbindgen header + Swift Package
 │   ├── android/        # `kronroe-android` crate — JNI cdylib + Kotlin wrapper
-│   ├── mcp-server/     # `kronroe-mcp` binary — stdio MCP server (5 tools)
+│   ├── mcp-server/     # `kronroe-mcp` binary — stdio MCP server (8 tools)
 │   ├── python/         # `kronroe-py` crate — PyO3 bindings
 │   └── wasm/           # `kronroe-wasm` crate — WebAssembly bindings (browser)
 ├── packages/
@@ -128,12 +128,14 @@ Additional fact metadata fields:
 |------|-------------|
 | `AgentMemory` | High-level API for AI agent use cases. Wraps `TemporalGraph`. |
 | `AssertParams` | Optional assertion parameters for explicit valid-time control. |
-| `RecallOptions` | Query options struct: `query`, `query_embedding`, `limit` (default 10), `min_confidence` filter, `confidence_filter_mode`. `#[non_exhaustive]` + builder methods (`with_min_confidence`, `with_min_effective_confidence`, `with_max_scored_rows`). |
+| `RecallOptions` | Query options struct: `query`, `query_embedding`, `limit` (default 10), `min_confidence` filter, `confidence_filter_mode`. `#[non_exhaustive]` + builder methods (`with_min_confidence`, `with_min_effective_confidence` (feature: uncertainty), `with_max_scored_rows`). |
 | `RecallScore` | Per-channel signal breakdown: `Hybrid { rrf_score, text_contrib, vector_contrib, confidence, effective_confidence }` \| `TextOnly { rank, bm25_score, confidence, effective_confidence }` |
-| `ConfidenceFilterMode` | `Base` (raw fact confidence) \| `Effective` (uncertainty-aware). Used by `RecallOptions` to select filtering signal. |
+| `ConfidenceFilterMode` | `Base` (raw fact confidence) \| `Effective` (uncertainty-aware, feature: uncertainty). Used by `RecallOptions` to select filtering signal. |
 
-Phase 1 methods are implemented (`remember`, `recall`, `recall_scored`, `recall_with_options`, `recall_scored_with_options`, `assert_with_confidence`, `assert_with_source`, `assemble_context`).
+Phase 1 methods are implemented (`remember`, `recall`, `recall_scored`, `recall_with_options`, `recall_scored_with_options`, `assert_with_confidence`, `assert_with_source`, `assemble_context`, `invalidate_fact`).
+`_with_params` variants (`assert_with_params`, `assert_idempotent_with_params`, `assert_with_confidence_with_params`, `assert_with_source_with_params`) accept `AssertParams { valid_from }` for explicit temporal control.
 Uncertainty methods (`register_volatility`, `register_source_weight`, `effective_confidence_for_fact`, `recall_scored_with_min_effective_confidence`) available with `uncertainty` feature.
+Hybrid recall: `RecallOptions` has `use_hybrid`, `temporal_intent`, `temporal_operator` fields (feature: hybrid) for two-stage reranker control.
 Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memory.rs`.
 
 ### Key Types (`crates/python`)
@@ -141,7 +143,7 @@ Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memo
 | Type | Description |
 |------|-------------|
 | `KronroeDb` | Python class wrapping `TemporalGraph` — exposes `open`, `assert_fact`, `search` |
-| `AgentMemory` | Python class wrapping `AgentMemory` — high-level agent API |
+| `AgentMemory` | Python class wrapping `AgentMemory` — exposes `open`, `assert_fact`, `assert_with_confidence`, `recall`, `recall_scored`, `assemble_context`, `correct_fact`, `invalidate_fact`, `facts_about` |
 
 ### Storage
 
@@ -218,21 +220,34 @@ Future crates will layer on top.
 - `python-publish.yml` publishes to PyPI via trusted publisher on release publish/workflow dispatch
 - macOS wheel build temporarily disabled in CI — add macOS runner to `python-wheels.yml` when needed
 - `fact_to_dict()` serialises all `Fact` fields (including all four timestamps) to Python dicts
+- **Dual test architecture:** `extension-module` feature for maturin builds, `python-runtime-tests`
+  feature with `pyo3/auto-initialize` for embedded interpreter tests (mutually exclusive)
+- **Test scripts:** `scripts/run_runtime_smoke.sh` (builds extension, runs Python smoke test),
+  `scripts/run_rust_runtime_tests.sh` (embedded interpreter Rust-side tests with DYLD setup)
+- All I/O methods use `py.allow_threads()` to release the GIL during redb operations
+- Feature gating: `hybrid` and `uncertainty` features properly gated — returns `PyRuntimeError`
+  when unavailable features are requested from Python
 
 ### MCP Server Notes (`crates/mcp-server`)
 
 - Stdio transport with LSP-style `Content-Length` framing — works with any MCP client
-- Tools:
+- **Wraps `AgentMemory`** (not raw `TemporalGraph`) — inherits scored recall, context assembly,
+  contradiction/uncertainty auto-registration, and all Phase 1 agent features
+- Tools (8):
   - `remember` (stores free-text as facts via tantivy parse)
-  - `recall` (full-text search, returns structured fact list)
+  - `recall` (full-text search with optional confidence filtering, hybrid mode, temporal intent)
+  - `recall_scored` (recall with per-result signal breakdown: RRF/BM25 scores, confidence, effective confidence)
+  - `assemble_context` (LLM-ready text assembly with token budget)
   - `facts_about` (fact lookup scoped to an entity)
-  - `assert_fact` (structured fact assertion with optional idempotency key)
+  - `assert_fact` (structured assertion with optional confidence, source, idempotency key, valid_from)
   - `correct_fact` (in-place correction preserving history semantics)
+  - `invalidate_fact` (retire a fact by ID)
 - Database path: `KRONROE_MCP_DB_PATH` env var (default: `./kronroe-mcp.kronroe`)
 - Install binary: `cargo install --path crates/mcp-server`
 - **npm shim** (`packages/kronroe-mcp`): `npx kronroe-mcp` — delegates to binary on PATH
 - **pip shim** (`python/kronroe-mcp`): `pip install .` then `kronroe-mcp`; respects
   `KRONROE_MCP_BIN` env var to point at a custom binary location
+- Feature flags: `hybrid` (temporal intent + hybrid recall), `uncertainty` (effective confidence in scores)
 
 ### Vector Index Notes (`crates/core`, feature: `vector`)
 

@@ -9,8 +9,11 @@ from kronroe import AgentMemory
 
 memory = AgentMemory.open("./my-agent.kronroe")
 memory.assert_fact("alice", "works_at", "Acme")
-results = memory.search("where does Alice work?", 10)
+results = memory.recall("where does Alice work?", limit=10)
+scored = memory.recall_scored("where does Alice work?", limit=10)
+memory.assert_with_confidence("alice", "works_at", "Acme", 0.95, "user:notes")
 print(results)
+print(scored)
 ```
 
 ## Local build
@@ -19,6 +22,23 @@ print(results)
 cd crates/python
 python -m pip install maturin
 maturin develop
+```
+
+## Runtime validation
+
+```bash
+# Python runtime smoke test (builds local extension with cargo, then executes tests/runtime_smoke.py)
+./scripts/run_runtime_smoke.sh
+
+# Rust-side embedded-interpreter tests (runs without extension-module feature)
+./scripts/run_rust_runtime_tests.sh
+```
+
+Optional feature toggles:
+
+```bash
+KRONROE_PY_FEATURES="hybrid uncertainty" ./scripts/run_runtime_smoke.sh
+KRONROE_PY_RUST_TEST_FEATURES="hybrid uncertainty" ./scripts/run_rust_runtime_tests.sh
 ```
 
 ## Publish flow

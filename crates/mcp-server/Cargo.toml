@@ -16,8 +16,14 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 chrono = { workspace = true }
 kronroe = { path = "../core" }
+kronroe-agent-memory = { path = "../agent-memory" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[features]
+default = []
+hybrid = ["kronroe-agent-memory/hybrid"]
+uncertainty = ["kronroe-agent-memory/uncertainty"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
