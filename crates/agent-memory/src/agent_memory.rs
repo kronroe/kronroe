@@ -362,6 +362,18 @@ impl AgentMemory {
         Ok(Self { graph })
     }
 
+    /// Create an in-memory agent memory store.
+    ///
+    /// Useful for tests, WASM/browser bindings, and ephemeral workloads.
+    pub fn open_in_memory() -> Result<Self> {
+        let graph = TemporalGraph::open_in_memory()?;
+        #[cfg(feature = "contradiction")]
+        Self::register_default_singletons(&graph)?;
+        #[cfg(feature = "uncertainty")]
+        Self::register_default_volatilities(&graph)?;
+        Ok(Self { graph })
+    }
+
     /// Store a structured fact with the current time as `valid_from`.
     ///
     /// Use this when you already know the structure of the fact.
