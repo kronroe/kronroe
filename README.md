@@ -128,6 +128,9 @@ db.invalidate_fact(&id, Utc::now())?;
 
 ## Capability Matrix
 
+For stability guarantees and compatibility expectations across features/surfaces, see
+[`docs/API-STABILITY-MATRIX.md`](./docs/API-STABILITY-MATRIX.md).
+
 ### Available (shipping in repo)
 
 | Capability | Where | Quick verification |
