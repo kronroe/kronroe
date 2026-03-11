@@ -609,6 +609,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "kronroe",
+ "kronroe-agent-memory",
  "serde",
  "serde_json",
  "tempfile",
@@ -622,6 +623,8 @@ dependencies = [
  "kronroe",
  "kronroe-agent-memory",
  "pyo3",
+ "pyo3-build-config",
+ "tempfile",
 ]
 
 [[package]]

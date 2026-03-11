@@ -14,7 +14,24 @@ path = "src/python_bindings.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-kronroe = { path = "../core" }
+kronroe-core = { package = "kronroe", path = "../core" }
 kronroe-agent-memory = { path = "../agent-memory" }
-pyo3 = { workspace = true }
+pyo3 = { version = "0.24", features = ["abi3-py39"] }
 chrono = { workspace = true }
+
+[features]
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
+python-runtime-tests = ["pyo3/auto-initialize"]
+hybrid = [
+    "kronroe-core/vector",
+    "kronroe-core/hybrid-experimental",
+    "kronroe-agent-memory/hybrid",
+]
+uncertainty = ["kronroe-core/uncertainty", "kronroe-agent-memory/uncertainty"]
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[build-dependencies]
+pyo3-build-config = "0.24"
