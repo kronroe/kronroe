@@ -486,13 +486,17 @@ impl TemporalGraph {
                 for entry in reg_table.iter()? {
                     let (k, v) = entry?;
                     let predicate = k.value().to_string();
-                    if let Ok((cardinality, policy)) = serde_json::from_str::<(
+                    let (cardinality, policy) = serde_json::from_str::<(
                         contradiction::PredicateCardinality,
                         contradiction::ConflictPolicy,
                     )>(v.value())
-                    {
-                        det.register(&predicate, cardinality, policy);
-                    }
+                    .map_err(|e| {
+                        KronroeError::Storage(format!(
+                            "invalid predicate registry entry for '{}': {e}",
+                            predicate
+                        ))
+                    })?;
+                    det.register(&predicate, cardinality, policy);
                 }
             }
             std::sync::Mutex::new(det)
@@ -861,7 +865,8 @@ impl TemporalGraph {
         }
     }
 
-    /// Invalidate a fact by setting its `valid_to` timestamp.
+    /// Invalidate a fact by closing both its valid-time and transaction-time
+    /// windows (sets `valid_to` and `expired_at` to `at`).
     ///
     /// The fact is not deleted — its history is preserved. After invalidation,
     /// the fact will no longer appear in `current_facts()` but will still be

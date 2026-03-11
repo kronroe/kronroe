@@ -13,8 +13,12 @@ thread_local! {
 }
 
 fn set_last_error(msg: String) {
+    // Strip null bytes so CString::new never fails — a null byte in an error
+    // message would otherwise silently drop the entire error (CString::new
+    // returns Err, .ok() yields None, and the caller sees "no error").
+    let sanitized = msg.replace('\0', "\\0");
     LAST_ERROR.with(|cell| {
-        *cell.borrow_mut() = CString::new(msg).ok();
+        *cell.borrow_mut() = CString::new(sanitized).ok();
     });
 }
 

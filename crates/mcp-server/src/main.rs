@@ -110,57 +110,83 @@ fn handle_request(state: &mut AppState, req: &JsonValue) -> Option<JsonValue> {
     let id = req.get("id").cloned();
     let method = req.get("method").and_then(JsonValue::as_str)?;
 
+    // Requests (as opposed to notifications) require an `id` field per JSON-RPC.
+    // Return an error with id=null rather than silently dropping the request.
+    let require_id = |id: &Option<JsonValue>, method: &str| -> Option<JsonValue> {
+        if id.is_none() {
+            Some(json!({
+                "jsonrpc": "2.0",
+                "id": null,
+                "error": {
+                    "code": -32600,
+                    "message": format!("request '{method}' is missing required 'id' field")
+                }
+            }))
+        } else {
+            None
+        }
+    };
+
     match method {
-        "initialize" => id.map(|id_val| {
-            json!({
-                "jsonrpc": "2.0",
-                "id": id_val,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": { "tools": {} },
-                    "serverInfo": { "name": "kronroe-mcp", "version": env!("CARGO_PKG_VERSION") }
-                }
-            })
-        }),
+        // Notifications have no id — do not guard them.
         "notifications/initialized" => None,
-        "tools/list" => id.map(|id_val| {
-            json!({
-                "jsonrpc": "2.0",
-                "id": id_val,
-                "result": {
-                    "tools": tools_schema()
-                }
-            })
-        }),
-        "tools/call" => id.map(|id_val| {
-            let result = call_tool(state, req.get("params"));
-            match result {
-                Ok(tool_result) => json!({
-                    "jsonrpc": "2.0",
-                    "id": id_val,
-                    "result": tool_result
+        // All other methods require id per JSON-RPC.
+        _ => {
+            if let Some(err) = require_id(&id, method) {
+                return Some(err);
+            }
+            match method {
+                "initialize" => id.map(|id_val| {
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id_val,
+                        "result": {
+                            "protocolVersion": "2024-11-05",
+                            "capabilities": { "tools": {} },
+                            "serverInfo": { "name": "kronroe-mcp", "version": env!("CARGO_PKG_VERSION") }
+                        }
+                    })
                 }),
-                Err(err) => json!({
-                    "jsonrpc": "2.0",
-                    "id": id_val,
-                    "result": {
-                        "content": [{ "type": "text", "text": format!("tool error: {err}") }],
-                        "isError": true
+                "tools/list" => id.map(|id_val| {
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id_val,
+                        "result": {
+                            "tools": tools_schema()
+                        }
+                    })
+                }),
+                "tools/call" => id.map(|id_val| {
+                    let result = call_tool(state, req.get("params"));
+                    match result {
+                        Ok(tool_result) => json!({
+                            "jsonrpc": "2.0",
+                            "id": id_val,
+                            "result": tool_result
+                        }),
+                        Err(err) => json!({
+                            "jsonrpc": "2.0",
+                            "id": id_val,
+                            "result": {
+                                "content": [{ "type": "text", "text": format!("tool error: {err}") }],
+                                "isError": true
+                            }
+                        }),
                     }
                 }),
+                "ping" => id.map(|id_val| json!({ "jsonrpc": "2.0", "id": id_val, "result": {} })),
+                _ => id.map(|id_val| {
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id_val,
+                        "error": {
+                            "code": -32601,
+                            "message": format!("method not found: {method}")
+                        }
+                    })
+                }),
             }
-        }),
-        "ping" => id.map(|id_val| json!({ "jsonrpc": "2.0", "id": id_val, "result": {} })),
-        _ => id.map(|id_val| {
-            json!({
-                "jsonrpc": "2.0",
-                "id": id_val,
-                "error": {
-                    "code": -32601,
-                    "message": format!("method not found: {method}")
-                }
-            })
-        }),
+        }
     }
 }
 
@@ -320,7 +346,7 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
                 .get("predicate")
                 .and_then(JsonValue::as_str)
                 .context("predicate is required")?;
-            let object = json_to_value(args.get("object").context("object is required")?);
+            let object = json_to_value(args.get("object").context("object is required")?)?;
             let valid_from = parse_valid_from(args.get("valid_from"))?;
             let confidence = parse_confidence(args.get("confidence"))?;
             let source = args.get("source").and_then(JsonValue::as_str);
@@ -376,7 +402,7 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
                 .get("fact_id")
                 .and_then(JsonValue::as_str)
                 .context("fact_id is required")?;
-            let new_value = json_to_value(args.get("new_value").context("new_value is required")?);
+            let new_value = json_to_value(args.get("new_value").context("new_value is required")?)?;
             let new_fact = state
                 .memory
                 .correct_fact(&FactId(fact_id.to_string()), new_value)?;
@@ -553,10 +579,9 @@ fn call_tool_recall(
                 anyhow::bail!("query_embedding is unavailable without hybrid feature");
             }
         }
+    } else if use_hybrid {
+        anyhow::bail!("use_hybrid requires query_embedding");
     } else {
-        if use_hybrid {
-            anyhow::bail!("use_hybrid requires query_embedding");
-        }
         #[cfg(feature = "hybrid")]
         if args.get("temporal_intent").is_some() || args.get("temporal_operator").is_some() {
             anyhow::bail!("temporal_intent and temporal_operator require query_embedding");
@@ -627,10 +652,12 @@ fn call_tool_assemble_context(state: &mut AppState, args: &JsonValue) -> Result<
     if query.len() > MAX_QUERY_BYTES {
         anyhow::bail!("query exceeds max allowed size ({} bytes)", MAX_QUERY_BYTES);
     }
-    let max_tokens = args
+    let max_tokens_raw = args
         .get("max_tokens")
         .and_then(JsonValue::as_u64)
-        .context("max_tokens is required")? as usize;
+        .context("max_tokens is required")?;
+    let max_tokens = usize::try_from(max_tokens_raw)
+        .map_err(|_| anyhow::anyhow!("max_tokens value too large for this platform"))?;
     if max_tokens == 0 {
         anyhow::bail!("max_tokens must be >= 1");
     }
@@ -745,12 +772,15 @@ fn parse_valid_from(v: Option<&JsonValue>) -> Result<DateTime<Utc>> {
     }
 }
 
-fn json_to_value(v: &JsonValue) -> Value {
+fn json_to_value(v: &JsonValue) -> anyhow::Result<Value> {
     match v {
-        JsonValue::Bool(v) => Value::Boolean(*v),
-        JsonValue::Number(v) => Value::Number(v.as_f64().unwrap_or_default()),
-        JsonValue::String(v) => Value::Text(v.clone()),
-        other => Value::Text(other.to_string()),
+        JsonValue::Bool(v) => Ok(Value::Boolean(*v)),
+        JsonValue::Number(v) => Ok(Value::Number(v.as_f64().unwrap_or_default())),
+        JsonValue::String(v) => Ok(Value::Text(v.clone())),
+        JsonValue::Null => anyhow::bail!("object must not be null"),
+        _ => anyhow::bail!(
+            "object must be a scalar (string, number, or boolean), not an array or object"
+        ),
     }
 }
 

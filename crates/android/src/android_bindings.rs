@@ -15,8 +15,10 @@ thread_local! {
 }
 
 fn set_last_error(msg: String) {
+    // Strip null bytes so JNI new_string never fails on embedded nulls.
+    let sanitized = msg.replace('\0', "\\0");
     LAST_ERROR.with(|cell| {
-        *cell.borrow_mut() = Some(msg);
+        *cell.borrow_mut() = Some(sanitized);
     });
 }
 
@@ -226,7 +228,14 @@ mod jni_bridge {
         match msg {
             Some(s) => match env.new_string(&s) {
                 Ok(js) => js.into_raw(),
-                Err(_) => std::ptr::null_mut(),
+                Err(_) => {
+                    // Fallback: try a plain error message so the caller at least
+                    // knows something went wrong, rather than returning null
+                    // (which is indistinguishable from "no error").
+                    env.new_string("kronroe: error message could not be encoded")
+                        .map(|js| js.into_raw())
+                        .unwrap_or(std::ptr::null_mut())
+                }
             },
             None => std::ptr::null_mut(),
         }
