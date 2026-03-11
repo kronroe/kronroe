@@ -592,11 +592,14 @@ fn call_tool_recall(
     }
 
     let min_confidence = parse_confidence(args.get("min_confidence"))?;
+    let confidence_filter_mode = args
+        .get("confidence_filter_mode")
+        .and_then(JsonValue::as_str);
+    if confidence_filter_mode.is_some() && min_confidence.is_none() {
+        anyhow::bail!("confidence_filter_mode requires min_confidence");
+    }
     if let Some(min) = min_confidence {
-        let mode = args
-            .get("confidence_filter_mode")
-            .and_then(JsonValue::as_str)
-            .unwrap_or("base");
+        let mode = confidence_filter_mode.unwrap_or("base");
         match mode {
             "base" => opts = opts.with_min_confidence(min),
             "effective" => {
@@ -672,6 +675,9 @@ fn parse_embedding(v: Option<&JsonValue>) -> Result<Option<Vec<f32>>> {
     };
 
     let arr = v.as_array().context("query_embedding must be an array")?;
+    if arr.is_empty() {
+        anyhow::bail!("query_embedding must not be empty");
+    }
     let mut out = Vec::with_capacity(arr.len());
     for item in arr {
         let n = item
@@ -680,7 +686,11 @@ fn parse_embedding(v: Option<&JsonValue>) -> Result<Option<Vec<f32>>> {
         if !n.is_finite() {
             anyhow::bail!("query_embedding values must be finite");
         }
-        out.push(n as f32);
+        let narrowed = n as f32;
+        if !narrowed.is_finite() {
+            anyhow::bail!("query_embedding values overflow f32 range");
+        }
+        out.push(narrowed);
     }
     Ok(Some(out))
 }
@@ -1011,8 +1021,7 @@ mod tests {
                 "name": "recall_scored",
                 "arguments": {
                     "query": "alice",
-                    "limit": 10,
-                    "confidence_filter_mode": "base"
+                    "limit": 10
                 }
             })),
         )
@@ -1024,8 +1033,68 @@ mod tests {
             .and_then(JsonValue::as_array)
             .unwrap();
         assert_eq!(results.len(), 1);
-        assert!(results[0].get("score").is_some());
+        let score = results[0].get("score").expect("score should be present");
+        assert_eq!(score.get("type").and_then(JsonValue::as_str), Some("text"));
+        assert!(score
+            .get("confidence")
+            .and_then(JsonValue::as_f64)
+            .is_some());
+        assert!(score.get("effective_confidence").is_some());
         assert!(results[0].get("fact").is_some());
+    }
+
+    #[test]
+    fn recall_scored_rejects_confidence_mode_without_threshold() {
+        let mut state = temp_state();
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall_scored",
+                "arguments": {
+                    "query": "alice",
+                    "confidence_filter_mode": "base"
+                }
+            })),
+        )
+        .expect_err("expected confidence mode contract error")
+        .to_string();
+        assert!(err.contains("confidence_filter_mode requires min_confidence"));
+    }
+
+    #[test]
+    fn recall_rejects_empty_embedding_array() {
+        let mut state = temp_state();
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall",
+                "arguments": {
+                    "query": "alice",
+                    "query_embedding": []
+                }
+            })),
+        )
+        .expect_err("expected embedding validation error")
+        .to_string();
+        assert!(err.contains("query_embedding must not be empty"));
+    }
+
+    #[test]
+    fn recall_rejects_embedding_values_outside_f32_range() {
+        let mut state = temp_state();
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall",
+                "arguments": {
+                    "query": "alice",
+                    "query_embedding": [1.0e40]
+                }
+            })),
+        )
+        .expect_err("expected f32 overflow validation error")
+        .to_string();
+        assert!(err.contains("overflow f32 range"));
     }
 
     #[test]

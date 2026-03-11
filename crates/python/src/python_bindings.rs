@@ -25,6 +25,32 @@ fn py_to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     }
 }
 
+fn parse_query_embedding(query_embedding: Option<Vec<f64>>) -> PyResult<Option<Vec<f32>>> {
+    let Some(values) = query_embedding else {
+        return Ok(None);
+    };
+    if values.is_empty() {
+        return Err(PyValueError::new_err("query_embedding must not be empty"));
+    }
+
+    let mut out = Vec::with_capacity(values.len());
+    for value in values {
+        if !value.is_finite() {
+            return Err(PyValueError::new_err(
+                "query_embedding must contain finite numbers",
+            ));
+        }
+        let narrowed = value as f32;
+        if !narrowed.is_finite() {
+            return Err(PyValueError::new_err(
+                "query_embedding values overflow f32 range",
+            ));
+        }
+        out.push(narrowed);
+    }
+    Ok(Some(out))
+}
+
 fn fact_to_dict<'py>(py: Python<'py>, fact: &Fact) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new(py);
     d.set_item("id", fact.id.0.clone())?;
@@ -262,24 +288,14 @@ impl PyAgentMemory {
         limit: usize,
     ) -> PyResult<Vec<Py<PyDict>>> {
         let query = query.to_owned();
-        let embedding: Option<Vec<f32>> =
-            query_embedding.map(|values| values.into_iter().map(|v| v as f32).collect());
+        let embedding = parse_query_embedding(query_embedding)?;
         let query_embedding = embedding.as_deref();
 
+        #[cfg(not(feature = "hybrid"))]
         if query_embedding.is_some() {
-            #[cfg(feature = "hybrid")]
-            if query_embedding.is_some_and(|values| values.iter().any(|v| !v.is_finite())) {
-                return Err(PyValueError::new_err(
-                    "query_embedding must contain finite numbers",
-                ));
-            }
-
-            #[cfg(not(feature = "hybrid"))]
-            {
-                return Err(PyRuntimeError::new_err(
-                    "query_embedding is unavailable without hybrid feature",
-                ));
-            }
+            return Err(PyRuntimeError::new_err(
+                "query_embedding is unavailable without hybrid feature",
+            ));
         }
 
         let facts = py
@@ -304,20 +320,10 @@ impl PyAgentMemory {
         temporal_operator: Option<String>,
     ) -> PyResult<Vec<Py<PyDict>>> {
         let query_owned = query.to_owned();
-        let query_embedding: Option<Vec<f32>> =
-            query_embedding.map(|values| values.into_iter().map(|v| v as f32).collect());
+        let query_embedding = parse_query_embedding(query_embedding)?;
 
         #[cfg(feature = "hybrid")]
         let has_embedding = query_embedding.is_some();
-        #[cfg(feature = "hybrid")]
-        if has_embedding {
-            let values = query_embedding.as_deref().unwrap_or(&[]);
-            if values.iter().any(|v| !v.is_finite()) {
-                return Err(PyValueError::new_err(
-                    "query_embedding must contain finite numbers",
-                ));
-            }
-        }
         #[cfg(not(feature = "hybrid"))]
         if query_embedding.is_some() {
             return Err(PyRuntimeError::new_err(
@@ -335,6 +341,12 @@ impl PyAgentMemory {
 
         if let Some(embedding) = query_embedding.as_deref() {
             opts = opts.with_embedding(embedding);
+        }
+
+        if confidence_filter_mode.is_some() && min_confidence.is_none() {
+            return Err(PyValueError::new_err(
+                "confidence_filter_mode requires min_confidence",
+            ));
         }
 
         #[cfg(feature = "hybrid")]
@@ -426,21 +438,11 @@ impl PyAgentMemory {
         }
 
         let query_owned = query.to_owned();
-        let embedding: Option<Vec<f32>> =
-            query_embedding.map(|values| values.into_iter().map(|v| v as f32).collect());
+        let embedding = parse_query_embedding(query_embedding)?;
         let query_embedding = embedding.as_deref();
 
+        #[cfg(not(feature = "hybrid"))]
         if query_embedding.is_some() {
-            #[cfg(feature = "hybrid")]
-            if let Some(values) = query_embedding {
-                if values.iter().any(|v| !v.is_finite()) {
-                    return Err(PyValueError::new_err(
-                        "query_embedding must contain finite numbers",
-                    ));
-                }
-            }
-
-            #[cfg(not(feature = "hybrid"))]
             return Err(PyRuntimeError::new_err(
                 "query_embedding is unavailable without hybrid feature",
             ));
@@ -639,6 +641,55 @@ mod tests {
         }
 
         #[test]
+        fn python_recall_scored_returns_contract_shape() {
+            with_memory(|py, memory| {
+                let object = PyString::new(py, "rust memory").into_any();
+                memory
+                    .assert_with_confidence(py, "shape", "memory", &object, 0.9, None)
+                    .expect("assert_with_confidence");
+
+                let rows = memory
+                    .recall_scored(
+                        py,
+                        "rust",
+                        10,
+                        None,
+                        Some(0.1),
+                        Some("base".to_string()),
+                        None,
+                        false,
+                        None,
+                        None,
+                    )
+                    .expect("recall_scored");
+                assert!(!rows.is_empty());
+
+                let row = rows[0].bind(py);
+                let score = row
+                    .get_item("score")
+                    .expect("score key")
+                    .expect("score value")
+                    .downcast_into::<PyDict>()
+                    .expect("score dict");
+                let score_type = score
+                    .get_item("type")
+                    .expect("type key")
+                    .expect("type value")
+                    .extract::<String>()
+                    .expect("type as string");
+                assert_eq!(score_type, "text");
+                assert!(score
+                    .get_item("confidence")
+                    .expect("confidence key")
+                    .is_some());
+                assert!(score
+                    .get_item("effective_confidence")
+                    .expect("effective_confidence key")
+                    .is_some());
+            });
+        }
+
+        #[test]
         fn python_invalidate_fact_removes_recall_hit() {
             with_memory(|py, memory| {
                 let object = PyString::new(py, "Acme").into_any();
@@ -677,6 +728,51 @@ mod tests {
                     .expect_err("expected non-finite min_confidence error");
 
                 assert!(err.to_string().contains("min_confidence must be finite"));
+            });
+        }
+
+        #[test]
+        fn python_recall_scored_requires_threshold_for_confidence_mode() {
+            with_memory(|py, memory| {
+                let err = memory
+                    .recall_scored(
+                        py,
+                        "rust",
+                        10,
+                        None,
+                        None,
+                        Some("base".to_string()),
+                        None,
+                        false,
+                        None,
+                        None,
+                    )
+                    .expect_err("expected confidence mode contract error");
+                assert!(err
+                    .to_string()
+                    .contains("confidence_filter_mode requires min_confidence"));
+            });
+        }
+
+        #[test]
+        fn python_recall_rejects_empty_embedding() {
+            with_memory(|py, memory| {
+                let err = memory
+                    .recall(py, "rust", Some(vec![]), 10)
+                    .expect_err("expected empty embedding error");
+                assert!(err
+                    .to_string()
+                    .contains("query_embedding must not be empty"));
+            });
+        }
+
+        #[test]
+        fn python_recall_rejects_embedding_overflow() {
+            with_memory(|py, memory| {
+                let err = memory
+                    .recall(py, "rust", Some(vec![1.0e40]), 10)
+                    .expect_err("expected f32 overflow error");
+                assert!(err.to_string().contains("overflow f32 range"));
             });
         }
 
