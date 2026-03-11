@@ -16,6 +16,9 @@ print(results)
 print(scored)
 ```
 
+`assert_fact` uses default confidence (`1.0`) with no source provenance.
+Use `assert_with_confidence(..., source=...)` when you need explicit confidence/source metadata.
+
 ## Local build
 
 ```bash
