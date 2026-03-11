@@ -137,7 +137,7 @@ db.invalidate_fact(&id, Utc::now())?;
 | Vector search with temporal filtering | `crates/core/src/temporal_graph.rs`, `crates/core/src/vector.rs` (`feature: vector`) | `cargo test -p kronroe vector_ --all-features` |
 | Atomic fact + embedding write transaction | `assert_fact_with_embedding` in core | see vector durability/error tests in core suite |
 | Idempotent writes (`assert_fact_idempotent`) | core + agent-memory wrappers | `cargo test -p kronroe idempotent --all-features` |
-| `AgentMemory` API surface (`assert`, `remember`, `recall`, `assemble_context`) | `crates/agent-memory/src/agent_memory.rs` | `cargo test -p kronroe-agent-memory --all-features` |
+| `AgentMemory` API surface (`remember`, `recall`, `recall_scored`, `assemble_context`, confidence + source assertions) | `crates/agent-memory/src/agent_memory.rs` | `cargo test -p kronroe-agent-memory --all-features` |
 | MCP server (5 tools) + npm/pip shims | `crates/mcp-server`, `packages/kronroe-mcp`, `python/kronroe-mcp` | `cargo test -p kronroe-mcp` |
 | Python bindings (`KronroeDb`, `AgentMemory`) | `crates/python/src/python_bindings.rs` | `cargo build -p kronroe-py` |
 | iOS package artifacts + behavior tests | `crates/ios` | `cargo test -p kronroe-ios` and `./crates/ios/scripts/run-swift-tests.sh` |
@@ -149,8 +149,10 @@ db.invalidate_fact(&id, Utc::now())?;
 
 | Capability | Gate | Current status |
 |---|---|---|
-| Hybrid retrieval API (`search_hybrid_experimental`) with deterministic ranking + score breakdown | `kronroe` features `hybrid-experimental` + `vector` | Implemented and tested in core; intentionally marked experimental |
+| Hybrid retrieval API (`search_hybrid`) with two-stage reranking + score breakdown | `kronroe` features `hybrid-experimental` + `vector` | Implemented and tested in core; intentionally marked experimental |
 | Agent-memory hybrid recall path (text + vector fusion) | `kronroe-agent-memory` feature `hybrid` | Implemented via core experimental API; contract may evolve |
+| Contradiction detection (singleton predicates, Allen's interval overlap, conflict severity/policy) | `kronroe` feature `contradiction` | Engine-native, no LLM required; agent-memory auto-registers common singletons |
+| Uncertainty model (age decay, source authority, effective confidence at query time) | `kronroe` feature `uncertainty` | Engine-native, pure Rust math; agent-memory auto-registers default volatilities |
 
 ### Planned (not shipping yet)
 

@@ -83,6 +83,9 @@ pub enum RecallScore {
         vector_contrib: f64,
         /// Fact-level confidence \[0.0, 1.0\] from the stored fact.
         confidence: f32,
+        /// Effective confidence after uncertainty model (age decay × source weight).
+        /// `None` when uncertainty modeling is disabled.
+        effective_confidence: Option<f32>,
     },
     /// Result from fulltext-only retrieval.
     #[non_exhaustive]
@@ -94,6 +97,9 @@ pub enum RecallScore {
         bm25_score: f32,
         /// Fact-level confidence \[0.0, 1.0\] from the stored fact.
         confidence: f32,
+        /// Effective confidence after uncertainty model (age decay × source weight).
+        /// `None` when uncertainty modeling is disabled.
+        effective_confidence: Option<f32>,
     },
 }
 
@@ -120,17 +126,49 @@ impl RecallScore {
         }
     }
 
+    /// The effective confidence after uncertainty model processing.
+    ///
+    /// Returns `None` when uncertainty modeling is disabled. When `Some`, this
+    /// reflects: `base_confidence × age_decay × source_weight`.
+    pub fn effective_confidence(&self) -> Option<f32> {
+        match self {
+            RecallScore::Hybrid {
+                effective_confidence,
+                ..
+            }
+            | RecallScore::TextOnly {
+                effective_confidence,
+                ..
+            } => *effective_confidence,
+        }
+    }
+
     /// Convert a [`HybridScoreBreakdown`] from the core engine into a
     /// [`RecallScore::Hybrid`], incorporating the fact's confidence.
     #[cfg(feature = "hybrid")]
-    fn from_breakdown(b: &HybridScoreBreakdown, confidence: f32) -> Self {
+    fn from_breakdown(
+        b: &HybridScoreBreakdown,
+        confidence: f32,
+        effective_confidence: Option<f32>,
+    ) -> Self {
         RecallScore::Hybrid {
             rrf_score: b.final_score,
             text_contrib: b.text_rrf_contrib,
             vector_contrib: b.vector_rrf_contrib,
             confidence,
+            effective_confidence,
         }
     }
+}
+
+/// Strategy for deciding which confidence signal drives filtering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ConfidenceFilterMode {
+    /// Filter using raw fact confidence.
+    Base,
+    /// Filter using effective confidence (uncertainty-aware) if available.
+    Effective,
 }
 
 /// Options for recall queries, controlling retrieval behaviour.
@@ -158,6 +196,8 @@ pub struct RecallOptions<'a> {
     pub limit: usize,
     /// Minimum confidence threshold — facts below this are filtered out.
     pub min_confidence: Option<f32>,
+    /// Which confidence signal to use when applying `min_confidence`.
+    pub confidence_filter_mode: ConfidenceFilterMode,
     /// Maximum rows fetched per confidence-filtered recall batch (default: 4,096).
     ///
     /// Raising this increases recall depth at the cost of larger per-call work.
@@ -176,6 +216,7 @@ impl<'a> RecallOptions<'a> {
             query_embedding: None,
             limit: 10,
             min_confidence: None,
+            confidence_filter_mode: ConfidenceFilterMode::Base,
             max_scored_rows: DEFAULT_MAX_SCORED_ROWS,
         }
     }
@@ -195,6 +236,17 @@ impl<'a> RecallOptions<'a> {
     /// Set a minimum confidence threshold to filter low-confidence facts.
     pub fn with_min_confidence(mut self, min: f32) -> Self {
         self.min_confidence = Some(min);
+        self.confidence_filter_mode = ConfidenceFilterMode::Base;
+        self
+    }
+
+    /// Set a minimum effective-confidence threshold to filter low-confidence facts.
+    ///
+    /// Effective confidence is calculated as:
+    /// `base_confidence × age_decay × source_weight`.
+    pub fn with_min_effective_confidence(mut self, min: f32) -> Self {
+        self.min_confidence = Some(min);
+        self.confidence_filter_mode = ConfidenceFilterMode::Effective;
         self
     }
 
@@ -242,6 +294,8 @@ impl AgentMemory {
         let graph = TemporalGraph::open(path)?;
         #[cfg(feature = "contradiction")]
         Self::register_default_singletons(&graph)?;
+        #[cfg(feature = "uncertainty")]
+        Self::register_default_volatilities(&graph)?;
         Ok(Self { graph })
     }
 
@@ -488,31 +542,34 @@ impl AgentMemory {
                 ..HybridSearchParams::default()
             };
             let hits = self.graph.search_hybrid(query, emb, params, None)?;
-            return Ok(hits
-                .into_iter()
-                .map(|(fact, breakdown)| {
-                    let confidence = fact.confidence;
-                    (fact, RecallScore::from_breakdown(&breakdown, confidence))
-                })
-                .collect());
+            let mut scored = Vec::with_capacity(hits.len());
+            for (fact, breakdown) in hits {
+                let confidence = fact.confidence;
+                let eff = self.compute_effective_confidence(&fact)?;
+                scored.push((
+                    fact,
+                    RecallScore::from_breakdown(&breakdown, confidence, eff),
+                ));
+            }
+            return Ok(scored);
         }
 
         let scored_facts = self.graph.search_scored(query, limit)?;
-        Ok(scored_facts
-            .into_iter()
-            .enumerate()
-            .map(|(i, (fact, bm25))| {
-                let confidence = fact.confidence;
-                (
-                    fact,
-                    RecallScore::TextOnly {
-                        rank: i,
-                        bm25_score: bm25,
-                        confidence,
-                    },
-                )
-            })
-            .collect())
+        let mut scored = Vec::with_capacity(scored_facts.len());
+        for (i, (fact, bm25)) in scored_facts.into_iter().enumerate() {
+            let confidence = fact.confidence;
+            let eff = self.compute_effective_confidence(&fact)?;
+            scored.push((
+                fact,
+                RecallScore::TextOnly {
+                    rank: i,
+                    bm25_score: bm25,
+                    confidence,
+                    effective_confidence: eff,
+                },
+            ));
+        }
+        Ok(scored)
     }
 
     /// Retrieve memory facts using scored recall plus confidence filtering.
@@ -545,6 +602,32 @@ impl AgentMemory {
         let opts = RecallOptions::new(query)
             .with_limit(limit)
             .with_min_confidence(min_confidence);
+
+        #[cfg(feature = "hybrid")]
+        let opts = if let Some(embedding) = query_embedding {
+            opts.with_embedding(embedding)
+        } else {
+            opts
+        };
+
+        self.recall_scored_with_options(&opts)
+    }
+
+    /// Retrieve memory facts by query while filtering by *effective* confidence.
+    ///
+    /// Equivalent to [`recall_scored_with_options`](Self::recall_scored_with_options)
+    /// with only `limit` and `with_min_effective_confidence` set.
+    pub fn recall_scored_with_min_effective_confidence(
+        &self,
+        query: &str,
+        #[cfg(feature = "hybrid")] query_embedding: Option<&[f32]>,
+        #[cfg(not(feature = "hybrid"))] _query_embedding: Option<&[f32]>,
+        limit: usize,
+        min_effective_confidence: f32,
+    ) -> Result<Vec<(Fact, RecallScore)>> {
+        let opts = RecallOptions::new(query)
+            .with_limit(limit)
+            .with_min_effective_confidence(min_effective_confidence);
 
         #[cfg(feature = "hybrid")]
         let opts = if let Some(embedding) = query_embedding {
@@ -613,13 +696,23 @@ impl AgentMemory {
     ///
     /// Like [`recall_scored`](Self::recall_scored) but accepts a `RecallOptions`
     /// struct for cleaner parameter passing. When `min_confidence` is set, facts
-    /// with confidence below the threshold are filtered from the results. Filtering
-    /// occurs before truncating to the final `limit`, so low-confidence head
-    /// matches cannot consume the result budget.
+    /// below the threshold are filtered from the results. Filtering occurs before
+    /// truncating to the final `limit`, so low-confidence head matches cannot
+    /// consume the result budget.
+    /// By default, filtering uses base fact confidence; call
+    /// [`RecallOptions::with_min_effective_confidence`] to use uncertainty-aware
+    /// effective confidence instead.
     pub fn recall_scored_with_options(
         &self,
         opts: &RecallOptions<'_>,
     ) -> Result<Vec<(Fact, RecallScore)>> {
+        let score_for_filter = |score: &RecallScore| match opts.confidence_filter_mode {
+            ConfidenceFilterMode::Base => score.confidence(),
+            ConfidenceFilterMode::Effective => score
+                .effective_confidence()
+                .unwrap_or_else(|| score.confidence()),
+        };
+
         match opts.min_confidence {
             Some(min_confidence) => {
                 let min_confidence = normalize_min_confidence(min_confidence)?;
@@ -642,7 +735,7 @@ impl AgentMemory {
                     let mut filtered = Vec::new();
 
                     for (fact, score) in scored {
-                        if score.confidence() >= min_confidence {
+                        if score_for_filter(&score) >= min_confidence {
                             filtered.push((fact, score));
                             if filtered.len() >= opts.limit {
                                 break;
@@ -674,7 +767,7 @@ impl AgentMemory {
                         }
                         newly_seen += 1;
 
-                        if score.confidence() >= min_confidence {
+                        if score_for_filter(score) >= min_confidence {
                             filtered.push((fact.clone(), *score));
                             newly_confident += 1;
                             if filtered.len() >= opts.limit {
@@ -737,6 +830,115 @@ impl AgentMemory {
     ) -> Result<FactId> {
         self.graph
             .assert_fact_with_confidence(subject, predicate, object, Utc::now(), confidence)
+    }
+
+    /// Store a structured fact with explicit source provenance.
+    ///
+    /// Like [`assert`](Self::assert) but attaches a source marker (e.g.
+    /// `"user:owner"`, `"api:linkedin"`) that the uncertainty engine uses
+    /// for source-weighted confidence.
+    pub fn assert_with_source(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+        confidence: f32,
+        source: &str,
+    ) -> Result<FactId> {
+        self.graph.assert_fact_with_source(
+            subject,
+            predicate,
+            object,
+            Utc::now(),
+            confidence,
+            source,
+        )
+    }
+
+    // -----------------------------------------------------------------------
+    // Uncertainty engine
+    // -----------------------------------------------------------------------
+
+    /// Register default predicate volatilities for common agent-memory predicates.
+    ///
+    /// Called automatically from `open()` when the `uncertainty` feature is enabled.
+    #[cfg(feature = "uncertainty")]
+    fn register_default_volatilities(graph: &TemporalGraph) -> Result<()> {
+        use kronroe::PredicateVolatility;
+        // Volatile: job/location change every few years
+        let defaults = [
+            ("works_at", PredicateVolatility::new(730.0)),
+            ("job_title", PredicateVolatility::new(730.0)),
+            ("lives_in", PredicateVolatility::new(1095.0)),
+            ("email", PredicateVolatility::new(1460.0)),
+            ("phone", PredicateVolatility::new(1095.0)),
+            ("born_in", PredicateVolatility::stable()),
+            ("full_name", PredicateVolatility::stable()),
+        ];
+
+        for (predicate, volatility) in defaults {
+            if graph.predicate_volatility(predicate)?.is_none() {
+                graph.register_predicate_volatility(predicate, volatility)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Register a predicate volatility (half-life in days).
+    ///
+    /// After `half_life_days`, the age-decay multiplier drops to 0.5.
+    /// Use `f64::INFINITY` for stable predicates that never decay.
+    #[cfg(feature = "uncertainty")]
+    pub fn register_volatility(&self, predicate: &str, half_life_days: f64) -> Result<()> {
+        use kronroe::PredicateVolatility;
+        self.graph
+            .register_predicate_volatility(predicate, PredicateVolatility::new(half_life_days))
+    }
+
+    /// Register a source authority weight.
+    ///
+    /// Weight is clamped to \[0.0, 2.0\]. `1.0` = neutral, `>1.0` = boosted,
+    /// `<1.0` = penalised. Unknown sources default to `1.0`.
+    #[cfg(feature = "uncertainty")]
+    pub fn register_source_weight(&self, source: &str, weight: f32) -> Result<()> {
+        use kronroe::SourceWeight;
+        self.graph
+            .register_source_weight(source, SourceWeight::new(weight))
+    }
+
+    /// Compute effective confidence for a fact at a point in time.
+    ///
+    /// Returns `Ok(Some(value))` when uncertainty support is enabled and
+    /// `Ok(None)` when uncertainty support is disabled in this build.
+    #[cfg(feature = "uncertainty")]
+    pub fn effective_confidence_for_fact(
+        &self,
+        fact: &Fact,
+        at: DateTime<Utc>,
+    ) -> Result<Option<f32>> {
+        self.graph
+            .effective_confidence(fact, at)
+            .map(|eff| Some(eff.value))
+    }
+
+    /// Compute effective confidence for a fact at a point in time.
+    ///
+    /// Returns `Ok(Some(value))` when uncertainty support is enabled and
+    /// `Ok(None)` when uncertainty support is disabled in this build.
+    #[cfg(not(feature = "uncertainty"))]
+    pub fn effective_confidence_for_fact(
+        &self,
+        fact: &Fact,
+        at: DateTime<Utc>,
+    ) -> Result<Option<f32>> {
+        let _ = (fact, at);
+        Ok(None)
+    }
+
+    /// Compute effective confidence for a fact, or `None` if the uncertainty
+    /// feature is not enabled.
+    fn compute_effective_confidence(&self, fact: &Fact) -> Result<Option<f32>> {
+        self.effective_confidence_for_fact(fact, Utc::now())
     }
 }
 
@@ -961,6 +1163,38 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "uncertainty")]
+    #[test]
+    fn default_volatility_registration_preserves_custom_entry() {
+        let file = NamedTempFile::new().unwrap();
+        let path = file.path().to_str().unwrap().to_string();
+
+        {
+            let graph = kronroe::TemporalGraph::open(&path).unwrap();
+            graph
+                .register_predicate_volatility("works_at", kronroe::PredicateVolatility::new(1.0))
+                .unwrap();
+        }
+
+        // reopen through AgentMemory; default bootstrap should not overwrite custom 1.0
+        // with default 730.0 days.
+        {
+            let _mem = AgentMemory::open(&path).unwrap();
+        }
+
+        let graph = kronroe::TemporalGraph::open(&path).unwrap();
+        let vol = graph
+            .predicate_volatility("works_at")
+            .unwrap()
+            .expect("volatility should be persisted");
+
+        assert!(
+            (vol.half_life_days - 1.0).abs() < f64::EPSILON,
+            "custom volatility should survive default bootstrap, got {}",
+            vol.half_life_days
+        );
+    }
+
     #[cfg(feature = "hybrid")]
     #[test]
     fn test_recall_hybrid_uses_text_and_vector_signals() {
@@ -1068,6 +1302,7 @@ mod tests {
             rank: 0,
             bm25_score: 1.0,
             confidence: 0.8,
+            effective_confidence: None,
         };
         assert!((text.confidence() - 0.8).abs() < f32::EPSILON);
     }
@@ -1080,6 +1315,7 @@ mod tests {
             text_contrib: 0.05,
             vector_contrib: 0.05,
             confidence: 0.9,
+            effective_confidence: None,
         };
         assert!((hybrid.confidence() - 0.9).abs() < f32::EPSILON);
     }
@@ -1174,6 +1410,7 @@ mod tests {
             rank: 0,
             bm25_score: 4.21,
             confidence: 1.0,
+            effective_confidence: None,
         };
         assert_eq!(text_score.display_tag(), "#1 bm25:4.21");
 
@@ -1181,6 +1418,7 @@ mod tests {
             rank: 4,
             bm25_score: 1.50,
             confidence: 1.0,
+            effective_confidence: None,
         };
         assert_eq!(text_score_5.display_tag(), "#5 bm25:1.50");
     }
@@ -1193,6 +1431,7 @@ mod tests {
             text_contrib: 0.02,
             vector_contrib: 0.0125,
             confidence: 1.0,
+            effective_confidence: None,
         };
         assert_eq!(hybrid_score.display_tag(), "0.033");
     }
@@ -1449,6 +1688,59 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "uncertainty")]
+    #[test]
+    fn recall_scored_with_options_effective_confidence_respects_scored_rows_cap() {
+        let (mem, _tmp) = open_temp_memory();
+        for i in 0..5 {
+            mem.assert_with_source(
+                &format!("ep-{i}"),
+                "memory",
+                "rust and memory",
+                1.0,
+                "user:owner",
+            )
+            .unwrap();
+        }
+
+        let opts = RecallOptions::new("rust")
+            .with_limit(5)
+            .with_min_effective_confidence(0.5)
+            .with_max_scored_rows(2);
+        let results = mem.recall_scored_with_options(&opts).unwrap();
+        assert_eq!(
+            results.len(),
+            2,
+            "effective-confidence path should honor max_scored_rows cap"
+        );
+    }
+
+    #[cfg(all(feature = "hybrid", feature = "uncertainty"))]
+    #[test]
+    fn recall_scored_with_options_hybrid_effective_confidence_respects_scored_rows_cap() {
+        let (mem, _tmp) = open_temp_memory();
+        for i in 0..5 {
+            mem.remember(
+                "rust memory entry",
+                &format!("ep-{i}"),
+                Some(vec![1.0f32, 0.0]),
+            )
+            .unwrap();
+        }
+
+        let opts = RecallOptions::new("rust")
+            .with_embedding(&[1.0, 0.0])
+            .with_limit(5)
+            .with_min_effective_confidence(0.0)
+            .with_max_scored_rows(2);
+        let results = mem.recall_scored_with_options(&opts).unwrap();
+        assert_eq!(
+            results.len(),
+            2,
+            "hybrid effective-confidence path should honor max_scored_rows cap"
+        );
+    }
+
     #[test]
     fn recall_scored_with_options_rejects_zero_max_scored_rows() {
         let (mem, _tmp) = open_temp_memory();
@@ -1538,5 +1830,137 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(method_results, options_results);
+    }
+
+    #[test]
+    fn assert_with_source_round_trip() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert_with_source("alice", "works_at", "Acme", 0.9, "user:owner")
+            .unwrap();
+
+        let facts = mem.facts_about("alice").unwrap();
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].source.as_deref(), Some("user:owner"));
+        assert!((facts[0].confidence - 0.9).abs() < f32::EPSILON);
+    }
+
+    #[cfg(feature = "uncertainty")]
+    #[test]
+    fn recall_includes_effective_confidence() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert("alice", "works_at", "Acme").unwrap();
+
+        let scored = mem.recall_scored("alice", None, 10).unwrap();
+        assert!(!scored.is_empty());
+        // With uncertainty feature on, effective_confidence should be Some
+        let eff = scored[0].1.effective_confidence();
+        assert!(
+            eff.is_some(),
+            "expected Some effective_confidence, got None"
+        );
+        assert!(eff.unwrap() > 0.0);
+    }
+
+    #[cfg(feature = "uncertainty")]
+    #[test]
+    fn volatile_predicate_decays() {
+        let (mem, _tmp) = open_temp_memory();
+        // works_at has default 730-day half-life from register_default_volatilities.
+        // Assert a fact that's "old" by using the graph directly with a past valid_from.
+        let past = Utc::now() - chrono::Duration::days(730);
+        mem.graph
+            .assert_fact("alice", "works_at", "OldCo", past)
+            .unwrap();
+        // Assert a fresh fact
+        mem.graph
+            .assert_fact("alice", "born_in", "London", Utc::now())
+            .unwrap();
+
+        let old_eff = mem
+            .graph
+            .effective_confidence(
+                &mem.facts_about("alice")
+                    .unwrap()
+                    .iter()
+                    .find(|f| f.predicate == "works_at")
+                    .unwrap(),
+                Utc::now(),
+            )
+            .unwrap();
+        let fresh_eff = mem
+            .graph
+            .effective_confidence(
+                &mem.facts_about("alice")
+                    .unwrap()
+                    .iter()
+                    .find(|f| f.predicate == "born_in")
+                    .unwrap(),
+                Utc::now(),
+            )
+            .unwrap();
+
+        // At 730 days (one half-life), works_at effective should be ~0.5
+        assert!(
+            old_eff.value < 0.6,
+            "730-day old works_at should have decayed, got {}",
+            old_eff.value
+        );
+        // born_in is stable, fresh fact should be ~1.0
+        assert!(
+            fresh_eff.value > 0.9,
+            "fresh born_in should be near 1.0, got {}",
+            fresh_eff.value
+        );
+    }
+
+    #[cfg(feature = "uncertainty")]
+    #[test]
+    fn source_weight_affects_confidence() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.register_source_weight("trusted", 1.5).unwrap();
+        mem.register_source_weight("untrusted", 0.5).unwrap();
+
+        mem.assert_with_source("alice", "works_at", "TrustCo", 1.0, "trusted")
+            .unwrap();
+        mem.assert_with_source("bob", "works_at", "SketchCo", 1.0, "untrusted")
+            .unwrap();
+
+        let alice_facts = mem.facts_about("alice").unwrap();
+        let bob_facts = mem.facts_about("bob").unwrap();
+
+        let alice_eff = mem
+            .graph
+            .effective_confidence(&alice_facts[0], Utc::now())
+            .unwrap();
+        let bob_eff = mem
+            .graph
+            .effective_confidence(&bob_facts[0], Utc::now())
+            .unwrap();
+
+        assert!(
+            alice_eff.value > bob_eff.value,
+            "trusted source should have higher effective confidence: {} vs {}",
+            alice_eff.value,
+            bob_eff.value
+        );
+    }
+
+    #[cfg(feature = "uncertainty")]
+    #[test]
+    fn effective_confidence_for_fact_returns_some() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.assert_with_source("alice", "works_at", "Acme", 0.9, "user:owner")
+            .unwrap();
+
+        let fact = mem.facts_about("alice").unwrap().remove(0);
+        let eff = mem
+            .effective_confidence_for_fact(&fact, Utc::now())
+            .unwrap()
+            .expect("uncertainty-enabled builds should return effective confidence");
+
+        assert!(
+            eff > 0.0,
+            "effective confidence should be positive for a fresh fact, got {eff}"
+        );
     }
 }

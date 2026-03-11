@@ -122,6 +122,7 @@ impl Default for HybridSearchParams {
 /// Returns a score in roughly [-1.0, +1.1] that indicates how temporally
 /// feasible a fact is for the given intent and operator. Positive means the
 /// fact fits the temporal constraint; negative means it doesn't.
+#[cfg_attr(feature = "uncertainty", allow(dead_code))]
 pub(crate) fn intent_gated_temporal_signal(
     fact: &Fact,
     intent: TemporalIntent,
@@ -206,6 +207,94 @@ pub(crate) fn intent_gated_temporal_signal(
     }
 }
 
+/// Like [`intent_gated_temporal_signal`] but uses the uncertainty engine for
+/// effective confidence and predicate-aware age decay instead of hardcoded values.
+#[cfg(feature = "uncertainty")]
+pub(crate) fn intent_gated_temporal_signal_with_uncertainty(
+    fact: &Fact,
+    intent: TemporalIntent,
+    op: TemporalOperator,
+    at: Option<DateTime<Utc>>,
+    engine: &crate::uncertainty::UncertaintyEngine,
+) -> f64 {
+    let t = at.unwrap_or_else(Utc::now);
+    let eff = engine.effective_confidence(fact, t);
+    let conf = eff.value.clamp(0.2, 1.0) as f64;
+
+    match intent {
+        TemporalIntent::Timeless => 0.0,
+
+        TemporalIntent::CurrentState => {
+            // Age decay is already captured in `eff.age_decay` via the uncertainty
+            // engine's per-predicate half-life (instead of the hardcoded 365 days).
+            let recency = eff.age_decay as f64;
+            let validity = if fact.is_currently_valid() { 1.0 } else { -1.0 };
+            validity * (0.5 + 0.5 * recency) * conf
+        }
+
+        TemporalIntent::HistoricalPoint => match op {
+            TemporalOperator::AsOf | TemporalOperator::During => {
+                if fact.was_valid_at(t) {
+                    1.0 * conf
+                } else {
+                    -1.0
+                }
+            }
+            TemporalOperator::Before => {
+                if fact.valid_from < t && fact.was_valid_at(t) {
+                    1.1 * conf
+                } else if fact.valid_from < t {
+                    0.3 * conf
+                } else {
+                    -1.0
+                }
+            }
+            TemporalOperator::By => {
+                if fact.valid_from <= t && fact.was_valid_at(t) {
+                    1.05 * conf
+                } else if fact.valid_from <= t {
+                    0.2 * conf
+                } else {
+                    -1.0
+                }
+            }
+            TemporalOperator::After => {
+                if fact.valid_from > t {
+                    1.0 * conf
+                } else {
+                    -0.8
+                }
+            }
+            TemporalOperator::Current => {
+                if fact.is_currently_valid() {
+                    0.9 * conf
+                } else {
+                    -0.8
+                }
+            }
+            TemporalOperator::Unknown => {
+                if fact.was_valid_at(t) {
+                    0.9 * conf
+                } else {
+                    -0.8
+                }
+            }
+        },
+
+        TemporalIntent::HistoricalInterval => {
+            let _ = op;
+            let start = t - chrono::Duration::days(90);
+            let end = t + chrono::Duration::days(90);
+            let overlap = fact.valid_from < end && fact.valid_to.unwrap_or(end) > start;
+            if overlap {
+                1.0 * conf
+            } else {
+                -1.0
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Two-stage reranker
 // ---------------------------------------------------------------------------
@@ -215,29 +304,16 @@ fn semantic_core(b: &HybridScoreBreakdown) -> f64 {
     (0.75 * b.vector_rrf_contrib) + (0.25 * b.text_rrf_contrib) + (0.02 * b.final_score)
 }
 
-/// Two-stage reranker: semantic pruning → temporal feasibility rerank.
-///
-/// For timeless queries: adaptive vector-dominance reranking based on the
-/// signal balance in the top-5 candidates.
-///
-/// For temporal queries:
-/// - Stage 1: sort by semantic-dominant score, prune to top-14 candidates
-/// - Stage 2: filter to temporally feasible candidates, rerank by
-///   semantic + intent-weighted temporal signal
-///
-/// `k` controls the final output size.
-pub(crate) fn rerank_two_stage(
+fn rerank_two_stage_internal(
     mut hits: Vec<(Fact, HybridScoreBreakdown)>,
     k: usize,
     intent: TemporalIntent,
-    op: TemporalOperator,
-    at: Option<DateTime<Utc>>,
+    temporal_signal: impl Fn(&Fact) -> f64,
 ) -> Vec<(Fact, HybridScoreBreakdown)> {
     if hits.is_empty() || k == 0 {
         return Vec::new();
     }
 
-    // Stage 1: semantic-dominant candidate pruning (always runs first).
     hits.sort_by(|(fa, a), (fb, b)| {
         let sa = semantic_core(a);
         let sb = semantic_core(b);
@@ -245,6 +321,7 @@ pub(crate) fn rerank_two_stage(
             .unwrap_or(Ordering::Equal)
             .then_with(|| fa.id.0.cmp(&fb.id.0))
     });
+
     let stage1_n = if matches!(intent, TemporalIntent::Timeless) {
         20
     } else {
@@ -252,7 +329,6 @@ pub(crate) fn rerank_two_stage(
     };
     hits.truncate(stage1_n.min(hits.len()));
 
-    // Timeless path: adaptive vector-dominance reranking on pruned candidates.
     if matches!(intent, TemporalIntent::Timeless) {
         let sample = hits.iter().take(5);
         let (sum_vec, sum_text) = sample.fold((0.0_f64, 0.0_f64), |(sv, st), (_, b)| {
@@ -280,10 +356,9 @@ pub(crate) fn rerank_two_stage(
         return hits;
     }
 
-    // Stage 2: temporal feasibility filter + intent-weighted rerank.
     let feasible_only: Vec<(Fact, HybridScoreBreakdown)> = hits
         .iter()
-        .filter(|(f, _)| intent_gated_temporal_signal(f, intent, op, at) > 0.0)
+        .filter(|(f, _)| temporal_signal(f) > 0.0)
         .cloned()
         .collect();
     if !feasible_only.is_empty() {
@@ -294,12 +369,12 @@ pub(crate) fn rerank_two_stage(
         TemporalIntent::CurrentState => 0.10,
         TemporalIntent::HistoricalPoint => 0.22,
         TemporalIntent::HistoricalInterval => 0.20,
-        TemporalIntent::Timeless => 0.0, // unreachable, handled above
+        TemporalIntent::Timeless => 0.0,
     };
 
     hits.sort_by(|(fa, a), (fb, b)| {
-        let sa = semantic_core(a) + (weight * intent_gated_temporal_signal(fa, intent, op, at));
-        let sb = semantic_core(b) + (weight * intent_gated_temporal_signal(fb, intent, op, at));
+        let sa = semantic_core(a) + (weight * temporal_signal(fa));
+        let sb = semantic_core(b) + (weight * temporal_signal(fb));
         sb.partial_cmp(&sa)
             .unwrap_or(Ordering::Equal)
             .then_with(|| fa.id.0.cmp(&fb.id.0))
@@ -307,6 +382,46 @@ pub(crate) fn rerank_two_stage(
 
     hits.truncate(k);
     hits
+}
+
+/// Two-stage reranker: semantic pruning → temporal feasibility rerank.
+///
+/// For timeless queries: adaptive vector-dominance reranking based on the
+/// signal balance in the top-5 candidates.
+///
+/// For temporal queries:
+/// - Stage 1: sort by semantic-dominant score, prune to top-14 candidates
+/// - Stage 2: filter to temporally feasible candidates, rerank by
+///   semantic + intent-weighted temporal signal
+///
+/// `k` controls the final output size.
+#[cfg_attr(feature = "uncertainty", allow(dead_code))]
+pub(crate) fn rerank_two_stage(
+    hits: Vec<(Fact, HybridScoreBreakdown)>,
+    k: usize,
+    intent: TemporalIntent,
+    op: TemporalOperator,
+    at: Option<DateTime<Utc>>,
+) -> Vec<(Fact, HybridScoreBreakdown)> {
+    rerank_two_stage_internal(hits, k, intent, |fact| {
+        intent_gated_temporal_signal(fact, intent, op, at)
+    })
+}
+
+/// Like [`rerank_two_stage`] but uses the uncertainty engine for temporal
+/// signal computation — per-predicate age decay and source-weighted confidence.
+#[cfg(feature = "uncertainty")]
+pub(crate) fn rerank_two_stage_with_uncertainty(
+    hits: Vec<(Fact, HybridScoreBreakdown)>,
+    k: usize,
+    intent: TemporalIntent,
+    op: TemporalOperator,
+    at: Option<DateTime<Utc>>,
+    engine: &crate::uncertainty::UncertaintyEngine,
+) -> Vec<(Fact, HybridScoreBreakdown)> {
+    rerank_two_stage_internal(hits, k, intent, |fact| {
+        intent_gated_temporal_signal_with_uncertainty(fact, intent, op, at, engine)
+    })
 }
 
 // ---------------------------------------------------------------------------

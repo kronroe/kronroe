@@ -1,5 +1,8 @@
 # Kronroe Technical Phase Review (2026-02-23)
 
+> Historical snapshot: this document was authored on 2026-02-23.
+> Refreshed on 2026-03-09 to correct implementation drift while preserving original structure.
+
 ## 1) Executive Snapshot
 
 ### Status
@@ -7,6 +10,7 @@
 - `cargo test --all --all-features` passes.
 - WASM playground build passes (`site`).
 - iOS packaging pipeline exists and runs in CI.
+- AgentMemory core methods (`remember`, `recall`, `assemble_context`) are implemented (no longer stubs).
 
 ### Why this matters
 - Confirms engineering baseline is healthy before Phase 1 feature expansion.
@@ -55,11 +59,12 @@
 - Engine, temporal model, retrieval primitives, Python/MCP/iOS/WASM interfaces, and CI are all present.
 
 ### Still open (per roadmap)
-- WASM playground deployment/channel completion.
-- AgentMemory Phase 1 NLP + semantic recall/context assembly.
+- Storage format commitment and migration policy (0.12).
+- Phase 1 quality hardening (benchmarking, extraction quality, release docs).
 
 ### Completed since this review
 - Android JNI bindings (hand-written, not UniFFI) — `crates/android` with Kotlin wrapper and CI.
+- WASM deploy pipeline with post-deploy smoke test.
 
 ### Why this matters
 - Clarifies that remaining scope is mostly distribution/productization + advanced memory UX, not core-database viability.
@@ -74,15 +79,26 @@
 
 ### `hybrid-experimental` in core
 - Feature exists in `crates/core/Cargo.toml`.
-- Hybrid types (`HybridParams`, etc.) exist but are scaffold-level/private.
-- Not yet integrated as a stable public retrieval API.
+- Hybrid retrieval and reranking are implemented behind feature gates.
+- API remains intentionally experimental and subject to contract changes.
 
-### AgentMemory Phase 1 methods are stubs
-- `remember()`, `recall()`, `assemble_context()` in `crates/agent-memory` currently `unimplemented!` with explicit Phase 1 messaging.
+### `contradiction` in core
+- Feature exists in `crates/core/Cargo.toml`.
+- Engine-native contradiction detection: singleton predicates, Allen's interval overlap, conflict severity/policy.
+- Agent-memory auto-registers common singletons (`works_at`, `lives_in`, `job_title`, `email`, `phone`).
+
+### `uncertainty` in core
+- Feature exists in `crates/core/Cargo.toml`.
+- Engine-native uncertainty model: age decay (exponential half-life), source authority weights, effective confidence at query time.
+- Agent-memory auto-registers default volatilities for common predicates.
+
+### AgentMemory Phase 1 methods are implemented
+- `remember()`, `recall()`, and `assemble_context()` are active paths in `crates/agent-memory`.
+- Current work is focused on quality, explainability, and confidence semantics rather than bringing stubs online.
 
 ### Why this matters
-- Prevents accidental over-claiming of semantic memory capabilities.
-- Keeps demos honest: structured facts are real; unstructured memory ingestion is planned.
+- Prevents outdated planning assumptions from driving wrong priorities.
+- Keeps demos honest about what is shipped vs what is still quality-hardening work.
 
 ### Help notes
 - In docs/sales: avoid promising autonomous NLP memory extraction today.
@@ -147,21 +163,21 @@
 
 ## 7) Risks and Technical Debt (Practical)
 
-### R1: Phase 1 memory methods are visible but non-functional
-- Risk: downstream developers may call stubbed methods and hit runtime panic.
+### R1: Retrieval semantics drift under rapid iteration
+- Risk: filtered/effective-confidence and hybrid retrieval semantics can regress across refactors.
 - Mitigation:
-  - Keep docs explicit.
-  - Consider returning typed errors instead of `unimplemented!` in public SDK-facing surfaces.
+  - Keep regression coverage around ordering, limits, and confidence thresholds.
+  - Keep API/docs parity checks in each release cycle.
 
 ### R2: iOS functionality not deeply behavior-tested
 - Risk: FFI or Swift wrapper regressions may slip despite successful packaging.
 - Mitigation:
   - Add 2-3 focused integration tests (open/assert/query/error path).
 
-### R3: Feature scaffolds can drift from implementation reality
-- Risk: experimental types may stagnate and confuse prioritization.
+### R3: Experimental paths can drift from intended product contract
+- Risk: hybrid/uncertainty features may become de facto public contracts before stabilization.
 - Mitigation:
-  - Either promote Phase 1 hybrid plan into active sprint tasks or hide further until scheduled.
+  - Keep explicit "experimental" labeling and a stabilization checklist.
 
 ### Why this matters
 - These are not existential risks; they are execution-quality risks that can be closed quickly.
@@ -185,12 +201,12 @@
   - small markdown in repo (`docs/plans/ios-integration-proof.md`) with exact command/run notes.
 
 ### Step B: Phase 1 AgentMemory implementation (primary)
-- Implement in this order:
-  1. Idempotency-key storage and API path.
-  2. Hybrid retrieval module wiring (start behind feature gate).
-  3. `remember()` structured extraction integration contract.
-  4. `recall()` + `assemble_context()` stable return behavior.
-- Add tests for each milestone and keep CI green with `--all-features`.
+- Core implementation is now in place.
+- Next quality order:
+  1. Lock retrieval semantics (confidence filters, effective confidence, contradiction handling).
+  2. Stabilize hybrid behavior and document guarantees/limits.
+  3. Improve `remember()` extraction quality contract and test fixtures.
+  4. Benchmark recall quality and latency against target baselines.
 
 ### Step C: Release hardening
 - Ensure all public SDK surfaces fail gracefully (no panics for user-invoked paths).
@@ -217,16 +233,15 @@
 
 ## 9) Suggested Immediate Backlog (Concrete Tickets)
 
-1. `agent-memory`: replace `unimplemented!` with typed `NotYetAvailable` error variant for Phase 1 methods.
-2. `core`: implement idempotency table + tests.
-3. `core`: promote hybrid types from crate-private scaffold to usable module API (still gated).
-4. `agent-memory`: first implementation of `recall()` using current vector/fulltext primitives.
-5. `ios`: add wrapper-level behavior tests (open/assert/query/failure).
-6. `docs`: add iOS consuming-app integration proof note.
+1. `core`: document and lock uncertainty persistence + validation behavior.
+2. `agent-memory`: finalize confidence filtering semantics across text and hybrid paths.
+3. `agent-memory`: add regression tests for edge conditions (caps, filtering order, effective confidence).
+4. `core`: maintain hybrid as experimental but publish a stabilization checklist.
+5. `ios`: keep wrapper-level behavior tests covering open/assert/query/failure.
+6. `docs`: keep roadmap/README/phase-review status in sync at each milestone.
 
 ### Why this matters
 - Turns strategy into execution-ready work with low ambiguity.
 
 ### Help notes
 - Keep each ticket mergeable in < 1 day where possible.
-
