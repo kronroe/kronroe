@@ -33,7 +33,7 @@ use chrono::{DateTime, Utc};
 use kronroe::{ConflictPolicy, Contradiction};
 use kronroe::{Fact, FactId, TemporalGraph, Value};
 #[cfg(feature = "hybrid")]
-use kronroe::{HybridScoreBreakdown, HybridSearchParams};
+use kronroe::{HybridScoreBreakdown, HybridSearchParams, TemporalIntent, TemporalOperator};
 use std::collections::HashSet;
 
 pub use kronroe::KronroeError as Error;
@@ -208,6 +208,18 @@ pub struct RecallOptions<'a> {
     /// Lowering it improves bounded latency but may reduce results if strong hits
     /// appear deeper in the result ranking.
     pub max_scored_rows: usize,
+    /// Whether to run hybrid retrieval when an embedding is provided.
+    ///
+    /// Defaults to `false` in options helpers to preserve the existing
+    /// `recall_*` method ergonomics.
+    #[cfg(feature = "hybrid")]
+    pub use_hybrid: bool,
+    /// Temporal intent for hybrid reranking.
+    #[cfg(feature = "hybrid")]
+    pub temporal_intent: TemporalIntent,
+    /// Temporal operator used when intent is [`TemporalIntent::HistoricalPoint`].
+    #[cfg(feature = "hybrid")]
+    pub temporal_operator: TemporalOperator,
 }
 
 const DEFAULT_MAX_SCORED_ROWS: usize = 4_096;
@@ -222,6 +234,12 @@ impl<'a> RecallOptions<'a> {
             min_confidence: None,
             confidence_filter_mode: ConfidenceFilterMode::Base,
             max_scored_rows: DEFAULT_MAX_SCORED_ROWS,
+            #[cfg(feature = "hybrid")]
+            use_hybrid: false,
+            #[cfg(feature = "hybrid")]
+            temporal_intent: TemporalIntent::Timeless,
+            #[cfg(feature = "hybrid")]
+            temporal_operator: TemporalOperator::Current,
         }
     }
 
@@ -265,6 +283,35 @@ impl<'a> RecallOptions<'a> {
         self.max_scored_rows = max_scored_rows;
         self
     }
+
+    /// Enable or disable hybrid reranking when a query embedding is provided.
+    ///
+    /// Hybrid is only available when the `hybrid` feature is enabled.
+    /// The default behavior in options-based recall is text-only unless this
+    /// flag is explicitly enabled.
+    #[cfg(feature = "hybrid")]
+    pub fn with_hybrid(mut self, enabled: bool) -> Self {
+        self.use_hybrid = enabled;
+        self
+    }
+
+    /// Provide a temporal recall intent for hybrid reranking.
+    ///
+    /// No effect without the `hybrid` feature.
+    #[cfg(feature = "hybrid")]
+    pub fn with_temporal_intent(mut self, intent: TemporalIntent) -> Self {
+        self.temporal_intent = intent;
+        self
+    }
+
+    /// Provide a temporal operator for historical intent resolution.
+    ///
+    /// No effect without the `hybrid` feature.
+    #[cfg(feature = "hybrid")]
+    pub fn with_temporal_operator(mut self, operator: TemporalOperator) -> Self {
+        self.temporal_operator = operator;
+        self
+    }
 }
 
 fn normalize_min_confidence(min_confidence: f32) -> Result<f32> {
@@ -275,6 +322,15 @@ fn normalize_min_confidence(min_confidence: f32) -> Result<f32> {
     }
 
     Ok(min_confidence.clamp(0.0, 1.0))
+}
+
+fn normalize_fact_confidence(confidence: f32) -> Result<f32> {
+    if !confidence.is_finite() {
+        return Err(Error::Search(
+            "fact confidence must be finite and in [0.0, 1.0], got non-finite value".to_string(),
+        ));
+    }
+    Ok(confidence.clamp(0.0, 1.0))
 }
 
 /// High-level agent memory store built on a Kronroe temporal graph.
@@ -335,6 +391,24 @@ impl AgentMemory {
             .assert_fact_idempotent(idempotency_key, subject, predicate, object, Utc::now())
     }
 
+    /// Store a structured fact with idempotent retry semantics and explicit timing.
+    pub fn assert_idempotent_with_params(
+        &self,
+        idempotency_key: &str,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+        params: AssertParams,
+    ) -> Result<FactId> {
+        self.graph.assert_fact_idempotent(
+            idempotency_key,
+            subject,
+            predicate,
+            object,
+            params.valid_from,
+        )
+    }
+
     /// Store a structured fact with explicit parameters.
     pub fn assert_with_params(
         &self,
@@ -372,6 +446,12 @@ impl AgentMemory {
     /// Correct an existing fact by id, preserving temporal history.
     pub fn correct_fact(&self, fact_id: &FactId, new_value: impl Into<Value>) -> Result<FactId> {
         self.graph.correct_fact(fact_id, new_value, Utc::now())
+    }
+
+    /// Invalidate an existing fact by id, recording the current time as
+    /// the transaction end.
+    pub fn invalidate_fact(&self, fact_id: &FactId) -> Result<()> {
+        self.graph.invalidate_fact(fact_id, Utc::now())
     }
 
     // -----------------------------------------------------------------------
@@ -515,7 +595,7 @@ impl AgentMemory {
 
         #[cfg(feature = "hybrid")]
         let opts = if let Some(embedding) = query_embedding {
-            opts.with_embedding(embedding)
+            opts.with_embedding(embedding).with_hybrid(true)
         } else {
             opts
         };
@@ -543,14 +623,42 @@ impl AgentMemory {
         limit: usize,
     ) -> Result<Vec<(Fact, RecallScore)>> {
         #[cfg(feature = "hybrid")]
+        let mut opts = RecallOptions::new(query).with_limit(limit);
+        #[cfg(not(feature = "hybrid"))]
+        let opts = RecallOptions::new(query).with_limit(limit);
+        #[cfg(feature = "hybrid")]
+        if let Some(embedding) = query_embedding {
+            opts = opts
+                .with_embedding(embedding)
+                .with_hybrid(true)
+                .with_temporal_intent(TemporalIntent::Timeless)
+                .with_temporal_operator(TemporalOperator::Current);
+        }
+        self.recall_scored_with_options(&opts)
+    }
+
+    #[cfg(feature = "hybrid")]
+    fn recall_scored_internal(
+        &self,
+        query: &str,
+        query_embedding: Option<&[f32]>,
+        limit: usize,
+        intent: TemporalIntent,
+        operator: TemporalOperator,
+    ) -> Result<Vec<(Fact, RecallScore)>> {
         if let Some(emb) = query_embedding {
             let params = HybridSearchParams {
                 k: limit,
+                intent,
+                operator,
                 ..HybridSearchParams::default()
             };
             let hits = self.graph.search_hybrid(query, emb, params, None)?;
             let mut scored = Vec::with_capacity(hits.len());
             for (fact, breakdown) in hits {
+                if !fact.is_currently_valid() {
+                    continue;
+                }
                 let confidence = fact.confidence;
                 let eff = self.compute_effective_confidence(&fact)?;
                 scored.push((
@@ -564,6 +672,39 @@ impl AgentMemory {
         let scored_facts = self.graph.search_scored(query, limit)?;
         let mut scored = Vec::with_capacity(scored_facts.len());
         for (i, (fact, bm25)) in scored_facts.into_iter().enumerate() {
+            if !fact.is_currently_valid() {
+                continue;
+            }
+            let confidence = fact.confidence;
+            let eff = self.compute_effective_confidence(&fact)?;
+            scored.push((
+                fact,
+                RecallScore::TextOnly {
+                    rank: i,
+                    bm25_score: bm25,
+                    confidence,
+                    effective_confidence: eff,
+                },
+            ));
+        }
+        Ok(scored)
+    }
+
+    #[cfg(not(feature = "hybrid"))]
+    fn recall_scored_internal(
+        &self,
+        query: &str,
+        _query_embedding: Option<&[f32]>,
+        limit: usize,
+        _intent: (),
+        _operator: (),
+    ) -> Result<Vec<(Fact, RecallScore)>> {
+        let scored_facts = self.graph.search_scored(query, limit)?;
+        let mut scored = Vec::with_capacity(scored_facts.len());
+        for (i, (fact, bm25)) in scored_facts.into_iter().enumerate() {
+            if !fact.is_currently_valid() {
+                continue;
+            }
             let confidence = fact.confidence;
             let eff = self.compute_effective_confidence(&fact)?;
             scored.push((
@@ -612,7 +753,7 @@ impl AgentMemory {
 
         #[cfg(feature = "hybrid")]
         let opts = if let Some(embedding) = query_embedding {
-            opts.with_embedding(embedding)
+            opts.with_embedding(embedding).with_hybrid(true)
         } else {
             opts
         };
@@ -641,7 +782,7 @@ impl AgentMemory {
 
         #[cfg(feature = "hybrid")]
         let opts = if let Some(embedding) = query_embedding {
-            opts.with_embedding(embedding)
+            opts.with_embedding(embedding).with_hybrid(true)
         } else {
             opts
         };
@@ -723,6 +864,14 @@ impl AgentMemory {
                 .effective_confidence()
                 .unwrap_or_else(|| score.confidence()),
         };
+        #[cfg(feature = "hybrid")]
+        let query_embedding_for_path = if opts.use_hybrid {
+            opts.query_embedding
+        } else {
+            None
+        };
+        #[cfg(not(feature = "hybrid"))]
+        let query_embedding_for_path = None;
 
         match opts.min_confidence {
             Some(min_confidence) => {
@@ -736,13 +885,27 @@ impl AgentMemory {
                     ));
                 }
                 let max_scored_rows = opts.max_scored_rows;
-                let is_hybrid_request = cfg!(feature = "hybrid") && opts.query_embedding.is_some();
+                #[cfg(feature = "hybrid")]
+                let is_hybrid_request = query_embedding_for_path.is_some();
+                #[cfg(not(feature = "hybrid"))]
+                let is_hybrid_request = false;
 
                 // Hybrid ranking can be non-monotonic as `k` changes, so apply
                 // one-shot fetch at the confidence budget then filter locally.
                 if is_hybrid_request {
-                    let scored =
-                        self.recall_scored(opts.query, opts.query_embedding, max_scored_rows)?;
+                    let scored = self.recall_scored_internal(
+                        opts.query,
+                        query_embedding_for_path,
+                        max_scored_rows,
+                        #[cfg(feature = "hybrid")]
+                        opts.temporal_intent,
+                        #[cfg(feature = "hybrid")]
+                        opts.temporal_operator,
+                        #[cfg(not(feature = "hybrid"))]
+                        (),
+                        #[cfg(not(feature = "hybrid"))]
+                        (),
+                    )?;
                     let mut filtered = Vec::new();
 
                     for (fact, score) in scored {
@@ -763,8 +926,19 @@ impl AgentMemory {
                 let mut consecutive_no_confidence_batches = 0u8;
 
                 loop {
-                    let scored =
-                        self.recall_scored(opts.query, opts.query_embedding, fetch_limit)?;
+                    let scored = self.recall_scored_internal(
+                        opts.query,
+                        query_embedding_for_path,
+                        fetch_limit,
+                        #[cfg(feature = "hybrid")]
+                        opts.temporal_intent,
+                        #[cfg(feature = "hybrid")]
+                        opts.temporal_operator,
+                        #[cfg(not(feature = "hybrid"))]
+                        (),
+                        #[cfg(not(feature = "hybrid"))]
+                        (),
+                    )?;
                     let mut newly_seen = 0usize;
                     let mut newly_confident = 0usize;
 
@@ -815,7 +989,19 @@ impl AgentMemory {
 
                 Ok(filtered)
             }
-            None => self.recall_scored(opts.query, opts.query_embedding, opts.limit),
+            None => self.recall_scored_internal(
+                opts.query,
+                query_embedding_for_path,
+                opts.limit,
+                #[cfg(feature = "hybrid")]
+                opts.temporal_intent,
+                #[cfg(feature = "hybrid")]
+                opts.temporal_operator,
+                #[cfg(not(feature = "hybrid"))]
+                (),
+                #[cfg(not(feature = "hybrid"))]
+                (),
+            ),
         }
     }
 
@@ -839,8 +1025,34 @@ impl AgentMemory {
         object: impl Into<Value>,
         confidence: f32,
     ) -> Result<FactId> {
-        self.graph
-            .assert_fact_with_confidence(subject, predicate, object, Utc::now(), confidence)
+        self.assert_with_confidence_with_params(
+            subject,
+            predicate,
+            object,
+            AssertParams {
+                valid_from: Utc::now(),
+            },
+            confidence,
+        )
+    }
+
+    /// Store a structured fact with explicit confidence and explicit timing.
+    pub fn assert_with_confidence_with_params(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+        params: AssertParams,
+        confidence: f32,
+    ) -> Result<FactId> {
+        let confidence = normalize_fact_confidence(confidence)?;
+        self.graph.assert_fact_with_confidence(
+            subject,
+            predicate,
+            object,
+            params.valid_from,
+            confidence,
+        )
     }
 
     /// Store a structured fact with explicit source provenance.
@@ -856,11 +1068,34 @@ impl AgentMemory {
         confidence: f32,
         source: &str,
     ) -> Result<FactId> {
+        self.assert_with_source_with_params(
+            subject,
+            predicate,
+            object,
+            AssertParams {
+                valid_from: Utc::now(),
+            },
+            confidence,
+            source,
+        )
+    }
+
+    /// Store a structured fact with explicit source provenance and explicit timing.
+    pub fn assert_with_source_with_params(
+        &self,
+        subject: &str,
+        predicate: &str,
+        object: impl Into<Value>,
+        params: AssertParams,
+        confidence: f32,
+        source: &str,
+    ) -> Result<FactId> {
+        let confidence = normalize_fact_confidence(confidence)?;
         self.graph.assert_fact_with_source(
             subject,
             predicate,
             object,
-            Utc::now(),
+            params.valid_from,
             confidence,
             source,
         )
@@ -1018,6 +1253,37 @@ mod tests {
     }
 
     #[test]
+    fn test_assert_idempotent_with_params_uses_valid_from() {
+        let (mem, _tmp) = open_temp_memory();
+        let valid_from = Utc::now() - chrono::Duration::days(10);
+        let first = mem
+            .assert_idempotent_with_params(
+                "evt-param-1",
+                "alice",
+                "works_at",
+                "Acme",
+                AssertParams { valid_from },
+            )
+            .unwrap();
+        let second = mem
+            .assert_idempotent_with_params(
+                "evt-param-1",
+                "alice",
+                "works_at",
+                "Acme",
+                AssertParams {
+                    valid_from: Utc::now(),
+                },
+            )
+            .unwrap();
+        assert_eq!(first, second);
+
+        let facts = mem.facts_about("alice").unwrap();
+        assert_eq!(facts.len(), 1);
+        assert!((facts[0].valid_from - valid_from).num_seconds().abs() < 1);
+    }
+
+    #[test]
     fn test_remember_idempotent_dedupes_same_key() {
         let (mem, _tmp) = open_temp_memory();
         let first = mem
@@ -1101,6 +1367,23 @@ mod tests {
         let hits = mem.recall("language", Some(&[1.0, 0.0]), 1).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].subject, "ep-rust");
+    }
+
+    #[cfg(feature = "hybrid")]
+    #[test]
+    fn recall_with_embedding_without_hybrid_toggle_is_text_scored() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.remember("Rust systems", "ep-rust", Some(vec![1.0f32, 0.0]))
+            .unwrap();
+        mem.remember("Python notebooks", "ep-py", Some(vec![0.0f32, 1.0]))
+            .unwrap();
+
+        let opts = RecallOptions::new("Rust")
+            .with_embedding(&[1.0, 0.0])
+            .with_limit(2);
+        let results = mem.recall_scored_with_options(&opts).unwrap();
+        assert!(!results.is_empty());
+        assert!(matches!(results[0].1, RecallScore::TextOnly { .. }));
     }
 
     #[cfg(feature = "contradiction")]
@@ -1855,6 +2138,47 @@ mod tests {
         assert!((facts[0].confidence - 0.9).abs() < f32::EPSILON);
     }
 
+    #[test]
+    fn assert_with_confidence_with_params_uses_valid_from() {
+        let (mem, _tmp) = open_temp_memory();
+        let valid_from = Utc::now() - chrono::Duration::days(90);
+        mem.assert_with_confidence_with_params(
+            "alice",
+            "worked_at",
+            "Acme",
+            AssertParams { valid_from },
+            0.7,
+        )
+        .unwrap();
+
+        let facts = mem.facts_about("alice").unwrap();
+        assert_eq!(facts.len(), 1);
+        assert!((facts[0].valid_from - valid_from).num_seconds().abs() < 1);
+        assert!((facts[0].confidence - 0.7).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn assert_with_source_with_params_uses_valid_from() {
+        let (mem, _tmp) = open_temp_memory();
+        let valid_from = Utc::now() - chrono::Duration::days(45);
+        mem.assert_with_source_with_params(
+            "alice",
+            "works_at",
+            "Acme",
+            AssertParams { valid_from },
+            0.85,
+            "agent:planner",
+        )
+        .unwrap();
+
+        let facts = mem.facts_about("alice").unwrap();
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].source.as_deref(), Some("agent:planner"));
+        assert_eq!(facts[0].predicate, "works_at");
+        assert!((facts[0].valid_from - valid_from).num_seconds().abs() < 1);
+        assert!((facts[0].confidence - 0.85).abs() < f32::EPSILON);
+    }
+
     #[cfg(feature = "uncertainty")]
     #[test]
     fn recall_includes_effective_confidence() {
@@ -1890,7 +2214,7 @@ mod tests {
         let old_eff = mem
             .graph
             .effective_confidence(
-                &mem.facts_about("alice")
+                mem.facts_about("alice")
                     .unwrap()
                     .iter()
                     .find(|f| f.predicate == "works_at")
@@ -1901,7 +2225,7 @@ mod tests {
         let fresh_eff = mem
             .graph
             .effective_confidence(
-                &mem.facts_about("alice")
+                mem.facts_about("alice")
                     .unwrap()
                     .iter()
                     .find(|f| f.predicate == "born_in")
