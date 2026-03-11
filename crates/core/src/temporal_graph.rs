@@ -2824,4 +2824,30 @@ mod tests {
             Ok(_) => panic!("expected reopen to fail with corrupted source-weight registry"),
         }
     }
+
+    #[test]
+    #[cfg(feature = "contradiction")]
+    fn init_rejects_corrupted_predicate_registry_entry() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        {
+            let db = TemporalGraph::open(&path).unwrap();
+            let write_txn = db.db.begin_write().unwrap();
+            {
+                let mut table = write_txn.open_table(PREDICATE_REGISTRY).unwrap();
+                table.insert("works_at", "not-json").unwrap();
+            }
+            write_txn.commit().unwrap();
+        }
+
+        match TemporalGraph::open(&path) {
+            Err(KronroeError::Storage(msg)) => {
+                assert!(msg.contains("invalid predicate registry"));
+            }
+            Err(err) => {
+                panic!("expected Storage error for corrupted predicate registry, got {err:?}")
+            }
+            Ok(_) => panic!("expected reopen to fail with corrupted predicate registry"),
+        }
+    }
 }

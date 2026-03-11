@@ -110,53 +110,46 @@ fn handle_request(state: &mut AppState, req: &JsonValue) -> Option<JsonValue> {
     let id = req.get("id").cloned();
     let method = req.get("method").and_then(JsonValue::as_str)?;
 
-    // Requests (as opposed to notifications) require an `id` field per JSON-RPC.
-    // Return an error with id=null rather than silently dropping the request.
-    let require_id = |id: &Option<JsonValue>, method: &str| -> Option<JsonValue> {
-        if id.is_none() {
-            Some(json!({
-                "jsonrpc": "2.0",
-                "id": null,
-                "error": {
-                    "code": -32600,
-                    "message": format!("request '{method}' is missing required 'id' field")
-                }
-            }))
-        } else {
-            None
-        }
+    // All MCP notifications are fire-and-forget and should never receive a response.
+    if method.starts_with("notifications/") {
+        return None;
+    }
+
+    let missing_id_error = |method: &str| {
+        json!({
+            "jsonrpc": "2.0",
+            "id": null,
+            "error": {
+                "code": -32600,
+                "message": format!("request '{method}' is missing required 'id' field")
+            }
+        })
     };
 
     match method {
-        // Notifications have no id — do not guard them.
-        "notifications/initialized" => None,
-        // All other methods require id per JSON-RPC.
-        _ => {
-            if let Some(err) = require_id(&id, method) {
-                return Some(err);
-            }
-            match method {
-                "initialize" => id.map(|id_val| {
-                    json!({
-                        "jsonrpc": "2.0",
-                        "id": id_val,
-                        "result": {
-                            "protocolVersion": "2024-11-05",
-                            "capabilities": { "tools": {} },
-                            "serverInfo": { "name": "kronroe-mcp", "version": env!("CARGO_PKG_VERSION") }
-                        }
-                    })
+        "initialize" | "tools/list" | "tools/call" | "ping" => {
+            let id_val = match id {
+                Some(v) => v,
+                None => return Some(missing_id_error(method)),
+            };
+            Some(match method {
+                "initialize" => json!({
+                    "jsonrpc": "2.0",
+                    "id": id_val,
+                    "result": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": { "tools": {} },
+                        "serverInfo": { "name": "kronroe-mcp", "version": env!("CARGO_PKG_VERSION") }
+                    }
                 }),
-                "tools/list" => id.map(|id_val| {
-                    json!({
-                        "jsonrpc": "2.0",
-                        "id": id_val,
-                        "result": {
-                            "tools": tools_schema()
-                        }
-                    })
+                "tools/list" => json!({
+                    "jsonrpc": "2.0",
+                    "id": id_val,
+                    "result": {
+                        "tools": tools_schema()
+                    }
                 }),
-                "tools/call" => id.map(|id_val| {
+                "tools/call" => {
                     let result = call_tool(state, req.get("params"));
                     match result {
                         Ok(tool_result) => json!({
@@ -173,20 +166,21 @@ fn handle_request(state: &mut AppState, req: &JsonValue) -> Option<JsonValue> {
                             }
                         }),
                     }
-                }),
-                "ping" => id.map(|id_val| json!({ "jsonrpc": "2.0", "id": id_val, "result": {} })),
-                _ => id.map(|id_val| {
-                    json!({
-                        "jsonrpc": "2.0",
-                        "id": id_val,
-                        "error": {
-                            "code": -32601,
-                            "message": format!("method not found: {method}")
-                        }
-                    })
-                }),
-            }
+                }
+                "ping" => json!({ "jsonrpc": "2.0", "id": id_val, "result": {} }),
+                _ => unreachable!("request-method match should be exhaustive"),
+            })
         }
+        _ => id.map(|id_val| {
+            json!({
+                "jsonrpc": "2.0",
+                "id": id_val,
+                "error": {
+                    "code": -32601,
+                    "message": format!("method not found: {method}")
+                }
+            })
+        }),
     }
 }
 
@@ -1231,6 +1225,123 @@ mod tests {
             .and_then(JsonValue::as_array)
             .unwrap();
         assert_eq!(facts.len(), 0);
+    }
+
+    #[test]
+    fn known_request_without_id_returns_invalid_request_error() {
+        let mut state = temp_state();
+        let req = json!({
+            "jsonrpc": "2.0",
+            "method": "tools/list"
+        });
+        let resp = handle_request(&mut state, &req).expect("request should produce an error");
+        assert_eq!(resp.get("id"), Some(&JsonValue::Null));
+        assert_eq!(
+            resp.get("error")
+                .and_then(|v| v.get("code"))
+                .and_then(JsonValue::as_i64),
+            Some(-32600)
+        );
+    }
+
+    #[test]
+    fn notification_without_id_is_ignored() {
+        let mut state = temp_state();
+        let req = json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/progress"
+        });
+        assert!(
+            handle_request(&mut state, &req).is_none(),
+            "notifications should never generate responses"
+        );
+    }
+
+    #[test]
+    fn unknown_method_without_id_is_ignored_as_notification() {
+        let mut state = temp_state();
+        let req = json!({
+            "jsonrpc": "2.0",
+            "method": "custom/noop"
+        });
+        assert!(
+            handle_request(&mut state, &req).is_none(),
+            "method without id should be treated as JSON-RPC notification"
+        );
+    }
+
+    #[test]
+    fn unknown_method_with_id_returns_method_not_found() {
+        let mut state = temp_state();
+        let req = json!({
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "custom/noop"
+        });
+        let resp = handle_request(&mut state, &req).expect("request should produce an error");
+        assert_eq!(resp.get("id").and_then(JsonValue::as_i64), Some(42));
+        assert_eq!(
+            resp.get("error")
+                .and_then(|v| v.get("code"))
+                .and_then(JsonValue::as_i64),
+            Some(-32601)
+        );
+    }
+
+    #[test]
+    fn assert_fact_rejects_non_scalar_object() {
+        let mut state = temp_state();
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "profile",
+                    "object": { "company": "Acme" }
+                }
+            })),
+        )
+        .expect_err("non-scalar object should fail")
+        .to_string();
+        assert!(err.contains("object must be a scalar"));
+    }
+
+    #[test]
+    fn assemble_context_rejects_zero_max_tokens() {
+        let mut state = temp_state();
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assemble_context",
+                "arguments": {
+                    "query": "alice",
+                    "max_tokens": 0
+                }
+            })),
+        )
+        .expect_err("max_tokens=0 should fail")
+        .to_string();
+        assert!(err.contains("max_tokens must be >= 1"));
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    #[test]
+    fn assemble_context_rejects_platform_oversized_max_tokens() {
+        let mut state = temp_state();
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assemble_context",
+                "arguments": {
+                    "query": "alice",
+                    "max_tokens": (u32::MAX as u64) + 1
+                }
+            })),
+        )
+        .expect_err("oversized max_tokens should fail on 32-bit targets")
+        .to_string();
+        assert!(err.contains("max_tokens value too large"));
     }
 
     #[test]

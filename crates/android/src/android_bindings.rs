@@ -309,4 +309,13 @@ mod tests {
         let msg = LAST_ERROR.with(|cell| cell.borrow().clone());
         assert!(msg.is_none(), "error should be cleared again");
     }
+
+    #[test]
+    fn last_error_sanitizes_null_bytes() {
+        clear_last_error();
+        set_last_error("broken\0message".to_string());
+
+        let msg = LAST_ERROR.with(|cell| cell.borrow().clone());
+        assert_eq!(msg.as_deref(), Some("broken\\0message"));
+    }
 }
