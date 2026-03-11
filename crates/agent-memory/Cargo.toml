@@ -13,13 +13,14 @@ categories = ["database-implementations"]
 path = "src/agent_memory.rs"
 
 [features]
-default = []
+default = ["fulltext"]
+fulltext = ["kronroe/fulltext"]
 hybrid = ["kronroe/vector", "kronroe/hybrid-experimental"]
 contradiction = ["kronroe/contradiction"]
 uncertainty = ["kronroe/uncertainty"]
 
 [dependencies]
-kronroe = { path = "../core" }
+kronroe = { path = "../core", default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }

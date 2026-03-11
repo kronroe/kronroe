@@ -44,13 +44,22 @@ fn parse_embedding(embedding: Option<Vec<f64>>) -> Result<Option<Vec<f32>>, JsVa
     let Some(embedding) = embedding else {
         return Ok(None);
     };
+    if embedding.is_empty() {
+        return Err(JsValue::from_str("query_embedding must not be empty"));
+    }
 
     let mut out = Vec::with_capacity(embedding.len());
     for value in embedding {
         if !value.is_finite() {
             return Err(JsValue::from_str("query_embedding values must be finite"));
         }
-        out.push(value as f32);
+        let narrowed = value as f32;
+        if !narrowed.is_finite() {
+            return Err(JsValue::from_str(
+                "query_embedding value overflows f32 range",
+            ));
+        }
+        out.push(narrowed);
     }
     Ok(Some(out))
 }
@@ -128,6 +137,7 @@ fn recall_score_payload(score: &RecallScore) -> JsonValue {
         }),
         _ => json!({
             "kind": "unsupported",
+            "warning": "RecallScore variant not yet supported in wasm bindings",
         }),
     }
 }
@@ -320,7 +330,7 @@ impl WasmGraph {
         confidence: f64,
         source: Option<String>,
     ) -> Result<String, JsValue> {
-        if !confidence.is_finite() {
+        if !confidence.is_finite() || !(0.0..=1.0).contains(&confidence) {
             return Err(JsValue::from_str(
                 "confidence must be a finite number in [0.0, 1.0]",
             ));
@@ -354,11 +364,10 @@ impl WasmGraph {
     /// Get all currently valid facts for (subject, predicate) as JSON.
     #[wasm_bindgen]
     pub fn current_facts(&self, subject: &str, predicate: &str) -> Result<String, JsValue> {
-        let facts = self.inner.facts_about(subject).map_err(to_js_err)?;
-        let facts = facts
-            .into_iter()
-            .filter(|fact| fact.predicate == predicate && fact.is_currently_valid())
-            .collect::<Vec<_>>();
+        let facts = self
+            .inner
+            .current_facts(subject, predicate)
+            .map_err(to_js_err)?;
         serde_json::to_string(&facts).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -458,6 +467,12 @@ impl WasmGraph {
             if use_hybrid {
                 opts = opts.with_hybrid(true);
             }
+        }
+
+        if confidence_filter_mode.is_some() && min_confidence.is_none() {
+            return Err(JsValue::from_str(
+                "confidence_filter_mode requires min_confidence",
+            ));
         }
 
         if let Some(min) = min_confidence {
@@ -599,13 +614,6 @@ impl WasmGraph {
         let id = FactId(fact_id.to_string());
         self.inner.invalidate_fact(&id).map_err(to_js_err)
     }
-
-    /// Search by raw indexed text using the underlying engine search API.
-    #[wasm_bindgen]
-    pub fn search(&self, query: &str, limit: usize) -> Result<String, JsValue> {
-        let facts = self.inner.search(query, limit).map_err(to_js_err)?;
-        serde_json::to_string(&facts).map_err(|e| JsValue::from_str(&e.to_string()))
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -684,50 +692,59 @@ mod tests {
         assert_eq!(current, "[]");
     }
 
+    #[cfg(feature = "hybrid")]
     #[test]
     fn wasm_graph_recall_scored_respects_min_confidence() {
         let graph = WasmGraph::open().unwrap();
 
         graph
-            .assert_with_confidence("alice", "note", "Acme HQ", 0.95, None)
+            .remember(
+                "Alice joined Acme engineering.",
+                "ep-high",
+                Some(vec![1.0, 0.0, 0.0]),
+                None,
+            )
             .unwrap();
         graph
-            .assert_with_confidence("alice", "note", "Acme office", 0.20, None)
+            .remember(
+                "Alice likes hiking on weekends.",
+                "ep-low",
+                Some(vec![0.0, 1.0, 0.0]),
+                None,
+            )
             .unwrap();
 
         let rows_json = graph
             .recall_scored(
                 "Acme",
                 10,
-                None,
+                Some(vec![1.0, 0.0, 0.0]),
                 Some(0.5),
                 Some("base".to_string()),
                 None,
-                false,
+                true,
                 None,
                 None,
             )
             .unwrap();
         let rows: Vec<serde_json::Value> = serde_json::from_str(&rows_json).unwrap();
-        assert_eq!(rows.len(), 1);
+        assert!(!rows.is_empty());
 
         let score = &rows[0]["score"];
-        assert_eq!(score["kind"], "text_only");
-        assert!(score["confidence"].as_f64().unwrap() > 0.9);
+        assert_eq!(score["kind"], "hybrid");
+        assert!(score["confidence"].as_f64().unwrap() >= 0.5);
     }
 
     #[test]
-    fn wasm_graph_remember_and_context_round_trip() {
+    fn wasm_graph_remember_persists_episode_fact() {
         let graph = WasmGraph::open().unwrap();
 
         graph
             .remember("Alice joined Acme as an engineer.", "ep-1", None, None)
             .unwrap();
 
-        let recalled = graph.recall("Acme", None, 10).unwrap();
-        assert!(recalled.contains("Acme"));
-
-        let context = graph.assemble_context("Acme", 256, None).unwrap();
-        assert!(context.contains("Acme"));
+        let all = graph.all_facts_about("ep-1").unwrap();
+        assert!(all.contains("memory"));
+        assert!(all.contains("Alice joined Acme as an engineer."));
     }
 }

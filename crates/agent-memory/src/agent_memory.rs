@@ -448,6 +448,11 @@ impl AgentMemory {
         self.graph.facts_at(entity, predicate, at)
     }
 
+    /// Get currently valid facts for one `(entity, predicate)` pair.
+    pub fn current_facts(&self, entity: &str, predicate: &str) -> Result<Vec<Fact>> {
+        self.graph.current_facts(entity, predicate)
+    }
+
     /// Full-text search across known facts.
     ///
     /// Delegates to core search functionality on the underlying temporal graph.
