@@ -21,11 +21,11 @@ export KRONROE_MCP_DB_PATH=/path/to/memory.kronroe
 ## Tools
 
 - `remember(text, episode_id?)`
-- `recall(query, limit?)`
-- `recall_scored(query, limit?, min_confidence?)`
+- `recall(query, limit? <= 200)`
+- `recall_scored(query, limit? <= 200, min_confidence?)`
 - `assemble_context(query, max_tokens?)`
 - `facts_about(entity)`
-- `assert_fact(subject, predicate, object, valid_from?)`
+- `assert_fact(subject, predicate, object, valid_from?, confidence?, source?, idempotency_key?)`
 - `correct_fact(fact_id, new_value)`
 - `invalidate_fact(fact_id)`
 
