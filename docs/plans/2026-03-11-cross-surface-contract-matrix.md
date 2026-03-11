@@ -36,6 +36,9 @@ agent-facing surfaces:
 ## Verification Commands
 
 ```bash
+bash scripts/verify_contract_matrix.sh
+
+# Expanded commands (same checks run by script)
 cargo test -p kronroe-mcp
 cargo test -p kronroe-py
 cargo check -p kronroe-py --no-default-features --features python-runtime-tests

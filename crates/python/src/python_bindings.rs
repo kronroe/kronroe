@@ -51,6 +51,85 @@ fn parse_query_embedding(query_embedding: Option<Vec<f64>>) -> PyResult<Option<V
     Ok(Some(out))
 }
 
+#[derive(Debug)]
+struct RecallScoredArgs {
+    limit: usize,
+    query_embedding: Option<Vec<f64>>,
+    min_confidence: Option<f64>,
+    confidence_filter_mode: Option<String>,
+    max_scored_rows: Option<usize>,
+    use_hybrid: bool,
+    temporal_intent: Option<String>,
+    temporal_operator: Option<String>,
+}
+
+impl Default for RecallScoredArgs {
+    fn default() -> Self {
+        Self {
+            limit: 10,
+            query_embedding: None,
+            min_confidence: None,
+            confidence_filter_mode: None,
+            max_scored_rows: None,
+            use_hybrid: false,
+            temporal_intent: None,
+            temporal_operator: None,
+        }
+    }
+}
+
+fn parse_recall_scored_args_from_options(
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<RecallScoredArgs> {
+    let mut args = RecallScoredArgs::default();
+    let Some(options) = options else {
+        return Ok(args);
+    };
+
+    if let Some(value) = options.get_item("limit")? {
+        if !value.is_none() {
+            args.limit = value.extract::<usize>()?;
+        }
+    }
+    if let Some(value) = options.get_item("query_embedding")? {
+        if !value.is_none() {
+            args.query_embedding = Some(value.extract::<Vec<f64>>()?);
+        }
+    }
+    if let Some(value) = options.get_item("min_confidence")? {
+        if !value.is_none() {
+            args.min_confidence = Some(value.extract::<f64>()?);
+        }
+    }
+    if let Some(value) = options.get_item("confidence_filter_mode")? {
+        if !value.is_none() {
+            args.confidence_filter_mode = Some(value.extract::<String>()?);
+        }
+    }
+    if let Some(value) = options.get_item("max_scored_rows")? {
+        if !value.is_none() {
+            args.max_scored_rows = Some(value.extract::<usize>()?);
+        }
+    }
+    if let Some(value) = options.get_item("use_hybrid")? {
+        if !value.is_none() {
+            args.use_hybrid = value.extract::<bool>()?;
+        }
+    }
+    if let Some(value) = options.get_item("temporal_intent")? {
+        if !value.is_none() {
+            args.temporal_intent = Some(value.extract::<String>()?);
+        }
+    }
+    if let Some(value) = options.get_item("temporal_operator")? {
+        if !value.is_none() {
+            args.temporal_operator = Some(value.extract::<String>()?);
+        }
+    }
+
+    Ok(args)
+}
+
 fn fact_to_dict<'py>(py: Python<'py>, fact: &Fact) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new(py);
     d.set_item("id", fact.id.0.clone())?;
@@ -202,6 +281,123 @@ struct PyAgentMemory {
     inner: AgentMemory,
 }
 
+impl PyAgentMemory {
+    fn recall_scored_impl(
+        &self,
+        py: Python<'_>,
+        query: &str,
+        args: RecallScoredArgs,
+    ) -> PyResult<Vec<Py<PyDict>>> {
+        let query_owned = query.to_owned();
+        let query_embedding = parse_query_embedding(args.query_embedding)?;
+
+        #[cfg(feature = "hybrid")]
+        let has_embedding = query_embedding.is_some();
+        #[cfg(not(feature = "hybrid"))]
+        if query_embedding.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "hybrid/temporal controls are unavailable without hybrid feature",
+            ));
+        }
+        #[cfg(not(feature = "hybrid"))]
+        if args.use_hybrid {
+            return Err(PyRuntimeError::new_err(
+                "use_hybrid requires the 'hybrid' feature",
+            ));
+        }
+
+        let mut opts = RecallOptions::new(&query_owned).with_limit(args.limit);
+
+        if let Some(embedding) = query_embedding.as_deref() {
+            opts = opts.with_embedding(embedding);
+        }
+
+        if args.confidence_filter_mode.is_some() && args.min_confidence.is_none() {
+            return Err(PyValueError::new_err(
+                "confidence_filter_mode requires min_confidence",
+            ));
+        }
+
+        #[cfg(feature = "hybrid")]
+        {
+            if has_embedding {
+                if args.use_hybrid {
+                    opts = opts.with_hybrid(true);
+                }
+            } else if args.use_hybrid
+                || args.temporal_intent.is_some()
+                || args.temporal_operator.is_some()
+            {
+                return Err(PyRuntimeError::new_err(
+                    "query_embedding is required for hybrid/temporal controls",
+                ));
+            }
+        }
+
+        if let Some(min) = args.min_confidence {
+            if !min.is_finite() {
+                return Err(PyValueError::new_err("min_confidence must be finite"));
+            }
+            match args.confidence_filter_mode.as_deref().unwrap_or("base") {
+                "base" => {
+                    opts = opts.with_min_confidence(min as f32);
+                }
+                "effective" => {
+                    #[cfg(feature = "uncertainty")]
+                    {
+                        opts = opts.with_min_effective_confidence(min as f32);
+                    }
+                    #[cfg(not(feature = "uncertainty"))]
+                    {
+                        return Err(PyRuntimeError::new_err(
+                            "effective confidence mode requires uncertainty feature",
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(PyValueError::new_err(
+                        "confidence_filter_mode must be 'base' or 'effective'",
+                    ));
+                }
+            }
+        }
+
+        if let Some(max_scored_rows) = args.max_scored_rows {
+            opts = opts.with_max_scored_rows(max_scored_rows);
+        }
+
+        #[cfg(feature = "hybrid")]
+        if let Some(intent) = args.temporal_intent.as_deref() {
+            opts = opts.with_temporal_intent(parse_temporal_intent(Some(intent))?);
+        }
+
+        #[cfg(feature = "hybrid")]
+        if let Some(operator) = args.temporal_operator.as_deref() {
+            opts = opts.with_temporal_operator(parse_temporal_operator(Some(operator))?);
+        }
+
+        #[cfg(not(feature = "hybrid"))]
+        if args.temporal_intent.is_some() || args.temporal_operator.is_some() || args.use_hybrid {
+            return Err(PyRuntimeError::new_err(
+                "hybrid/temporal controls are unavailable without hybrid feature",
+            ));
+        }
+
+        let scored = py
+            .allow_threads(|| self.inner.recall_scored_with_options(&opts))
+            .map_err(to_py_err)?;
+
+        let mut out = Vec::with_capacity(scored.len());
+        for (fact, score) in scored {
+            let row = PyDict::new(py);
+            row.set_item("fact", fact_to_dict(py, &fact)?)?;
+            row.set_item("score", recall_score_to_dict(py, &score)?)?;
+            out.push(row.unbind());
+        }
+        Ok(out)
+    }
+}
+
 #[pymethods]
 impl PyAgentMemory {
     #[classmethod]
@@ -319,110 +515,28 @@ impl PyAgentMemory {
         temporal_intent: Option<String>,
         temporal_operator: Option<String>,
     ) -> PyResult<Vec<Py<PyDict>>> {
-        let query_owned = query.to_owned();
-        let query_embedding = parse_query_embedding(query_embedding)?;
+        let args = RecallScoredArgs {
+            limit,
+            query_embedding,
+            min_confidence,
+            confidence_filter_mode,
+            max_scored_rows,
+            use_hybrid,
+            temporal_intent,
+            temporal_operator,
+        };
+        self.recall_scored_impl(py, query, args)
+    }
 
-        #[cfg(feature = "hybrid")]
-        let has_embedding = query_embedding.is_some();
-        #[cfg(not(feature = "hybrid"))]
-        if query_embedding.is_some() {
-            return Err(PyRuntimeError::new_err(
-                "hybrid/temporal controls are unavailable without hybrid feature",
-            ));
-        }
-        #[cfg(not(feature = "hybrid"))]
-        if use_hybrid {
-            return Err(PyRuntimeError::new_err(
-                "use_hybrid requires the 'hybrid' feature",
-            ));
-        }
-
-        let mut opts = RecallOptions::new(&query_owned).with_limit(limit);
-
-        if let Some(embedding) = query_embedding.as_deref() {
-            opts = opts.with_embedding(embedding);
-        }
-
-        if confidence_filter_mode.is_some() && min_confidence.is_none() {
-            return Err(PyValueError::new_err(
-                "confidence_filter_mode requires min_confidence",
-            ));
-        }
-
-        #[cfg(feature = "hybrid")]
-        {
-            if has_embedding {
-                if use_hybrid {
-                    opts = opts.with_hybrid(true);
-                }
-            } else if use_hybrid || temporal_intent.is_some() || temporal_operator.is_some() {
-                return Err(PyRuntimeError::new_err(
-                    "query_embedding is required for hybrid/temporal controls",
-                ));
-            }
-        }
-
-        if let Some(min) = min_confidence {
-            if !min.is_finite() {
-                return Err(PyValueError::new_err("min_confidence must be finite"));
-            }
-            match confidence_filter_mode.as_deref().unwrap_or("base") {
-                "base" => {
-                    opts = opts.with_min_confidence(min as f32);
-                }
-                "effective" => {
-                    #[cfg(feature = "uncertainty")]
-                    {
-                        opts = opts.with_min_effective_confidence(min as f32);
-                    }
-                    #[cfg(not(feature = "uncertainty"))]
-                    {
-                        return Err(PyRuntimeError::new_err(
-                            "effective confidence mode requires uncertainty feature",
-                        ));
-                    }
-                }
-                _ => {
-                    return Err(PyValueError::new_err(
-                        "confidence_filter_mode must be 'base' or 'effective'",
-                    ));
-                }
-            }
-        }
-
-        if let Some(max_scored_rows) = max_scored_rows {
-            opts = opts.with_max_scored_rows(max_scored_rows);
-        }
-
-        #[cfg(feature = "hybrid")]
-        if let Some(intent) = temporal_intent.as_deref() {
-            opts = opts.with_temporal_intent(parse_temporal_intent(Some(intent))?);
-        }
-
-        #[cfg(feature = "hybrid")]
-        if let Some(operator) = temporal_operator.as_deref() {
-            opts = opts.with_temporal_operator(parse_temporal_operator(Some(operator))?);
-        }
-
-        #[cfg(not(feature = "hybrid"))]
-        if temporal_intent.is_some() || temporal_operator.is_some() || use_hybrid {
-            return Err(PyRuntimeError::new_err(
-                "hybrid/temporal controls are unavailable without hybrid feature",
-            ));
-        }
-
-        let scored = py
-            .allow_threads(|| self.inner.recall_scored_with_options(&opts))
-            .map_err(to_py_err)?;
-
-        let mut out = Vec::with_capacity(scored.len());
-        for (fact, score) in scored {
-            let row = PyDict::new(py);
-            row.set_item("fact", fact_to_dict(py, &fact)?)?;
-            row.set_item("score", recall_score_to_dict(py, &score)?)?;
-            out.push(row.unbind());
-        }
-        Ok(out)
+    #[pyo3(signature = (query, options=None))]
+    fn recall_scored_with_options(
+        &self,
+        py: Python<'_>,
+        query: &str,
+        options: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Vec<Py<PyDict>>> {
+        let args = parse_recall_scored_args_from_options(options)?;
+        self.recall_scored_impl(py, query, args)
     }
 
     #[pyo3(signature = (query, max_tokens, query_embedding=None))]
@@ -518,6 +632,7 @@ mod tests {
         let _ = stringify!(super::PyAgentMemory::facts_about);
         let _ = stringify!(super::PyAgentMemory::recall);
         let _ = stringify!(super::PyAgentMemory::recall_scored);
+        let _ = stringify!(super::PyAgentMemory::recall_scored_with_options);
         let _ = stringify!(super::PyAgentMemory::assemble_context);
         let _ = stringify!(super::PyAgentMemory::correct_fact);
         let _ = stringify!(super::PyAgentMemory::invalidate_fact);
@@ -686,6 +801,78 @@ mod tests {
                     .get_item("effective_confidence")
                     .expect("effective_confidence key")
                     .is_some());
+            });
+        }
+
+        #[test]
+        fn python_recall_scored_with_options_matches_main_path() {
+            with_memory(|py, memory| {
+                let object = PyString::new(py, "rust options path").into_any();
+                memory
+                    .assert_with_confidence(py, "options-shape", "memory", &object, 0.9, None)
+                    .expect("assert_with_confidence");
+
+                let main_rows = memory
+                    .recall_scored(
+                        py,
+                        "rust",
+                        10,
+                        None,
+                        Some(0.1),
+                        Some("base".to_string()),
+                        Some(128),
+                        false,
+                        None,
+                        None,
+                    )
+                    .expect("main recall_scored");
+
+                let options = PyDict::new(py);
+                options.set_item("limit", 10).expect("set limit");
+                options
+                    .set_item("min_confidence", 0.1)
+                    .expect("set min_confidence");
+                options
+                    .set_item("confidence_filter_mode", "base")
+                    .expect("set confidence_filter_mode");
+                options
+                    .set_item("max_scored_rows", 128)
+                    .expect("set max_scored_rows");
+
+                let options_rows = memory
+                    .recall_scored_with_options(py, "rust", Some(&options))
+                    .expect("recall_scored_with_options");
+
+                assert_eq!(main_rows.len(), options_rows.len());
+                let main_row = main_rows[0].bind(py);
+                let options_row = options_rows[0].bind(py);
+
+                let main_fact = main_row
+                    .get_item("fact")
+                    .expect("main fact key")
+                    .expect("main fact value")
+                    .downcast_into::<PyDict>()
+                    .expect("main fact dict");
+                let options_fact = options_row
+                    .get_item("fact")
+                    .expect("options fact key")
+                    .expect("options fact value")
+                    .downcast_into::<PyDict>()
+                    .expect("options fact dict");
+
+                let main_id = main_fact
+                    .get_item("id")
+                    .expect("main id key")
+                    .expect("main id value")
+                    .extract::<String>()
+                    .expect("main id string");
+                let options_id = options_fact
+                    .get_item("id")
+                    .expect("options id key")
+                    .expect("options id value")
+                    .extract::<String>()
+                    .expect("options id string");
+                assert_eq!(main_id, options_id);
             });
         }
 

@@ -11,9 +11,19 @@ memory = AgentMemory.open("./my-agent.kronroe")
 memory.assert_fact("alice", "works_at", "Acme")
 results = memory.recall("where does Alice work?", limit=10)
 scored = memory.recall_scored("where does Alice work?", limit=10)
+# Options-dict alternative for scored recall (easier to extend over time)
+scored2 = memory.recall_scored_with_options(
+    "where does Alice work?",
+    {
+        "limit": 10,
+        "min_confidence": 0.5,
+        "confidence_filter_mode": "base",
+    },
+)
 memory.assert_with_confidence("alice", "works_at", "Acme", 0.95, "user:notes")
 print(results)
 print(scored)
+print(scored2)
 ```
 
 `assert_fact` uses default confidence (`1.0`) with no source provenance.
