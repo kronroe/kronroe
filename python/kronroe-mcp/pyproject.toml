@@ -15,6 +15,10 @@ classifiers = [
   "License :: OSI Approved :: GNU Affero General Public License v3",
 ]
 
+[project.urls]
+Homepage = "https://kronroe.dev"
+Repository = "https://github.com/kronroe/kronroe"
+
 [project.scripts]
 kronroe-mcp = "kronroe_mcp.cli:main"
 
