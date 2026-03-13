@@ -1062,6 +1062,45 @@ mod tests {
     }
 
     #[test]
+    fn recall_scored_accepts_confidence_mode_with_threshold() {
+        let mut state = temp_state();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme",
+                    "confidence": 0.95
+                }
+            })),
+        )
+        .unwrap();
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall_scored",
+                "arguments": {
+                    "query": "alice",
+                    "limit": 10,
+                    "min_confidence": 0.5,
+                    "confidence_filter_mode": "base"
+                }
+            })),
+        )
+        .expect("expected confidence filter happy path to succeed");
+
+        let results = out
+            .get("structuredContent")
+            .and_then(|v| v.get("results"))
+            .and_then(JsonValue::as_array)
+            .expect("results array");
+        assert_eq!(results.len(), 1);
+    }
+
+    #[test]
     fn recall_rejects_empty_embedding_array() {
         let mut state = temp_state();
         let err = call_tool(
