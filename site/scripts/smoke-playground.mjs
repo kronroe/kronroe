@@ -20,6 +20,11 @@ async function run() {
   const object = "AcmeCI";
 
   try {
+    // Suppress the first-visit auto-demo — it races with smoke test inputs
+    await page.addInitScript(() => {
+      localStorage.setItem("kronroe_has_visited", "1");
+    });
+
     await page.goto(targetUrl, { waitUntil: "networkidle", timeout: 120_000 });
 
     // Wait for WASM engine to finish loading (overlay gets .hidden class)
