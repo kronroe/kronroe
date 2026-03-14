@@ -13,7 +13,7 @@ path = "src/android_bindings.rs"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-kronroe = { path = "../core", default-features = false }
+kronroe = { version = "0.1.1", path = "../core", default-features = false }
 jni = { workspace = true }
 chrono = { workspace = true }
 serde_json = { workspace = true }

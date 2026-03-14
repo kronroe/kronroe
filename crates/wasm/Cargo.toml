@@ -19,8 +19,8 @@ uncertainty = ["kronroe-agent-memory/uncertainty"]
 [dependencies]
 # default-features = false excludes the `fulltext` feature (tantivy/zstd-sys),
 # which has C dependencies that cannot compile to wasm32-unknown-unknown.
-kronroe = { path = "../core", default-features = false }
-kronroe-agent-memory = { path = "../agent-memory", default-features = false }
+kronroe = { version = "0.1.1", path = "../core", default-features = false }
+kronroe-agent-memory = { version = "0.1.1", path = "../agent-memory", default-features = false }
 wasm-bindgen = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
