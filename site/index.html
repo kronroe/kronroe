@@ -719,6 +719,43 @@
         gap: 0.35rem;
       }
 
+      /* ── Inline clear confirmation ── */
+      .clear-confirm[hidden] { display: none; }
+      .clear-confirm {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.5rem;
+        border: 1.5px solid var(--rose-border);
+        border-radius: 8px;
+        background: var(--rose-bg);
+        animation: fact-in 0.12s ease-out both;
+      }
+      .clear-confirm-label {
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        color: var(--rose-text);
+        flex: 1;
+      }
+      .btn-confirm-yes {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.55rem;
+        background: var(--rose-text);
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+      }
+      .btn-confirm-yes:hover { background: #8f1f3e; }
+      .btn-confirm-no {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.55rem;
+        background: transparent;
+        color: var(--text-mid);
+        border: 1px solid var(--border-hi);
+        border-radius: 5px;
+      }
+      .btn-confirm-no:hover { border-color: var(--text-mid); color: var(--text); }
+
       /* ── Example chips ── */
       .chips-label {
         font-family: var(--body);
@@ -1036,6 +1073,13 @@
         user-select: none;
       }
       .empty-ghost .tag { font-size: 0.68rem; padding: 0.15rem 0.4rem; }
+      .empty-ghost-label {
+        font-family: var(--hand);
+        font-size: 0.65rem;
+        color: var(--text-dim);
+        margin-right: 0.1rem;
+        flex-shrink: 0;
+      }
 
       /* ── Fact row ── */
       .fact-row {
@@ -1660,7 +1704,12 @@
               </div>
               <div class="btn-row">
                 <button class="btn-primary" id="assert-btn">Assert →</button>
-                <button class="btn-ghost"   id="clear-btn" title="Removes all facts from this in-browser graph after confirmation.">Clear graph</button>
+                <button class="btn-ghost"   id="clear-btn" title="Remove all facts from this in-browser graph">Clear graph</button>
+              </div>
+              <div class="clear-confirm" id="clear-confirm" hidden>
+                <span class="clear-confirm-label">Clear all facts?</span>
+                <button class="btn-confirm-yes" id="clear-confirm-yes">Yes, clear</button>
+                <button class="btn-confirm-no"  id="clear-confirm-no">Cancel</button>
               </div>
               <div class="chips-label">TRY</div>
               <div class="chips" id="examples"></div>
@@ -1739,6 +1788,7 @@
               <span class="empty-glyph">◈</span>
               No facts yet.<br>Click a <strong>TRY</strong> chip or run the <strong>Time-travel demo</strong> to begin.
               <div class="empty-ghost">
+                <span class="empty-ghost-label">e.g.</span>
                 <span class="tag tag-s">alice</span>
                 <span class="sep">&middot;</span>
                 <span class="tag tag-p">works_at</span>
