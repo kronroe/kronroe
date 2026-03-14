@@ -592,7 +592,7 @@
       }
 
       #query-panel .pip {
-        background: var(--violet);
+        background: var(--orchid);
       }
 
       .panel-body {
@@ -664,7 +664,7 @@
       .at-hint {
         font-family: var(--hand);
         font-size: 0.72rem;
-        color: var(--violet);
+        color: var(--orchid);
         letter-spacing: 0;
       }
 
@@ -692,6 +692,12 @@
         outline-color: color-mix(in srgb, #fff 35%, var(--violet));
       }
       .btn-primary:active { opacity: 0.88; }
+
+      #query-btn {
+        background: var(--orchid);
+        border-color: var(--espresso);
+      }
+      #query-btn:hover { background: #bf70fd; }
 
       .btn-ghost {
         background: transparent;
@@ -745,6 +751,11 @@
         font-weight: 400;
         padding: 0.175rem 0.4rem;
         transition: all 0.1s;
+      }
+
+      .chip:nth-child(even) {
+        background: var(--orchid-bg);
+        border-color: var(--orchid-border);
       }
 
       .chip:hover {
