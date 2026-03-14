@@ -8,9 +8,13 @@ on:
       - "Cargo.lock"
       - "crates/core/**"
       - "crates/agent-memory/**"
+      - "crates/ios/**"
       - "crates/android/**"
       - "crates/mcp-server/**"
+      - "crates/python/**"
       - "crates/wasm/**"
+      - "packages/kronroe-mcp/**"
+      - "python/kronroe-mcp/**"
       - "site/**"
       - "firebase.json"
       - ".firebaserc"
@@ -21,9 +25,13 @@ on:
       - "Cargo.lock"
       - "crates/core/**"
       - "crates/agent-memory/**"
+      - "crates/ios/**"
       - "crates/android/**"
       - "crates/mcp-server/**"
+      - "crates/python/**"
       - "crates/wasm/**"
+      - "packages/kronroe-mcp/**"
+      - "python/kronroe-mcp/**"
       - "site/**"
       - "firebase.json"
       - ".firebaserc"
@@ -42,6 +50,7 @@ jobs:
       rust: ${{ steps.filter.outputs.rust }}
       wasm: ${{ steps.filter.outputs.wasm }}
       site: ${{ steps.filter.outputs.site }}
+      wrappers: ${{ steps.filter.outputs.wrappers }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,14 +66,19 @@ jobs:
               - 'Cargo.lock'
               - 'crates/core/**'
               - 'crates/agent-memory/**'
+              - 'crates/ios/**'
               - 'crates/android/**'
               - 'crates/mcp-server/**'
+              - 'crates/python/**'
               - 'crates/wasm/**'
             wasm:
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'crates/core/**'
               - 'crates/wasm/**'
+            wrappers:
+              - 'packages/kronroe-mcp/**'
+              - 'python/kronroe-mcp/**'
             site:
               - 'site/**'
               - 'firebase.json'
@@ -198,3 +212,30 @@ jobs:
       - name: Build site
         run: npm run build
         working-directory: site
+
+  # ─── Wrapper lint ──────────────────────────────────────────────────────
+
+  wrapper-lint:
+    name: Wrapper Lint
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.wrappers == 'true' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax-check npm wrapper
+        run: node --check packages/kronroe-mcp/bin/kronroe-mcp.js
+
+      - name: Syntax-check Python wrapper
+        run: python3 -c "import ast, sys; ast.parse(open(sys.argv[1]).read())" python/kronroe-mcp/src/kronroe_mcp/cli.py
