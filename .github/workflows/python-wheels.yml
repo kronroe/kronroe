@@ -40,6 +40,11 @@ jobs:
       - name: Build wheels
         run: python3 -m maturin build --release --manifest-path crates/python/Cargo.toml --out dist
 
+      - name: Install wheel and run runtime smoke test
+        run: |
+          python3 -m pip install dist/*.whl
+          python3 crates/python/tests/runtime_smoke.py
+
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
         with:
