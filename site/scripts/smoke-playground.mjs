@@ -20,8 +20,15 @@ async function run() {
   const object = "AcmeCI";
 
   try {
+    // Suppress the first-visit auto-demo — it races with smoke test inputs
+    await page.addInitScript(() => {
+      localStorage.setItem("kronroe_has_visited", "1");
+    });
+
     await page.goto(targetUrl, { waitUntil: "networkidle", timeout: 120_000 });
 
+    // Wait for WASM engine to finish loading (overlay gets .hidden class)
+    await page.locator("#loading.hidden").waitFor({ timeout: 60_000 });
     await page.waitForSelector("#subject", { timeout: 60_000 });
     await page.locator("#subject").fill(subject);
     await page.locator("#predicate").fill(predicate);
@@ -29,39 +36,20 @@ async function run() {
     await page.locator("#obj-type").selectOption("Entity");
     await page.locator("#assert-btn").click();
 
-    await page.waitForFunction(
-      () => {
-        const el = document.querySelector("#assert-status");
-        return !!el && el.textContent?.includes("✓");
-      },
-      undefined,
-      { timeout: 30_000 }
-    );
+    // Use locator-based text matching instead of waitForFunction
+    // (waitForFunction uses eval(), which violates the page's CSP)
+    await page.locator("#assert-status", { hasText: "✓" }).waitFor({ timeout: 30_000 });
 
     await page.locator("#query-entity").fill(subject);
     await page.locator("#query-pred").fill(predicate);
     await page.locator("#query-btn").click();
 
-    await page.waitForFunction(
-      () => {
-        const el = document.querySelector("#query-status");
-        return !!el && /result/i.test(el.textContent || "");
-      },
-      undefined,
-      { timeout: 30_000 }
-    );
+    await page.locator("#query-status", { hasText: /result/i }).waitFor({ timeout: 30_000 });
 
     const row = page.locator("#stream-body .fact-row").first();
     await row.locator(".btn-invalidate").click();
 
-    await page.waitForFunction(
-      () => {
-        const el = document.querySelector("#query-status");
-        return !!el && /retracted:/i.test(el.textContent || "");
-      },
-      undefined,
-      { timeout: 30_000 }
-    );
+    await page.locator("#query-status", { hasText: /retracted:/i }).waitFor({ timeout: 30_000 });
 
     const queryStatus = (await page.locator("#query-status").textContent()) || "";
     const assertStatus = (await page.locator("#assert-status").textContent()) || "";

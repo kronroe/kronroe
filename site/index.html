@@ -162,24 +162,18 @@
         border-radius: 3px;
       }
 
-      /* ── Main grid ── */
-      main {
+      /* ── Hero section (standalone) ── */
+      .hero {
         position: relative;
         z-index: 1;
-        flex: 1;
-        display: grid;
-        grid-template-columns: 360px 1fr;
-        grid-template-rows: auto 1fr;
         max-width: 1280px;
         width: 100%;
         margin: 0 auto;
-        padding: 2.25rem 2.5rem;
-        gap: 2rem;
+        padding: 3rem 2.5rem 2rem;
       }
 
-      /* ── Hero ── */
-      .hero {
-        grid-column: 1 / -1;
+      .hero-inner {
+        max-width: 640px;
       }
 
       .hero h1 {
@@ -203,6 +197,16 @@
         text-decoration-color: var(--rose);
         text-underline-offset: 3px;
         text-decoration-thickness: 2px;
+      }
+
+      .hero-explain {
+        font-family: var(--body);
+        font-size: 1.05rem;
+        font-weight: var(--w-body);
+        color: var(--text);
+        max-width: 540px;
+        line-height: 1.5;
+        margin-bottom: 0.5rem;
       }
 
       .hero .sub {
@@ -249,8 +253,266 @@
         color: var(--text-dim);
       }
 
+      .hero-cta {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+      }
+
+      .hero-btn {
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        padding: 0.55rem 1.25rem;
+        font-size: 0.85rem;
+        border-radius: 8px;
+        font-family: var(--body);
+        font-weight: var(--w-label);
+        transition: all 0.1s;
+      }
+
+      a.btn-primary {
+        background: var(--violet);
+        color: #fff;
+        border: 1.5px solid var(--espresso);
+      }
+      a.btn-primary:hover { background: #8d6ffd; }
+
+      a.btn-ghost {
+        background: transparent;
+        border: 1.5px solid rgba(46, 33, 28, 0.18);
+        color: var(--text-mid);
+      }
+      a.btn-ghost:hover {
+        border-color: var(--text-mid);
+        color: var(--text);
+      }
+
+      /* ── Explain section ── */
+      .explain {
+        position: relative;
+        z-index: 1;
+        max-width: 1280px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 2.5rem 2.5rem;
+      }
+
+      .explain-inner {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
+      .section-title {
+        font-family: var(--body);
+        font-size: clamp(1.3rem, 2.5vw, 1.8rem);
+        font-weight: var(--w-heading);
+        text-align: center;
+        margin-bottom: 0.5rem;
+      }
+
+      .section-sub {
+        font-family: var(--body);
+        font-size: 0.88rem;
+        color: var(--text-mid);
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      .explain-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.25rem;
+      }
+
+      .explain-card {
+        background: var(--surface);
+        border: 1.5px solid var(--border-hi);
+        border-radius: 12px;
+        padding: 1.25rem;
+      }
+
+      .explain-card-highlight {
+        border-color: var(--violet-border);
+        background: var(--violet-bg);
+      }
+
+      .explain-card-label {
+        font-family: var(--hand);
+        font-size: 0.82rem;
+        color: var(--text-dim);
+        margin-bottom: 0.75rem;
+      }
+
+      .explain-card-highlight .explain-card-label {
+        color: var(--violet);
+      }
+
+      .explain-card-body code {
+        display: block;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        background: var(--surface-2);
+        padding: 0.6rem 0.75rem;
+        border-radius: 6px;
+        margin-bottom: 0.75rem;
+        line-height: 1.6;
+      }
+
+      .explain-card-body p {
+        font-family: var(--body);
+        font-size: 0.82rem;
+        color: var(--text-mid);
+        line-height: 1.55;
+      }
+
+      .ts-inline {
+        color: var(--violet);
+        font-size: 0.65rem;
+      }
+
+      /* ── Why section ── */
+      .why {
+        position: relative;
+        z-index: 1;
+        max-width: 1280px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 2rem 2.5rem 2.5rem;
+      }
+
+      .why-inner {
+        max-width: 860px;
+        margin: 0 auto;
+      }
+
+      .comparison-table-wrap {
+        overflow-x: auto;
+        border: 1.5px solid var(--border-hi);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+
+      .comparison-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: var(--body);
+        font-size: 0.78rem;
+      }
+
+      .comparison-table th {
+        font-weight: var(--w-label);
+        padding: 0.7rem 0.75rem;
+        text-align: left;
+        border-bottom: 1.5px solid var(--border-hi);
+        color: var(--text-mid);
+        font-size: 0.72rem;
+        letter-spacing: 0.02em;
+      }
+
+      .comparison-table td {
+        padding: 0.55rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        color: var(--text-mid);
+      }
+
+      .comparison-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .comparison-table .col-kronroe {
+        color: var(--violet);
+        font-weight: var(--w-label);
+        background: var(--violet-bg);
+      }
+
+      .comparison-table th.col-kronroe {
+        color: var(--violet);
+        background: var(--violet-bg);
+      }
+
+      /* ── Use Cases section ── */
+      .use-cases {
+        position: relative;
+        z-index: 1;
+        max-width: 1280px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 1.5rem 2.5rem 2.5rem;
+      }
+
+      .use-cases-inner {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+
+      .use-case-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.25rem;
+        margin-top: 1.5rem;
+      }
+
+      .use-case-card {
+        background: var(--surface);
+        border: 1.5px solid var(--border-hi);
+        border-radius: 12px;
+        padding: 1.25rem;
+      }
+
+      .use-case-icon {
+        font-size: 1.4rem;
+        margin-bottom: 0.6rem;
+        opacity: 0.7;
+      }
+
+      .use-case-card h3 {
+        font-family: var(--body);
+        font-size: 0.92rem;
+        font-weight: var(--w-heading);
+        margin-bottom: 0.5rem;
+      }
+
+      .use-case-card p {
+        font-family: var(--body);
+        font-size: 0.78rem;
+        color: var(--text-mid);
+        line-height: 1.55;
+      }
+
+      /* ── Playground section wrapper ── */
+      .playground-section {
+        position: relative;
+        z-index: 1;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        margin-top: 1rem;
+      }
+
+      .playground-section-hdr {
+        max-width: 1280px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 2rem 2.5rem 0;
+      }
+
+      /* ── Playground grid (formerly main) ── */
+      .playground {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        grid-template-rows: auto 1fr;
+        max-width: 1280px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 2.25rem 2.5rem;
+        gap: 2rem;
+      }
+
       .hero-guide {
-        margin-top: 0.9rem;
+        grid-column: 1 / -1;
         max-width: 560px;
         border: 1px solid var(--violet-border);
         border-radius: 12px;
@@ -1092,16 +1354,49 @@
         position: relative;
         z-index: 1;
         border-top: 1px solid var(--border);
-        padding: 0.75rem 2.5rem;
-        font-family: var(--body);
-        font-weight: var(--w-body);
-        font-size: 0.67rem;
-        color: var(--text-dim);
-        display: flex;
-        align-items: center;
-        gap: 1.5rem;
+        padding: 1rem 2.5rem;
         background: rgba(46, 33, 28, 0.04);
       }
+
+      .footer-inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.5rem;
+        font-family: var(--body);
+        font-weight: var(--w-body);
+        font-size: 0.72rem;
+        color: var(--text-dim);
+      }
+
+      .footer-left {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .footer-licence {
+        color: var(--text-mid);
+      }
+
+      .footer-licence a {
+        color: var(--text-mid);
+        text-decoration: underline;
+        text-decoration-color: var(--border-hi);
+        text-underline-offset: 2px;
+        transition: color 0.12s;
+      }
+      .footer-licence a:hover { color: var(--text); }
+
+      .footer-right {
+        display: flex;
+        gap: 1.5rem;
+      }
+
+      .footer-right a { color: var(--text-dim); text-decoration: none; transition: color 0.12s; }
+      .footer-right a:hover { color: var(--text-mid); }
 
       .version-badge {
         font-family: var(--mono);
@@ -1114,18 +1409,20 @@
         color: var(--lime);
       }
 
-      footer a { color: var(--text-dim); text-decoration: none; transition: color 0.12s; }
-      footer a:hover { color: var(--text-mid); }
-      footer .sep { color: var(--border-hi); }
+      .sep {
+        color: var(--border-hi);
+        font-size: 0.6rem;
+        user-select: none;
+      }
 
       /* ── Responsive ── */
       @media (max-width: 840px) {
-        main {
+        .playground {
           grid-template-columns: 1fr;
           padding: 1.5rem 1.25rem;
           gap: 1.25rem;
         }
-        .hero { grid-column: 1; }
+        .hero-guide { grid-column: 1; }
         .stream-body { min-height: 300px; }
         header { padding: 0 1.25rem; }
         .triple { grid-template-columns: 1fr; }
@@ -1139,8 +1436,24 @@
         }
         .qrow button { width: 100%; }
         .header-nav { display: none; }
-        footer { padding: 0.75rem 1.25rem; gap: 1rem; }
         .diff-row { grid-template-columns: 1fr; }
+
+        .hero { padding: 2rem 1.25rem 1.5rem; }
+        .explain { padding: 2rem 1.25rem; }
+        .why { padding: 1.5rem 1.25rem; }
+        .use-cases { padding: 1.5rem 1.25rem; }
+        .playground-section-hdr { padding: 1.5rem 1.25rem 0; }
+      }
+
+      @media (max-width: 700px) {
+        .use-case-grid { grid-template-columns: 1fr; }
+        .footer-inner { flex-direction: column; align-items: flex-start; }
+      }
+
+      @media (max-width: 640px) {
+        .explain-grid { grid-template-columns: 1fr; }
+        .hero-cta { flex-direction: column; gap: 0.5rem; }
+        .hero-cta .hero-btn { text-align: center; justify-content: center; }
       }
     </style>
   </head>
@@ -1170,157 +1483,261 @@
       </nav>
     </header>
 
-    <!-- Main -->
-    <main>
-      <section class="hero">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-inner">
         <h1>Bi-<span class="temporal-accent">temporal</span> graph.<br><span class="lime">In your browser.</span></h1>
-        <p class="sub">// Pure Rust → WebAssembly. Every fact carries four timestamps.<br>// No server. No network. No schema.</p>
+        <p class="hero-explain">Track not just what's true — but when it became true, and when you recorded it. Query any point in time.</p>
+        <p class="sub">// Pure Rust → WebAssembly. No server. No network. No schema.</p>
         <div class="hero-install">
           <code class="install-cmd" title="Click to copy">pip install kronroe</code>
           <span class="install-sep">or</span>
           <code class="install-cmd" title="Click to copy">cargo add kronroe</code>
         </div>
-        <div class="hero-guide">
+        <div class="hero-cta">
+          <a href="#playground" class="btn-primary hero-btn">Try the playground ↓</a>
+          <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener" class="btn-ghost hero-btn">View on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Explain: what is bi-temporal? -->
+    <section class="explain" id="explain">
+      <div class="explain-inner">
+        <h2 class="section-title">What does <span class="temporal-accent">bi-temporal</span> mean?</h2>
+        <p class="section-sub">Every fact in Kronroe carries four timestamps — not just "created_at"</p>
+
+        <div class="explain-grid">
+          <div class="explain-card">
+            <div class="explain-card-label">Normal database</div>
+            <div class="explain-card-body">
+              <code>alice.employer = "Acme"</code>
+              <p>You know what's true now. You don't know what was true last month. If it changes, the old value is gone.</p>
+            </div>
+          </div>
+          <div class="explain-card explain-card-highlight">
+            <div class="explain-card-label">Kronroe</div>
+            <div class="explain-card-body">
+              <code>alice works_at Acme<br><span class="ts-inline">valid: 2023-06 → 2024-01</span><br><span class="ts-inline">recorded: 2024-03-14</span></code>
+              <p>You know what's true, when it was true, and when you learned it. Nothing is ever deleted — history is preserved.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Why Kronroe: comparison table -->
+    <section class="why" id="why">
+      <div class="why-inner">
+        <h2 class="section-title">Why Kronroe?</h2>
+        <p class="section-sub">The only embedded, mobile-ready temporal graph engine</p>
+
+        <div class="comparison-table-wrap">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th class="col-kronroe">Kronroe</th>
+                <th>Graphiti / Zep</th>
+                <th>mcp-memory-service</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Requires server</td><td class="col-kronroe">No — single file</td><td>Yes — Neo4j</td><td>No</td></tr>
+              <tr><td>Temporal model</td><td class="col-kronroe">Bi-temporal</td><td>Bi-temporal (via Neo4j)</td><td>None</td></tr>
+              <tr><td>Mobile / edge</td><td class="col-kronroe">iOS, Android, WASM</td><td>No</td><td>No</td></tr>
+              <tr><td>LLM required</td><td class="col-kronroe">No</td><td>Yes</td><td>No</td></tr>
+              <tr><td>Contradiction detection</td><td class="col-kronroe">Engine-native</td><td>LLM-based</td><td>No</td></tr>
+              <tr><td>Confidence / uncertainty</td><td class="col-kronroe">Engine-native</td><td>No</td><td>No</td></tr>
+              <tr><td>Full-text search</td><td class="col-kronroe">BM25 + fuzzy</td><td>Via Neo4j</td><td>No</td></tr>
+              <tr><td>Vector search</td><td class="col-kronroe">Cosine + temporal</td><td>Via Neo4j</td><td>No</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Use cases -->
+    <section class="use-cases" id="use-cases">
+      <div class="use-cases-inner">
+        <h2 class="section-title">Built for</h2>
+
+        <div class="use-case-grid">
+          <div class="use-case-card">
+            <div class="use-case-icon" style="color: var(--violet);">◈</div>
+            <h3>AI agent memory</h3>
+            <p>Give your agents persistent memory that tracks how knowledge evolves. No server, no LLM calls for storage — just assert facts and query any point in time.</p>
+          </div>
+          <div class="use-case-card">
+            <div class="use-case-icon" style="color: var(--rose);">◈</div>
+            <h3>Mobile and edge apps</h3>
+            <p>Full relationship graph on iOS and Android with zero network latency. Compiles to a native library under 6 MB. Privacy-first — data never leaves the device.</p>
+          </div>
+          <div class="use-case-card">
+            <div class="use-case-icon" style="color: var(--orchid);">◈</div>
+            <h3>MCP tool memory</h3>
+            <p>Drop-in memory for Claude Desktop, Cursor, and any MCP client. Eight tools out of the box — remember, recall, assert, correct, invalidate, and more.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Playground -->
+    <section class="playground-section" id="playground">
+      <div class="playground-section-hdr">
+        <h2 class="section-title">Try it live</h2>
+        <p class="section-sub">Pure Rust compiled to WebAssembly. Every fact runs in your browser — nothing is sent to a server.</p>
+      </div>
+
+      <main class="playground">
+        <!-- Quick Start box -->
+        <div class="hero-guide" style="grid-column: 1 / -1;">
           <div class="hero-guide-label">QUICK START</div>
           <div class="hero-guide-copy">1) Click a TRY chip. 2) Press Assert. 3) Enter that subject in Find and press Find.</div>
           <div class="hero-guide-keys">Shortcuts: Ctrl/Cmd+K focus Find · Ctrl/Cmd+Enter submit panel</div>
         </div>
-      </section>
 
-      <!-- Left: controls -->
-      <div class="controls">
+        <!-- Left: controls -->
+        <div class="controls">
 
-        <!-- Assert -->
-        <div class="panel" id="assert-panel">
-          <div class="panel-hdr">
-            <div class="pip"></div>
-            Assert fact
+          <!-- Assert -->
+          <div class="panel" id="assert-panel">
+            <div class="panel-hdr">
+              <div class="pip"></div>
+              Assert fact
+            </div>
+            <div class="panel-body">
+              <div class="triple">
+                <input id="subject"   placeholder="subject" />
+                <input id="predicate" placeholder="predicate" />
+                <input id="object"    placeholder="value" />
+              </div>
+              <div class="type-at-row">
+                <select id="obj-type" title="Object value type">
+                  <option value="Text">Text</option>
+                  <option value="Number">Number</option>
+                  <option value="Boolean">Boolean</option>
+                  <option value="Entity">Entity →</option>
+                </select>
+                <span class="at-hint" title="Bi-temporal tip: set valid_from to record when this was true in the real world.">valid from</span>
+                <input type="datetime-local" id="assert-at" title="valid_from — optional. If set, this fact starts being true at that time; leave blank for now." />
+              </div>
+              <div class="btn-row">
+                <button class="btn-primary" id="assert-btn">Assert →</button>
+                <button class="btn-ghost"   id="clear-btn" title="Removes all facts from this in-browser graph after confirmation.">Clear graph</button>
+              </div>
+              <div class="chips-label">TRY</div>
+              <div class="chips" id="examples"></div>
+              <button class="chip chip-demo" id="time-demo-btn" title="Runs a bi-temporal scenario: assert in the past, retract now, then compare point-in-time query results.">
+                Time-travel demo
+              </button>
+              <div class="status" id="assert-status" role="status" aria-live="polite"></div>
+            </div>
           </div>
-          <div class="panel-body">
-            <div class="triple">
-              <input id="subject"   placeholder="subject" />
-              <input id="predicate" placeholder="predicate" />
-              <input id="object"    placeholder="value" />
+
+          <!-- Find -->
+          <div class="panel" id="query-panel">
+            <div class="panel-hdr">
+              <div class="pip"></div>
+              Find entity
             </div>
-            <div class="type-at-row">
-              <select id="obj-type" title="Object value type">
-                <option value="Text">Text</option>
-                <option value="Number">Number</option>
-                <option value="Boolean">Boolean</option>
-                <option value="Entity">Entity →</option>
-              </select>
-              <span class="at-hint" title="Bi-temporal tip: set valid_from to record when this was true in the real world.">valid from</span>
-              <input type="datetime-local" id="assert-at" title="valid_from — optional. If set, this fact starts being true at that time; leave blank for now." />
+            <div class="panel-body">
+              <div class="qrow">
+                <input id="query-entity" placeholder="entity (e.g. alice)" />
+                <button class="btn-primary" id="query-btn">Find →</button>
+              </div>
+              <div class="qrow">
+                <input id="query-pred" placeholder="predicate (optional)" />
+                <button class="btn-ghost" id="show-all-btn">Show all</button>
+              </div>
+              <div class="qrow">
+                <input type="datetime-local" id="query-at" title="point in time — leave blank for current facts" />
+                <span class="at-hint">at&nbsp;time</span>
+              </div>
+              <div class="status" id="query-status" role="status" aria-live="polite"></div>
             </div>
-            <div class="btn-row">
-              <button class="btn-primary" id="assert-btn">Assert →</button>
-              <button class="btn-ghost"   id="clear-btn" title="Removes all facts from this in-browser graph after confirmation.">Clear graph</button>
-            </div>
-            <div class="chips-label">TRY</div>
-            <div class="chips" id="examples"></div>
-            <button class="chip chip-demo" id="time-demo-btn" title="Runs a bi-temporal scenario: assert in the past, retract now, then compare point-in-time query results.">
-              Time-travel demo
-            </button>
-            <div class="status" id="assert-status" role="status" aria-live="polite"></div>
           </div>
+
         </div>
 
-        <!-- Find -->
-        <div class="panel" id="query-panel">
-          <div class="panel-hdr">
-            <div class="pip"></div>
-            Find entity
-          </div>
-          <div class="panel-body">
-            <div class="qrow">
-              <input id="query-entity" placeholder="entity (e.g. alice)" />
-              <button class="btn-primary" id="query-btn">Find →</button>
+        <!-- Right: fact stream -->
+        <div class="stream">
+          <div class="stream-hdr">
+            <div class="stream-hdr-left">
+              <div class="pip"></div>
+              Fact stream
+              <span id="stream-count">0 facts</span>
             </div>
-            <div class="qrow">
-              <input id="query-pred" placeholder="predicate (optional)" />
-              <button class="btn-ghost" id="show-all-btn">Show all</button>
+            <div class="stream-hdr-right">
+              <button class="btn-export" id="export-btn" title="Download visible facts as JSON" disabled>↓ JSON</button>
+              <span id="stream-mode">ALL</span>
             </div>
-            <div class="qrow">
-              <input type="datetime-local" id="query-at" title="point in time — leave blank for current facts" />
-              <span class="at-hint">at&nbsp;time</span>
-            </div>
-            <div class="status" id="query-status" role="status" aria-live="polite"></div>
           </div>
-        </div>
-
-      </div>
-
-      <!-- Right: fact stream -->
-      <div class="stream">
-        <div class="stream-hdr">
-          <div class="stream-hdr-left">
-            <div class="pip"></div>
-            Fact stream
-            <span id="stream-count">0 facts</span>
-          </div>
-          <div class="stream-hdr-right">
-            <button class="btn-export" id="export-btn" title="Download visible facts as JSON" disabled>↓ JSON</button>
-            <span id="stream-mode">ALL</span>
-          </div>
-        </div>
-        <div class="stream-visuals">
-          <div class="viz-block">
-            <div class="viz-label">TEMPORAL RAIL</div>
-            <div class="temporal-rail">
-              <div class="rail-track" id="rail-valid-track" title="valid_from events"></div>
-              <div class="rail-track" id="rail-recorded-track" title="recorded/retracted events"></div>
-              <div class="rail-controls">
-                <input type="range" id="rail-scrubber" min="0" max="0" step="1" value="0" disabled />
-                <div class="rail-meta">
-                  <span id="rail-time-label">No temporal points yet.</span>
-                  <span id="rail-count-label">0 visible</span>
+          <div class="stream-visuals">
+            <div class="viz-block">
+              <div class="viz-label">TEMPORAL RAIL</div>
+              <div class="temporal-rail">
+                <div class="rail-track" id="rail-valid-track" title="valid_from events"></div>
+                <div class="rail-track" id="rail-recorded-track" title="recorded/retracted events"></div>
+                <div class="rail-controls">
+                  <input type="range" id="rail-scrubber" min="0" max="0" step="1" value="0" disabled />
+                  <div class="rail-meta">
+                    <span id="rail-time-label">No temporal points yet.</span>
+                    <span id="rail-count-label">0 visible</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="viz-block">
-            <div class="viz-label">TIME DIFF A/B</div>
-            <div class="diff-row">
-              <input type="datetime-local" id="diff-a" title="Timestamp A" />
-              <input type="datetime-local" id="diff-b" title="Timestamp B" />
-              <button class="btn-ghost" id="diff-compare-btn">Compare</button>
-            </div>
-            <div class="diff-summary" id="diff-summary">Pick two points in time to compare state changes.</div>
-          </div>
-        </div>
-        <div class="stream-body" id="stream-body">
-          <div class="empty">
-            <span class="empty-glyph">◈</span>
-            No facts yet.<br>Click a <strong>TRY</strong> chip or run the <strong>Time-travel demo</strong> to begin.
-          </div>
-        </div>
-        <div class="entity-cards" id="entity-cards">
-          <div class="entity-cards-hdr">
-            <span class="viz-label entity-cards-title">ENTITY STORIES</span>
-            <div class="entity-sort" role="group" aria-label="Sort entity stories">
-              <button class="entity-sort-btn active" id="entity-sort-recent" aria-pressed="true">Recent</button>
-              <button class="entity-sort-btn" id="entity-sort-alpha" aria-pressed="false">A-Z</button>
+            <div class="viz-block">
+              <div class="viz-label">TIME DIFF A/B</div>
+              <div class="diff-row">
+                <input type="datetime-local" id="diff-a" title="Timestamp A" />
+                <input type="datetime-local" id="diff-b" title="Timestamp B" />
+                <button class="btn-ghost" id="diff-compare-btn">Compare</button>
+              </div>
+              <div class="diff-summary" id="diff-summary">Pick two points in time to compare state changes.</div>
             </div>
           </div>
-          <div class="entity-cards-body" id="entity-cards-body">
-            <div class="status">Entity story cards appear here after facts are loaded.</div>
+          <div class="stream-body" id="stream-body">
+            <div class="empty">
+              <span class="empty-glyph">◈</span>
+              No facts yet.<br>Click a <strong>TRY</strong> chip or run the <strong>Time-travel demo</strong> to begin.
+            </div>
+          </div>
+          <div class="entity-cards" id="entity-cards">
+            <div class="entity-cards-hdr">
+              <span class="viz-label entity-cards-title">ENTITY STORIES</span>
+              <div class="entity-sort" role="group" aria-label="Sort entity stories">
+                <button class="entity-sort-btn active" id="entity-sort-recent" aria-pressed="true">Recent</button>
+                <button class="entity-sort-btn" id="entity-sort-alpha" aria-pressed="false">A-Z</button>
+              </div>
+            </div>
+            <div class="entity-cards-body" id="entity-cards-body">
+              <div class="status">Entity story cards appear here after facts are loaded.</div>
+            </div>
           </div>
         </div>
-      </div>
 
-    </main>
+      </main>
+    </section>
 
     <!-- Footer -->
     <footer>
-      <span>Kronroe</span>
-      <span class="sep">·</span>
-      <span class="version-badge">v0.1.1</span>
-      <span class="sep">·</span>
-      <span>AGPL-3.0 / Commercial</span>
-      <span class="sep">·</span>
-      <a href="https://pypi.org/project/kronroe/" target="_blank" rel="noopener">PyPI</a>
-      <a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank" rel="noopener">Commercial licence</a>
-      <a href="https://github.com/kronroe/kronroe/blob/main/README.md" target="_blank" rel="noopener">Docs</a>
+      <div class="footer-inner">
+        <div class="footer-left">
+          <span>Kronroe</span>
+          <span class="sep">·</span>
+          <span class="version-badge">v0.1.2</span>
+          <span class="sep">·</span>
+          <span class="footer-licence">Free for open source. <a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank" rel="noopener">Commercial licence</a> available.</span>
+        </div>
+        <div class="footer-right">
+          <a href="https://pypi.org/project/kronroe/" target="_blank" rel="noopener">PyPI</a>
+          <a href="https://crates.io/crates/kronroe" target="_blank" rel="noopener">crates.io</a>
+          <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/kronroe/kronroe#readme" target="_blank" rel="noopener">Docs</a>
+        </div>
+      </div>
     </footer>
 
   <div id="ts-tooltip"></div>
