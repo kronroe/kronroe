@@ -22,6 +22,8 @@ async function run() {
   try {
     await page.goto(targetUrl, { waitUntil: "networkidle", timeout: 120_000 });
 
+    // Wait for WASM engine to finish loading (overlay gets .hidden class)
+    await page.locator("#loading.hidden").waitFor({ timeout: 60_000 });
     await page.waitForSelector("#subject", { timeout: 60_000 });
     await page.locator("#subject").fill(subject);
     await page.locator("#predicate").fill(predicate);
