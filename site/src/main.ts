@@ -246,9 +246,12 @@ async function init() {
   const objectEl     = document.getElementById("object")!     as HTMLInputElement;
   const objTypeEl    = document.getElementById("obj-type")!   as HTMLSelectElement;
   const assertAtEl   = document.getElementById("assert-at")!  as HTMLInputElement;
-  const assertBtn    = document.getElementById("assert-btn")!;
-  const clearBtn     = document.getElementById("clear-btn")!;
-  const timeDemoBtn  = document.getElementById("time-demo-btn")! as HTMLButtonElement;
+  const assertBtn       = document.getElementById("assert-btn")!;
+  const clearBtn        = document.getElementById("clear-btn")!;
+  const clearConfirm    = document.getElementById("clear-confirm")!;
+  const clearConfirmYes = document.getElementById("clear-confirm-yes")!;
+  const clearConfirmNo  = document.getElementById("clear-confirm-no")!;
+  const timeDemoBtn     = document.getElementById("time-demo-btn")! as HTMLButtonElement;
   const assertStatus = document.getElementById("assert-status")!;
   const assertPanel  = document.getElementById("assert-panel");
 
@@ -649,6 +652,7 @@ async function init() {
   }
 
   const ghostFactHtml = `<div class="empty-ghost">
+    <span class="empty-ghost-label">e.g.</span>
     <span class="tag tag-s">alice</span>
     <span class="sep">&middot;</span>
     <span class="tag tag-p">works_at</span>
@@ -875,12 +879,15 @@ async function init() {
     URL.revokeObjectURL(url);
   });
 
-  // ── Clear ─────────────────────────────────────────────────────────────────
+  // ── Clear (inline confirmation — no native confirm() dialog) ─────────────
 
-  clearBtn.addEventListener("click", () => {
-    if (!confirm("Clear all facts from this in-browser graph? This cannot be undone.")) {
-      return;
-    }
+  function dismissClearConfirm() {
+    clearConfirm.hidden = true;
+    clearBtn.disabled   = false;
+  }
+
+  function doClearGraph() {
+    dismissClearConfirm();
     graph.free();
     graph       = createGraph(wasm);
     allFacts    = [];
@@ -897,7 +904,17 @@ async function init() {
     showEmpty("No facts yet.<br>Click a <strong>TRY</strong> chip or run the <strong>Time-travel demo</strong> to begin.");
     renderEntityCards();
     updateRail();
+  }
+
+  clearBtn.addEventListener("click", () => {
+    if (allFacts.length === 0) return; // nothing to clear
+    clearConfirm.hidden = false;
+    clearBtn.disabled   = true;
+    clearConfirmYes.focus();
   });
+
+  clearConfirmYes.addEventListener("click", doClearGraph);
+  clearConfirmNo.addEventListener("click",  dismissClearConfirm);
 
   // ── Query ─────────────────────────────────────────────────────────────────
 
