@@ -5,7 +5,7 @@ use kronroe::{Fact, FactId, Value};
 use kronroe::{TemporalIntent, TemporalOperator};
 use kronroe_agent_memory::{
     AgentMemory, ConfidenceShift, FactCorrection, MemoryHealthReport, RecallOptions, RecallScore,
-    WhatChangedReport,
+    RecallForTaskReport, WhatChangedReport,
 };
 use serde_json::{json, Value as JsonValue};
 use std::env;
@@ -332,6 +332,23 @@ fn tools_schema() -> Vec<JsonValue> {
                 "required": ["entity"]
             }
         }),
+        json!({
+            "name": "recall_for_task",
+            "description": "Return decision-ready memory context for a concrete task.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "task": {"type": "string"},
+                    "subject": {"type": "string"},
+                    "now": {"type": "string"},
+                    "horizon_days": {"type": "integer", "minimum": 1},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": MAX_RECALL_LIMIT},
+                    "query_embedding": {"type": "array", "items": {"type": "number"}},
+                    "use_hybrid": {"type": "boolean"}
+                },
+                "required": ["task"]
+            }
+        }),
     ]
 }
 
@@ -449,6 +466,7 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
         }
         "what_changed" => call_tool_what_changed(state, &args),
         "memory_health" => call_tool_memory_health(state, &args),
+        "recall_for_task" => call_tool_recall_for_task(state, &args),
         _ => anyhow::bail!("unknown tool: {name}"),
     }
 }
@@ -528,6 +546,80 @@ fn call_tool_memory_health(state: &mut AppState, args: &JsonValue) -> Result<Jso
             report.low_confidence_facts.len(),
             report.stale_high_impact_facts.len(),
             report.contradiction_count
+        )}],
+        "structuredContent": {
+            "report": report_json,
+            "agent_brief": agent_brief
+        }
+    }))
+}
+
+fn call_tool_recall_for_task(state: &mut AppState, args: &JsonValue) -> Result<JsonValue> {
+    let task = args
+        .get("task")
+        .and_then(JsonValue::as_str)
+        .context("task is required")?;
+    if task.len() > MAX_QUERY_BYTES {
+        anyhow::bail!("task exceeds max allowed size ({} bytes)", MAX_QUERY_BYTES);
+    }
+
+    let subject = args.get("subject").and_then(JsonValue::as_str);
+    let now = args
+        .get("now")
+        .and_then(JsonValue::as_str)
+        .map(|raw| {
+            raw.parse::<DateTime<Utc>>()
+                .context("now must be RFC3339 when provided")
+        })
+        .transpose()?;
+    let horizon_days = args
+        .get("horizon_days")
+        .map(|value| value.as_i64().context("horizon_days must be an integer"))
+        .transpose()?
+        .unwrap_or(30);
+    let limit = {
+        let raw_limit = args.get("limit").and_then(JsonValue::as_u64).unwrap_or(8);
+        let limit = usize::try_from(raw_limit).context("limit must be a valid integer")?;
+        if limit > MAX_RECALL_LIMIT {
+            anyhow::bail!("limit exceeds max allowed value ({MAX_RECALL_LIMIT})");
+        }
+        limit
+    };
+
+    let query_embedding = parse_embedding(args.get("query_embedding"))?;
+    let use_hybrid = args
+        .get("use_hybrid")
+        .and_then(JsonValue::as_bool)
+        .unwrap_or(false);
+
+    #[cfg(not(feature = "hybrid"))]
+    if query_embedding.is_some() || use_hybrid {
+        anyhow::bail!("hybrid task recall controls are unavailable without hybrid feature");
+    }
+
+    let embedding_for_call = if use_hybrid {
+        query_embedding.as_deref()
+    } else {
+        None
+    };
+
+    let report = state.memory.recall_for_task(
+        task,
+        subject,
+        now,
+        Some(horizon_days),
+        limit,
+        embedding_for_call,
+    )?;
+    let report_json = recall_for_task_report_to_json(&report);
+    let agent_brief = recall_for_task_agent_brief(&report);
+
+    Ok(json!({
+        "content": [{ "type": "text", "text": format!(
+            "task report: {} key fact(s), {} watchout(s), {} next check(s)",
+            report.key_facts.len(),
+            report.watchouts.len(),
+            report.recommended_next_checks.len()
         )}],
         "structuredContent": {
             "report": report_json,
@@ -1043,6 +1135,23 @@ fn memory_health_report_to_json(report: &MemoryHealthReport) -> JsonValue {
     })
 }
 
+fn recall_for_task_report_to_json(report: &RecallForTaskReport) -> JsonValue {
+    let key_facts: Vec<JsonValue> = report.key_facts.iter().map(fact_to_json).collect();
+    json!({
+        "task": report.task,
+        "subject": report.subject,
+        "generated_at": report.generated_at.to_rfc3339(),
+        "horizon_days": report.horizon_days,
+        "query_used": report.query_used,
+        "key_facts": key_facts,
+        "low_confidence_count": report.low_confidence_count,
+        "stale_high_impact_count": report.stale_high_impact_count,
+        "contradiction_count": report.contradiction_count,
+        "watchouts": report.watchouts,
+        "recommended_next_checks": report.recommended_next_checks,
+    })
+}
+
 fn is_high_impact_predicate(predicate: &str) -> bool {
     matches!(
         predicate,
@@ -1118,6 +1227,167 @@ fn make_ranked_agent_action(spec: AgentActionSpec<'_>) -> (f32, JsonValue) {
     });
 
     (action_score, action_json)
+}
+
+fn recall_for_task_agent_brief(report: &RecallForTaskReport) -> JsonValue {
+    let status = if report.key_facts.is_empty() {
+        "no_context"
+    } else if report.watchouts.is_empty() {
+        "ready"
+    } else {
+        "attention_needed"
+    };
+
+    let mut ranked_actions: Vec<(f32, JsonValue)> = Vec::new();
+    if report.key_facts.is_empty() {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "ask_clarifying_question",
+            priority: "high",
+            action: "Ask a clarifying follow-up to gather missing task context.".to_string(),
+            rationale: "No key facts are available yet for this task.".to_string(),
+            suggested_tool: "recall_for_task",
+            suggested_arguments: json!({
+                "task": report.task,
+                "subject": report.subject,
+                "horizon_days": report.horizon_days,
+                "limit": 12
+            }),
+            workflow_impact: "context_coverage",
+            risk_if_skipped: "high",
+            automation_confidence: 0.76,
+        }));
+    }
+
+    if report.low_confidence_count > 0 {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "verify_low_confidence_facts",
+            priority: "high",
+            action: "Validate low-confidence task facts with a fresh source.".to_string(),
+            rationale: "Low-confidence facts can derail task execution.".to_string(),
+            suggested_tool: "memory_health",
+            suggested_arguments: json!({
+                "entity": report.subject,
+                "low_confidence_threshold": 0.7,
+                "stale_after_days": report.horizon_days
+            }),
+            workflow_impact: "decision_reliability",
+            risk_if_skipped: "high",
+            automation_confidence: 0.82,
+        }));
+    }
+
+    if report.stale_high_impact_count > 0 {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "refresh_stale_high_impact_facts",
+            priority: "medium",
+            action: "Refresh stale high-impact facts before finalizing the task plan.".to_string(),
+            rationale: "Stale high-impact facts often drive incorrect decisions.".to_string(),
+            suggested_tool: "what_changed",
+            suggested_arguments: json!({
+                "entity": report.subject,
+                "since": (report.generated_at - chrono::Duration::days(report.horizon_days)).to_rfc3339()
+            }),
+            workflow_impact: "freshness_hygiene",
+            risk_if_skipped: "medium",
+            automation_confidence: 0.77,
+        }));
+    }
+
+    if report.contradiction_count > 0 {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "resolve_contradictions_first",
+            priority: "high",
+            action: "Resolve contradictions before executing task-critical steps.".to_string(),
+            rationale: "Contradictions indicate mutually inconsistent memory state.".to_string(),
+            suggested_tool: "memory_health",
+            suggested_arguments: json!({
+                "entity": report.subject
+            }),
+            workflow_impact: "critical_identity",
+            risk_if_skipped: "high",
+            automation_confidence: 0.80,
+        }));
+    }
+
+    if !report.key_facts.is_empty() {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "prepare_task_brief",
+            priority: if report.watchouts.is_empty() {
+                "high"
+            } else {
+                "medium"
+            },
+            action: "Build a concise execution brief from the key facts.".to_string(),
+            rationale: "Task briefs reduce context switching for human and AI collaborators."
+                .to_string(),
+            suggested_tool: "assemble_context",
+            suggested_arguments: json!({
+                "query": report.query_used,
+                "max_tokens": 350
+            }),
+            workflow_impact: "decision_reliability",
+            risk_if_skipped: "medium",
+            automation_confidence: 0.91,
+        }));
+    }
+
+    if ranked_actions.is_empty() {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "monitor_task_memory",
+            priority: "low",
+            action: "Task memory looks stable; continue periodic monitoring.".to_string(),
+            rationale: "No immediate memory quality intervention is required.".to_string(),
+            suggested_tool: "recall_for_task",
+            suggested_arguments: json!({
+                "task": report.task,
+                "subject": report.subject,
+                "horizon_days": report.horizon_days,
+                "limit": report.key_facts.len().max(1)
+            }),
+            workflow_impact: "monitoring",
+            risk_if_skipped: "low",
+            automation_confidence: 0.93,
+        }));
+    }
+
+    ranked_actions.sort_by(|left, right| right.0.total_cmp(&left.0));
+    let recommended_action_id = ranked_actions
+        .first()
+        .and_then(|(_, action)| action.get("id"))
+        .and_then(JsonValue::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| "monitor_task_memory".to_string());
+    let automation_ready = ranked_actions.iter().any(|(_, action)| {
+        action
+            .get("execution_mode")
+            .and_then(JsonValue::as_str)
+            .is_some_and(|mode| mode != "human_confirm")
+    });
+    let next_actions: Vec<JsonValue> = ranked_actions
+        .into_iter()
+        .map(|(_, action)| action)
+        .collect();
+
+    json!({
+        "schema_version": AGENT_BRIEF_SCHEMA_VERSION,
+        "decision_mode": "agent_first",
+        "status": status,
+        "summary": format!(
+            "{} key facts, {} watchouts, {} recommended checks",
+            report.key_facts.len(),
+            report.watchouts.len(),
+            report.recommended_next_checks.len()
+        ),
+        "signals": {
+            "key_fact_count": report.key_facts.len(),
+            "low_confidence_count": report.low_confidence_count,
+            "stale_high_impact_count": report.stale_high_impact_count,
+            "contradiction_count": report.contradiction_count
+        },
+        "recommended_action_id": recommended_action_id,
+        "automation_ready": automation_ready,
+        "next_actions": next_actions
+    })
 }
 
 fn what_changed_agent_brief(report: &WhatChangedReport) -> JsonValue {
@@ -2266,6 +2536,97 @@ mod tests {
                 "actions should be ranked by descending action_score"
             );
         }
+    }
+
+    #[test]
+    fn recall_for_task_tool_returns_decision_ready_report() {
+        let mut state = temp_state();
+        let old = (Utc::now() - chrono::Duration::days(200)).to_rfc3339();
+
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme",
+                    "confidence": 0.65,
+                    "valid_from": old
+                }
+            })),
+        )
+        .unwrap();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "project",
+                    "object": "Renewal Q2",
+                    "confidence": 0.95
+                }
+            })),
+        )
+        .unwrap();
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall_for_task",
+                "arguments": {
+                    "task": "prepare renewal call",
+                    "subject": "alice",
+                    "horizon_days": 90,
+                    "limit": 10
+                }
+            })),
+        )
+        .unwrap();
+
+        let report = out
+            .get("structuredContent")
+            .and_then(|v| v.get("report"))
+            .expect("report should be present");
+        let key_facts = report
+            .get("key_facts")
+            .and_then(JsonValue::as_array)
+            .expect("key_facts should be present");
+        assert!(!key_facts.is_empty(), "expected key facts for task");
+        assert!(
+            key_facts.iter().all(|fact| {
+                fact.get("subject")
+                    .and_then(JsonValue::as_str)
+                    .is_some_and(|subject| subject == "alice")
+            }),
+            "task report should stay focused on requested subject"
+        );
+        assert!(
+            report
+                .get("low_confidence_count")
+                .and_then(JsonValue::as_u64)
+                .is_some_and(|value| value >= 1),
+            "expected at least one low-confidence watchout"
+        );
+
+        let brief = out
+            .get("structuredContent")
+            .and_then(|v| v.get("agent_brief"))
+            .expect("agent_brief should be present");
+        assert_eq!(
+            brief
+                .get("decision_mode")
+                .and_then(JsonValue::as_str),
+            Some("agent_first")
+        );
+        assert!(
+            brief
+                .get("recommended_action_id")
+                .and_then(JsonValue::as_str)
+                .is_some(),
+            "agent brief should include recommended action"
+        );
     }
 
     #[cfg(not(feature = "hybrid"))]

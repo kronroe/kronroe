@@ -388,6 +388,22 @@ pub struct MemoryHealthReport {
     pub recommended_actions: Vec<String>,
 }
 
+/// Decision-ready recall result shaped around a concrete user task.
+#[derive(Debug, Clone)]
+pub struct RecallForTaskReport {
+    pub task: String,
+    pub subject: Option<String>,
+    pub generated_at: DateTime<Utc>,
+    pub horizon_days: i64,
+    pub query_used: String,
+    pub key_facts: Vec<Fact>,
+    pub low_confidence_count: usize,
+    pub stale_high_impact_count: usize,
+    pub contradiction_count: usize,
+    pub watchouts: Vec<String>,
+    pub recommended_next_checks: Vec<String>,
+}
+
 fn is_high_impact_predicate(predicate: &str) -> bool {
     matches!(
         predicate,
@@ -697,6 +713,139 @@ impl AgentMemory {
             stale_high_impact_facts,
             contradiction_count,
             recommended_actions,
+        })
+    }
+
+    /// Build task-focused recall output that is immediately useful for planning
+    /// and execution-oriented workflows.
+    pub fn recall_for_task(
+        &self,
+        task: &str,
+        subject: Option<&str>,
+        now: Option<DateTime<Utc>>,
+        horizon_days: Option<i64>,
+        limit: usize,
+        #[cfg(feature = "hybrid")] query_embedding: Option<&[f32]>,
+        #[cfg(not(feature = "hybrid"))] _query_embedding: Option<&[f32]>,
+    ) -> Result<RecallForTaskReport> {
+        if limit == 0 {
+            return Err(Error::Search(
+                "recall_for_task limit must be >= 1".to_string(),
+            ));
+        }
+
+        let generated_at = now.unwrap_or_else(Utc::now);
+        let horizon_days = horizon_days.unwrap_or(30).max(1);
+        let subject = subject.and_then(|raw| {
+            let trimmed = raw.trim();
+            (!trimmed.is_empty()).then_some(trimmed)
+        });
+
+        let query_used = if let Some(subject) = subject {
+            format!("{task} {subject}")
+        } else {
+            task.to_string()
+        };
+
+        let opts = RecallOptions::new(&query_used).with_limit(limit);
+        #[cfg(feature = "hybrid")]
+        let opts = if let Some(embedding) = query_embedding {
+            opts.with_embedding(embedding).with_hybrid(true)
+        } else {
+            opts
+        };
+        #[cfg(not(feature = "hybrid"))]
+        if _query_embedding.is_some() {
+            return Err(Error::Search(
+                "query_embedding requires the hybrid feature".to_string(),
+            ));
+        }
+
+        let mut scored = self.recall_scored_with_options(&opts)?;
+        if let Some(subject) = subject {
+            scored.retain(|(fact, _)| fact.subject == subject);
+        }
+
+        let key_facts: Vec<Fact> = scored.into_iter().map(|(fact, _)| fact).collect();
+        let low_confidence_count = key_facts
+            .iter()
+            .filter(|fact| fact.confidence < 0.7)
+            .count();
+
+        let stale_cutoff = generated_at - chrono::Duration::days(horizon_days);
+        let stale_high_impact_count = key_facts
+            .iter()
+            .filter(|fact| {
+                is_high_impact_predicate(&fact.predicate) && fact.valid_from <= stale_cutoff
+            })
+            .count();
+
+        #[cfg(feature = "contradiction")]
+        let contradiction_count = if let Some(subject) = subject {
+            self.audit(subject)?.len()
+        } else {
+            0
+        };
+        #[cfg(not(feature = "contradiction"))]
+        let contradiction_count = 0usize;
+
+        let mut watchouts = Vec::new();
+        if key_facts.is_empty() {
+            watchouts.push("No matching facts were found for this task context.".to_string());
+        }
+        if low_confidence_count > 0 {
+            watchouts.push(format!(
+                "{low_confidence_count} key fact(s) are low confidence (< 0.7)."
+            ));
+        }
+        if stale_high_impact_count > 0 {
+            watchouts.push(format!(
+                "{stale_high_impact_count} high-impact key fact(s) are stale for the selected horizon."
+            ));
+        }
+        if contradiction_count > 0 {
+            watchouts.push(format!(
+                "{contradiction_count} contradiction(s) exist for the subject."
+            ));
+        }
+
+        let mut recommended_next_checks = Vec::new();
+        if key_facts.is_empty() {
+            recommended_next_checks
+                .push("Ask a clarifying follow-up question before acting.".to_string());
+        }
+        if low_confidence_count > 0 {
+            recommended_next_checks
+                .push("Verify low-confidence facts with the latest source of truth.".to_string());
+        }
+        if stale_high_impact_count > 0 {
+            recommended_next_checks.push(
+                "Refresh stale high-impact facts (employment, location, role, contact)."
+                    .to_string(),
+            );
+        }
+        if contradiction_count > 0 {
+            recommended_next_checks.push(
+                "Resolve contradictions before generating irreversible actions.".to_string(),
+            );
+        }
+        if recommended_next_checks.is_empty() {
+            recommended_next_checks
+                .push("Proceed with the top facts and monitor for new updates.".to_string());
+        }
+
+        Ok(RecallForTaskReport {
+            task: task.to_string(),
+            subject: subject.map(str::to_string),
+            generated_at,
+            horizon_days,
+            query_used,
+            key_facts,
+            low_confidence_count,
+            stale_high_impact_count,
+            contradiction_count,
+            watchouts,
+            recommended_next_checks,
         })
     }
 
@@ -1579,6 +1728,45 @@ mod tests {
     }
 
     #[test]
+    fn recall_for_task_returns_subject_focused_report() {
+        let (mem, _tmp) = open_temp_memory();
+        let old = Utc::now() - chrono::Duration::days(120);
+        mem.assert_with_confidence_with_params(
+            "alice",
+            "works_at",
+            "Acme",
+            AssertParams { valid_from: old },
+            0.65,
+        )
+        .unwrap();
+        mem.assert_with_confidence("alice", "project", "Renewal Q2", 0.95)
+            .unwrap();
+        mem.assert_with_confidence("bob", "project", "Other deal", 0.99)
+            .unwrap();
+
+        let report = mem
+            .recall_for_task(
+                "prepare renewal call",
+                Some("alice"),
+                None,
+                Some(90),
+                10,
+                None,
+            )
+            .unwrap();
+
+        assert_eq!(report.subject.as_deref(), Some("alice"));
+        assert!(!report.key_facts.is_empty(), "expected task facts for alice");
+        assert!(
+            report.key_facts.iter().all(|fact| fact.subject == "alice"),
+            "task report should stay focused on the requested subject"
+        );
+        assert!(report.low_confidence_count >= 1);
+        assert!(report.stale_high_impact_count >= 1);
+        assert!(!report.recommended_next_checks.is_empty());
+    }
+
+    #[test]
     fn test_assemble_context_returns_string() {
         let (mem, _tmp) = open_temp_memory();
         mem.remember("Alice is a Rust expert", "ep-001", None)
@@ -1631,6 +1819,29 @@ mod tests {
         let hits = mem.recall("language", Some(&[1.0, 0.0]), 1).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].subject, "ep-rust");
+    }
+
+    #[cfg(feature = "hybrid")]
+    #[test]
+    fn recall_for_task_accepts_query_embedding_for_hybrid_path() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.remember("Alice focuses on Rust API reliability", "alice", Some(vec![1.0, 0.0]))
+            .unwrap();
+        mem.remember("Bob focuses on ML experiments", "bob", Some(vec![0.0, 1.0]))
+            .unwrap();
+
+        let report = mem
+            .recall_for_task(
+                "prepare reliability review",
+                Some("alice"),
+                None,
+                Some(30),
+                5,
+                Some(&[1.0, 0.0]),
+            )
+            .unwrap();
+        assert!(!report.key_facts.is_empty());
+        assert_eq!(report.subject.as_deref(), Some("alice"));
     }
 
     #[cfg(feature = "hybrid")]
