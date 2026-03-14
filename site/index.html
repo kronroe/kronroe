@@ -214,20 +214,55 @@
         max-width: 480px;
       }
 
+      .hero-install {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        margin-bottom: 0.25rem;
+      }
+
+      .install-cmd {
+        font-family: var(--mono);
+        font-size: 0.78rem;
+        font-weight: 500;
+        padding: 0.35rem 0.75rem;
+        border-radius: 6px;
+        background: var(--espresso);
+        color: rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+        transition: background 0.15s;
+        user-select: all;
+      }
+
+      .install-cmd:hover {
+        background: #3d2e27;
+      }
+
+      .install-cmd[data-copied="1"] {
+        background: var(--green);
+      }
+
+      .install-sep {
+        font-family: var(--hand);
+        font-size: 0.85rem;
+        color: var(--text-dim);
+      }
+
       .hero-guide {
         margin-top: 0.9rem;
         max-width: 560px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        background: var(--surface);
+        border: 1px solid var(--violet-border);
+        border-radius: 12px;
+        background: var(--violet-bg);
         padding: 0.55rem 0.7rem;
       }
 
       .hero-guide-label {
-        font-family: var(--mono);
-        font-size: 0.58rem;
+        font-family: var(--hand);
+        font-size: 0.85rem;
         letter-spacing: 0.08em;
-        color: var(--text-dim);
+        color: var(--violet);
         margin-bottom: 0.3rem;
       }
 
@@ -288,6 +323,14 @@
         border-radius: 50%;
         background: var(--violet);
         flex-shrink: 0;
+      }
+
+      #assert-panel .pip {
+        background: var(--violet);
+      }
+
+      #query-panel .pip {
+        background: var(--rose);
       }
 
       .panel-body {
@@ -442,26 +485,37 @@
         transition: all 0.1s;
       }
 
+      .chip:nth-child(odd) {
+        background: var(--violet-bg);
+        border-color: var(--violet-border);
+      }
+
+      .chip:nth-child(even) {
+        background: var(--rose-bg);
+        border-color: var(--rose-border);
+      }
+
       .chip:hover {
         border-color: var(--violet-border);
         color: var(--violet);
         background: var(--violet-bg);
       }
 
-      /* Time-travel demo chip — orchid outline, full-width */
+      /* Time-travel demo chip — orchid accent, full-width */
       .chip-demo {
-        background: transparent;
-        border-color: var(--orchid-border);
-        color: var(--orchid);
+        background: var(--orchid-bg) !important;
+        border-color: var(--orchid-border) !important;
+        color: var(--orchid) !important;
+        font-family: var(--hand);
         display: block;
         width: 100%;
         text-align: center;
         padding: 0.35rem 0.875rem;
       }
       .chip-demo:hover {
-        background: var(--orchid-bg);
-        border-color: var(--orchid);
-        color: var(--orchid);
+        background: rgba(180, 92, 252, 0.14) !important;
+        border-color: var(--orchid) !important;
+        color: var(--orchid) !important;
       }
 
       /* ── Status ── */
@@ -1049,6 +1103,17 @@
         background: rgba(46, 33, 28, 0.04);
       }
 
+      .version-badge {
+        font-family: var(--mono);
+        font-size: 0.65rem;
+        font-weight: 600;
+        padding: 0.1rem 0.35rem;
+        border-radius: 3px;
+        background: var(--lime-bg);
+        border: 1px solid var(--lime-border);
+        color: var(--lime);
+      }
+
       footer a { color: var(--text-dim); text-decoration: none; transition: color 0.12s; }
       footer a:hover { color: var(--text-mid); }
       footer .sep { color: var(--border-hi); }
@@ -1100,6 +1165,7 @@
       <nav class="header-nav">
         <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/kronroe/kronroe#readme" target="_blank" rel="noopener">Docs</a>
+        <a href="https://pypi.org/project/kronroe/" target="_blank" rel="noopener">PyPI</a>
         <a href="https://crates.io/crates/kronroe" target="_blank" rel="noopener">crates.io</a>
       </nav>
     </header>
@@ -1109,6 +1175,11 @@
       <section class="hero">
         <h1>Bi-<span class="temporal-accent">temporal</span> graph.<br><span class="lime">In your browser.</span></h1>
         <p class="sub">// Pure Rust → WebAssembly. Every fact carries four timestamps.<br>// No server. No network. No schema.</p>
+        <div class="hero-install">
+          <code class="install-cmd" title="Click to copy">pip install kronroe</code>
+          <span class="install-sep">or</span>
+          <code class="install-cmd" title="Click to copy">cargo add kronroe</code>
+        </div>
         <div class="hero-guide">
           <div class="hero-guide-label">QUICK START</div>
           <div class="hero-guide-copy">1) Click a TRY chip. 2) Press Assert. 3) Enter that subject in Find and press Find.</div>
@@ -1220,7 +1291,7 @@
         <div class="stream-body" id="stream-body">
           <div class="empty">
             <span class="empty-glyph">◈</span>
-            No facts yet.<br>Assert one above to begin.
+            No facts yet.<br>Click a <strong>TRY</strong> chip or run the <strong>Time-travel demo</strong> to begin.
           </div>
         </div>
         <div class="entity-cards" id="entity-cards">
@@ -1243,8 +1314,11 @@
     <footer>
       <span>Kronroe</span>
       <span class="sep">·</span>
+      <span class="version-badge">v0.1.1</span>
+      <span class="sep">·</span>
       <span>AGPL-3.0 / Commercial</span>
       <span class="sep">·</span>
+      <a href="https://pypi.org/project/kronroe/" target="_blank" rel="noopener">PyPI</a>
       <a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank" rel="noopener">Commercial licence</a>
       <a href="https://github.com/kronroe/kronroe/blob/main/README.md" target="_blank" rel="noopener">Docs</a>
     </footer>

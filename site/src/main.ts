@@ -885,7 +885,7 @@ async function init() {
     streamCount.textContent = "0 facts";
     streamCount.classList.remove("has-facts");
     exportBtn.disabled = true;
-    showEmpty("No facts yet.<br>Assert one above to begin.");
+    showEmpty("No facts yet.<br>Click a <strong>TRY</strong> chip or run the <strong>Time-travel demo</strong> to begin.");
     renderEntityCards();
     updateRail();
   });
@@ -1049,6 +1049,16 @@ async function init() {
     }
   });
 
+  // ── Click-to-copy for install commands ───────────────────────────────────
+
+  document.querySelectorAll('.install-cmd').forEach(el => {
+    el.addEventListener('click', () => {
+      navigator.clipboard.writeText(el.textContent?.trim() ?? '');
+      (el as HTMLElement).setAttribute('data-copied', '1');
+      setTimeout(() => (el as HTMLElement).removeAttribute('data-copied'), 1500);
+    });
+  });
+
   // ── Initial render ────────────────────────────────────────────────────────
 
   if (allFacts.length > 0) {
@@ -1056,13 +1066,24 @@ async function init() {
     renderFacts(activeFacts(), "ALL");
   } else {
     syncEntitySortButtons();
-    showEmpty("No facts yet.<br>Assert one above to begin.");
+    showEmpty("No facts yet.<br>Click a <strong>TRY</strong> chip or run the <strong>Time-travel demo</strong> to begin.");
     streamMode.textContent  = "ALL";
     streamCount.textContent = "0 facts";
     streamCount.classList.remove("has-facts");
     exportBtn.disabled = true;
     renderEntityCards();
     updateRail();
+  }
+
+  // ── First-visit auto-demo ──────────────────────────────────────────────
+
+  const HAS_VISITED_KEY = "kronroe_has_visited";
+  if (!localStorage.getItem(HAS_VISITED_KEY)) {
+    localStorage.setItem(HAS_VISITED_KEY, "1");
+    // Small delay so the page finishes rendering first
+    setTimeout(() => {
+      document.getElementById("time-demo-btn")?.click();
+    }, 600);
   }
 }
 
