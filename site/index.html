@@ -592,7 +592,7 @@
       }
 
       #query-panel .pip {
-        background: var(--rose);
+        background: var(--orange);
       }
 
       .panel-body {
@@ -664,7 +664,7 @@
       .at-hint {
         font-family: var(--hand);
         font-size: 0.72rem;
-        color: var(--rose);
+        color: var(--orange);
         letter-spacing: 0;
       }
 
@@ -703,15 +703,15 @@
         color: var(--text);
       }
 
-      /* Rose secondary actions */
+      /* Neutral secondary actions */
       #clear-btn, #show-all-btn {
-        border: 1.5px solid var(--rose);
-        color: var(--rose-text);
+        border: 1.5px solid var(--border-hi);
+        color: var(--text-mid);
       }
       #clear-btn:hover, #show-all-btn:hover {
-        border-color: var(--rose);
-        color: var(--rose);
-        background: var(--rose-bg);
+        border-color: var(--text-mid);
+        color: var(--text);
+        background: var(--surface-2);
       }
 
       .btn-row {
@@ -726,26 +726,26 @@
         align-items: center;
         gap: 0.4rem;
         padding: 0.35rem 0.5rem;
-        border: 1.5px solid var(--rose-border);
+        border: 1.5px solid var(--border-hi);
         border-radius: 8px;
-        background: var(--rose-bg);
+        background: var(--surface-2);
         animation: fact-in 0.12s ease-out both;
       }
       .clear-confirm-label {
         font-family: var(--mono);
         font-size: 0.68rem;
-        color: var(--rose-text);
+        color: var(--text-mid);
         flex: 1;
       }
       .btn-confirm-yes {
         font-size: 0.7rem;
         padding: 0.25rem 0.55rem;
-        background: var(--rose-text);
+        background: var(--espresso);
         color: #fff;
         border: none;
         border-radius: 5px;
       }
-      .btn-confirm-yes:hover { background: #8f1f3e; }
+      .btn-confirm-yes:hover { background: #3d2e27; }
       .btn-confirm-no {
         font-size: 0.7rem;
         padding: 0.25rem 0.55rem;
@@ -790,8 +790,8 @@
       }
 
       .chip:nth-child(even) {
-        background: var(--rose-bg);
-        border-color: var(--rose-border);
+        background: var(--lime-bg);
+        border-color: var(--lime-border);
       }
 
       .chip:hover {
@@ -962,7 +962,7 @@
 
       .rail-dot.valid { background: var(--violet); }
       .rail-dot.recorded { background: var(--orange); }
-      .rail-dot.invalidated { background: var(--rose); }
+      .rail-dot.invalidated { background: var(--orange); }
       .rail-dot.active {
         opacity: 1;
         outline: 2px solid color-mix(in srgb, var(--violet) 40%, transparent);
@@ -1019,9 +1019,9 @@
       }
 
       .diff-badge.removed {
-        color: var(--rose-text);
-        border-color: color-mix(in srgb, var(--rose) 35%, var(--border));
-        background: var(--rose-bg);
+        color: var(--orange);
+        border-color: var(--orange-border);
+        background: var(--orange-bg);
       }
 
       .stream-body {
@@ -1330,9 +1330,9 @@
       }
 
       .entity-stat.history {
-        color: var(--rose-text);
-        border-color: var(--rose-border);
-        background: var(--rose-bg);
+        color: var(--text-mid);
+        border-color: var(--border-hi);
+        background: var(--surface-2);
       }
 
       .entity-body {
