@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="130 150 252 182">
-  <title>Kronroe Logo — Temporal Bridge (light)</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="125 148 262 190">
+  <title>Kronroe — Temporal Bridge</title>
   <rect x="148" y="190" width="46" height="132" rx="10" fill="#7C5CFC"/>
   <rect x="318" y="190" width="46" height="132" rx="10" fill="#7C5CFC"/>
-  <path d="M 194 232 C 218 194, 238 176, 256 170 C 274 176, 294 194, 318 232" fill="none" stroke="#7C5CFC" stroke-width="9" stroke-linecap="round" opacity="0.65"/>
-  <path d="M 194 270 C 214 248, 234 240, 256 237 C 278 240, 298 248, 318 270" fill="none" stroke="#4DBDAD" stroke-width="6.5" stroke-linecap="round" opacity="0.5"/>
-  <path d="M 194 306 C 214 290, 234 284, 256 282 C 278 284, 298 290, 318 306" fill="none" stroke="#C04800" stroke-width="5" stroke-linecap="round" opacity="0.35"/>
-  <circle cx="256" cy="170" r="12" fill="#7C5CFC"/>
-  <circle cx="256" cy="170" r="5" fill="#FFFFFF"/>
+  <path d="M 194 228 C 216 190, 236 174, 256 168 C 276 174, 296 190, 318 228" fill="none" stroke="#7C5CFC" stroke-width="10" stroke-linecap="round" opacity="0.75"/>
+  <path d="M 194 268 C 214 244, 234 236, 256 234 C 278 236, 298 244, 318 268" fill="none" stroke="#4DBDAD" stroke-width="8" stroke-linecap="round" opacity="0.65"/>
+  <path d="M 194 304 C 214 286, 234 280, 256 278 C 278 280, 298 286, 318 304" fill="none" stroke="#C04800" stroke-width="7" stroke-linecap="round" opacity="0.5"/>
+  <circle cx="256" cy="168" r="12" fill="#7C5CFC"/>
+  <circle cx="256" cy="168" r="5" fill="#FBF8F2"/>
 </svg>
