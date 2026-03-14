@@ -3,7 +3,10 @@ use chrono::{DateTime, Utc};
 use kronroe::{Fact, FactId, Value};
 #[cfg(feature = "hybrid")]
 use kronroe::{TemporalIntent, TemporalOperator};
-use kronroe_agent_memory::{AgentMemory, RecallOptions, RecallScore};
+use kronroe_agent_memory::{
+    AgentMemory, ConfidenceShift, FactCorrection, MemoryHealthReport, RecallOptions, RecallScore,
+    WhatChangedReport,
+};
 use serde_json::{json, Value as JsonValue};
 use std::env;
 use std::io::{self, BufRead, BufReader, Write};
@@ -14,6 +17,7 @@ const MAX_QUERY_BYTES: usize = 8 * 1024; // 8 KiB
 const MAX_EPISODE_ID_BYTES: usize = 512;
 const MAX_IDEMPOTENCY_KEY_BYTES: usize = 512;
 const MAX_RECALL_LIMIT: usize = 200;
+const AGENT_BRIEF_SCHEMA_VERSION: &str = "1.0";
 
 struct AppState {
     memory: AgentMemory,
@@ -301,6 +305,33 @@ fn tools_schema() -> Vec<JsonValue> {
                 "required": ["fact_id"]
             }
         }),
+        json!({
+            "name": "what_changed",
+            "description": "Return a change report for an entity since a timestamp.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "entity": {"type": "string"},
+                    "since": {"type": "string"},
+                    "predicate": {"type": "string"}
+                },
+                "required": ["entity", "since"]
+            }
+        }),
+        json!({
+            "name": "memory_health",
+            "description": "Return a practical memory-health report for one entity.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "entity": {"type": "string"},
+                    "predicate": {"type": "string"},
+                    "low_confidence_threshold": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "stale_after_days": {"type": "integer", "minimum": 0}
+                },
+                "required": ["entity"]
+            }
+        }),
     ]
 }
 
@@ -416,8 +447,93 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
                 "structuredContent": { "fact_id": fact_id }
             }))
         }
+        "what_changed" => call_tool_what_changed(state, &args),
+        "memory_health" => call_tool_memory_health(state, &args),
         _ => anyhow::bail!("unknown tool: {name}"),
     }
+}
+
+fn call_tool_what_changed(state: &mut AppState, args: &JsonValue) -> Result<JsonValue> {
+    let entity = args
+        .get("entity")
+        .and_then(JsonValue::as_str)
+        .context("entity is required")?;
+    let since = args
+        .get("since")
+        .and_then(JsonValue::as_str)
+        .context("since is required")?
+        .parse::<DateTime<Utc>>()
+        .context("since must be RFC3339")?;
+    let predicate = args.get("predicate").and_then(JsonValue::as_str);
+
+    let report = state.memory.what_changed(entity, since, predicate)?;
+    let report_json = what_changed_report_to_json(&report);
+    let agent_brief = what_changed_agent_brief(&report);
+    Ok(json!({
+        "content": [{ "type": "text", "text": format!(
+            "{} new, {} invalidated, {} correction(s) for {entity}",
+            report.new_facts.len(),
+            report.invalidated_facts.len(),
+            report.corrections.len()
+        )}],
+        "structuredContent": {
+            "report": report_json,
+            "agent_brief": agent_brief
+        }
+    }))
+}
+
+fn call_tool_memory_health(state: &mut AppState, args: &JsonValue) -> Result<JsonValue> {
+    let entity = args
+        .get("entity")
+        .and_then(JsonValue::as_str)
+        .context("entity is required")?;
+    let predicate = args.get("predicate").and_then(JsonValue::as_str);
+
+    let low_confidence_threshold = args
+        .get("low_confidence_threshold")
+        .map(|value| {
+            value
+                .as_f64()
+                .context("low_confidence_threshold must be a number")
+                .map(|num| num as f32)
+        })
+        .transpose()?
+        .unwrap_or(0.7);
+
+    let stale_after_days = args
+        .get("stale_after_days")
+        .map(|value| {
+            value
+                .as_i64()
+                .context("stale_after_days must be an integer")
+        })
+        .transpose()?
+        .unwrap_or(90);
+
+    let report = state.memory.memory_health(
+        entity,
+        predicate,
+        low_confidence_threshold,
+        stale_after_days,
+    )?;
+
+    let report_json = memory_health_report_to_json(&report);
+    let agent_brief = memory_health_agent_brief(&report);
+    Ok(json!({
+        "content": [{ "type": "text", "text": format!(
+            "health: {} active / {} total; {} low-confidence; {} stale high-impact; {} contradiction(s)",
+            report.active_fact_count,
+            report.total_fact_count,
+            report.low_confidence_facts.len(),
+            report.stale_high_impact_facts.len(),
+            report.contradiction_count
+        )}],
+        "structuredContent": {
+            "report": report_json,
+            "agent_brief": agent_brief
+        }
+    }))
 }
 
 fn call_tool_remember(state: &mut AppState, args: &JsonValue) -> Result<JsonValue> {
@@ -619,15 +735,19 @@ fn call_tool_recall(
     let recall = state.memory.recall_scored_with_options(&opts)?;
     if scored_only || include_scores {
         let mut results = Vec::with_capacity(recall.len());
-        for (fact, score) in recall {
+        for (fact, score) in &recall {
             results.push(json!({
-                "fact": fact_to_json(&fact),
-                "score": recall_score_to_json(&score),
+                "fact": fact_to_json(fact),
+                "score": recall_score_to_json(score),
             }));
         }
+        let agent_brief = recall_scored_agent_brief(&recall, query, limit, use_hybrid);
         return Ok(json!({
             "content": [{ "type": "text", "text": format!("found {} scored fact(s)", results.len()) }],
-            "structuredContent": { "results": results }
+            "structuredContent": {
+                "results": results,
+                "agent_brief": agent_brief
+            }
         }));
     }
 
@@ -853,6 +973,612 @@ fn recall_score_to_json(score: &RecallScore) -> JsonValue {
     }
 }
 
+fn fact_correction_to_json(correction: &FactCorrection) -> JsonValue {
+    json!({
+        "old_fact": fact_to_json(&correction.old_fact),
+        "new_fact": fact_to_json(&correction.new_fact),
+    })
+}
+
+fn confidence_shift_to_json(shift: &ConfidenceShift) -> JsonValue {
+    json!({
+        "from_fact_id": shift.from_fact_id.0,
+        "to_fact_id": shift.to_fact_id.0,
+        "from_confidence": shift.from_confidence,
+        "to_confidence": shift.to_confidence,
+    })
+}
+
+fn what_changed_report_to_json(report: &WhatChangedReport) -> JsonValue {
+    let new_facts: Vec<JsonValue> = report.new_facts.iter().map(fact_to_json).collect();
+    let invalidated_facts: Vec<JsonValue> = report
+        .invalidated_facts
+        .iter()
+        .map(fact_to_json)
+        .collect();
+    let corrections: Vec<JsonValue> = report
+        .corrections
+        .iter()
+        .map(fact_correction_to_json)
+        .collect();
+    let confidence_shifts: Vec<JsonValue> = report
+        .confidence_shifts
+        .iter()
+        .map(confidence_shift_to_json)
+        .collect();
+
+    json!({
+        "entity": report.entity,
+        "since": report.since.to_rfc3339(),
+        "predicate_filter": report.predicate_filter,
+        "new_facts": new_facts,
+        "invalidated_facts": invalidated_facts,
+        "corrections": corrections,
+        "confidence_shifts": confidence_shifts,
+    })
+}
+
+fn memory_health_report_to_json(report: &MemoryHealthReport) -> JsonValue {
+    let low_confidence_facts: Vec<JsonValue> = report
+        .low_confidence_facts
+        .iter()
+        .map(fact_to_json)
+        .collect();
+    let stale_high_impact_facts: Vec<JsonValue> = report
+        .stale_high_impact_facts
+        .iter()
+        .map(fact_to_json)
+        .collect();
+
+    json!({
+        "entity": report.entity,
+        "generated_at": report.generated_at.to_rfc3339(),
+        "predicate_filter": report.predicate_filter,
+        "total_fact_count": report.total_fact_count,
+        "active_fact_count": report.active_fact_count,
+        "low_confidence_facts": low_confidence_facts,
+        "stale_high_impact_facts": stale_high_impact_facts,
+        "contradiction_count": report.contradiction_count,
+        "recommended_actions": report.recommended_actions,
+    })
+}
+
+fn is_high_impact_predicate(predicate: &str) -> bool {
+    matches!(
+        predicate,
+        "works_at" | "lives_in" | "job_title" | "email" | "phone"
+    )
+}
+
+fn level_score(level: &str) -> f32 {
+    match level {
+        "high" => 0.9,
+        "medium" => 0.6,
+        "low" => 0.3,
+        _ => 0.4,
+    }
+}
+
+fn workflow_impact_score(workflow_impact: &str) -> f32 {
+    match workflow_impact {
+        "critical_identity" => 0.95,
+        "decision_reliability" => 0.85,
+        "context_coverage" => 0.7,
+        "freshness_hygiene" => 0.55,
+        "monitoring" => 0.35,
+        _ => 0.5,
+    }
+}
+
+fn execution_mode(automation_confidence: f32, risk_if_skipped: &str) -> &'static str {
+    if automation_confidence >= 0.8 && risk_if_skipped == "high" {
+        "auto_with_guardrails"
+    } else if automation_confidence >= 0.6 {
+        "agent_suggest_then_execute"
+    } else {
+        "human_confirm"
+    }
+}
+
+struct AgentActionSpec<'a> {
+    id: &'a str,
+    priority: &'a str,
+    action: String,
+    rationale: String,
+    suggested_tool: &'a str,
+    suggested_arguments: JsonValue,
+    workflow_impact: &'a str,
+    risk_if_skipped: &'a str,
+    automation_confidence: f32,
+}
+
+fn make_ranked_agent_action(spec: AgentActionSpec<'_>) -> (f32, JsonValue) {
+    let priority_score = level_score(spec.priority);
+    let risk_score = level_score(spec.risk_if_skipped);
+    let workflow_score = workflow_impact_score(spec.workflow_impact);
+    let bounded_confidence = spec.automation_confidence.clamp(0.0, 1.0);
+    let action_score =
+        (0.45 * risk_score) + (0.30 * workflow_score) + (0.15 * priority_score) + (0.10 * bounded_confidence);
+
+    let action_json = json!({
+        "id": spec.id,
+        "priority": spec.priority,
+        "priority_score": priority_score,
+        "risk_if_skipped": spec.risk_if_skipped,
+        "risk_score": risk_score,
+        "workflow_impact": spec.workflow_impact,
+        "workflow_impact_score": workflow_score,
+        "automation_confidence": bounded_confidence,
+        "execution_mode": execution_mode(bounded_confidence, spec.risk_if_skipped),
+        "action_score": action_score,
+        "action": spec.action,
+        "rationale": spec.rationale,
+        "suggested_tool": spec.suggested_tool,
+        "suggested_arguments": spec.suggested_arguments,
+    });
+
+    (action_score, action_json)
+}
+
+fn what_changed_agent_brief(report: &WhatChangedReport) -> JsonValue {
+    let high_impact_corrections = report
+        .corrections
+        .iter()
+        .filter(|entry| is_high_impact_predicate(&entry.new_fact.predicate))
+        .count();
+    let risky_confidence_shifts = report
+        .confidence_shifts
+        .iter()
+        .filter(|entry| entry.to_confidence < 0.7 || (entry.from_confidence - entry.to_confidence) >= 0.2)
+        .count();
+
+    let urgency = if high_impact_corrections > 0 || risky_confidence_shifts > 0 {
+        "high"
+    } else if !report.corrections.is_empty() || !report.invalidated_facts.is_empty() {
+        "medium"
+    } else {
+        "low"
+    };
+    let status = if urgency == "low" {
+        "stable"
+    } else {
+        "attention_needed"
+    };
+
+    let mut ranked_actions: Vec<(f32, JsonValue)> = Vec::new();
+    if !report.corrections.is_empty() {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "verify_corrections",
+            priority: if high_impact_corrections > 0 {
+                "high"
+            } else {
+                "medium"
+            },
+            action: format!("Review {} correction(s) and confirm current truth.", report.corrections.len()),
+            rationale: "Corrections indicate fact replacement and can affect downstream decisions.".to_string(),
+            suggested_tool: "facts_about",
+            suggested_arguments: json!({ "entity": report.entity }),
+            workflow_impact: if high_impact_corrections > 0 {
+                "critical_identity"
+            } else {
+                "decision_reliability"
+            },
+            risk_if_skipped: if high_impact_corrections > 0 {
+                "high"
+            } else {
+                "medium"
+            },
+            automation_confidence: if high_impact_corrections > 0 { 0.78 } else { 0.66 },
+        }));
+    }
+    if risky_confidence_shifts > 0 {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "revalidate_confidence",
+            priority: "high",
+            action: format!(
+                "Re-validate {} confidence shift(s) with significant drop or low endpoint confidence.",
+                risky_confidence_shifts
+            ),
+            rationale: "Lower-confidence replacements increase the chance of inaccurate memory-guided actions."
+                .to_string(),
+            suggested_tool: "memory_health",
+            suggested_arguments: json!({ "entity": report.entity, "low_confidence_threshold": 0.7, "stale_after_days": 90 }),
+            workflow_impact: "decision_reliability",
+            risk_if_skipped: "high",
+            automation_confidence: 0.84,
+        }));
+    }
+    if report.invalidated_facts.len() > report.new_facts.len() {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "fill_invalidation_gaps",
+            priority: "medium",
+            action: "Check for invalidated facts that were not replaced yet.".to_string(),
+            rationale: "More invalidations than additions can leave missing operational context.".to_string(),
+            suggested_tool: "facts_about",
+            suggested_arguments: json!({ "entity": report.entity }),
+            workflow_impact: "context_coverage",
+            risk_if_skipped: "medium",
+            automation_confidence: 0.72,
+        }));
+    }
+    if ranked_actions.is_empty() {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "monitor",
+            priority: "low",
+            action: "No immediate intervention required; monitor next delta window.".to_string(),
+            rationale: "Current changes do not imply high-risk memory drift.".to_string(),
+            suggested_tool: "what_changed",
+            suggested_arguments: json!({ "entity": report.entity, "since": report.since.to_rfc3339(), "predicate": report.predicate_filter }),
+            workflow_impact: "monitoring",
+            risk_if_skipped: "low",
+            automation_confidence: 0.92,
+        }));
+    }
+
+    ranked_actions.sort_by(|left, right| right.0.total_cmp(&left.0));
+    let recommended_action_id = ranked_actions
+        .first()
+        .and_then(|(_, action)| action.get("id"))
+        .and_then(JsonValue::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| "monitor".to_string());
+    let automation_ready = ranked_actions.iter().any(|(_, action)| {
+        action
+            .get("execution_mode")
+            .and_then(JsonValue::as_str)
+            .is_some_and(|mode| mode != "human_confirm")
+    });
+    let next_actions: Vec<JsonValue> = ranked_actions
+        .into_iter()
+        .map(|(_, action)| action)
+        .collect();
+
+    json!({
+        "schema_version": AGENT_BRIEF_SCHEMA_VERSION,
+        "decision_mode": "agent_first",
+        "status": status,
+        "urgency": urgency,
+        "summary": format!(
+            "{} new, {} invalidated, {} corrections, {} risky confidence shifts",
+            report.new_facts.len(),
+            report.invalidated_facts.len(),
+            report.corrections.len(),
+            risky_confidence_shifts
+        ),
+        "signals": {
+            "new_facts": report.new_facts.len(),
+            "invalidated_facts": report.invalidated_facts.len(),
+            "corrections": report.corrections.len(),
+            "high_impact_corrections": high_impact_corrections,
+            "risky_confidence_shifts": risky_confidence_shifts
+        },
+        "recommended_action_id": recommended_action_id,
+        "automation_ready": automation_ready,
+        "next_actions": next_actions
+    })
+}
+
+fn memory_health_agent_brief(report: &MemoryHealthReport) -> JsonValue {
+    let low_conf_high_impact = report
+        .low_confidence_facts
+        .iter()
+        .filter(|fact| is_high_impact_predicate(&fact.predicate))
+        .count();
+    let stale_predicates: Vec<String> = report
+        .stale_high_impact_facts
+        .iter()
+        .map(|fact| fact.predicate.clone())
+        .collect();
+
+    let urgency = if report.contradiction_count > 0 || low_conf_high_impact > 0 {
+        "high"
+    } else if !report.low_confidence_facts.is_empty() || !report.stale_high_impact_facts.is_empty() {
+        "medium"
+    } else {
+        "low"
+    };
+    let status = if urgency == "low" {
+        "healthy"
+    } else {
+        "attention_needed"
+    };
+
+    let mut ranked_actions: Vec<(f32, JsonValue)> = Vec::new();
+    if report.contradiction_count > 0 {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "resolve_contradictions",
+            priority: "high",
+            action: format!("Resolve {} contradiction(s).", report.contradiction_count),
+            rationale: "Contradictions can cause agents to choose mutually inconsistent plans.".to_string(),
+            suggested_tool: "what_changed",
+            suggested_arguments: json!({
+                "entity": report.entity,
+                "since": report.generated_at.to_rfc3339(),
+                "predicate": report.predicate_filter
+            }),
+            workflow_impact: "critical_identity",
+            risk_if_skipped: "high",
+            automation_confidence: 0.86,
+        }));
+    }
+    if !report.low_confidence_facts.is_empty() {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "verify_low_confidence",
+            priority: if low_conf_high_impact > 0 { "high" } else { "medium" },
+            action: format!(
+                "Validate {} low-confidence active fact(s).",
+                report.low_confidence_facts.len()
+            ),
+            rationale: "Low-confidence facts reduce reliability of agent decisions and tool routing.".to_string(),
+            suggested_tool: "facts_about",
+            suggested_arguments: json!({ "entity": report.entity }),
+            workflow_impact: if low_conf_high_impact > 0 {
+                "critical_identity"
+            } else {
+                "decision_reliability"
+            },
+            risk_if_skipped: if low_conf_high_impact > 0 {
+                "high"
+            } else {
+                "medium"
+            },
+            automation_confidence: if low_conf_high_impact > 0 { 0.80 } else { 0.68 },
+        }));
+    }
+    if !report.stale_high_impact_facts.is_empty() {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "refresh_stale_high_impact",
+            priority: "medium",
+            action: format!(
+                "Refresh {} stale high-impact fact(s).",
+                report.stale_high_impact_facts.len()
+            ),
+            rationale: "Stale high-impact facts often map to operationally important assumptions.".to_string(),
+            suggested_tool: "what_changed",
+            suggested_arguments: json!({
+                "entity": report.entity,
+                "since": (report.generated_at - chrono::Duration::days(30)).to_rfc3339(),
+                "predicate": report.predicate_filter
+            }),
+            workflow_impact: "freshness_hygiene",
+            risk_if_skipped: "medium",
+            automation_confidence: 0.74,
+        }));
+    }
+    if ranked_actions.is_empty() {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "monitor_health",
+            priority: "low",
+            action: "Memory health is stable; continue periodic checks.".to_string(),
+            rationale: "No major reliability risk detected for this entity.".to_string(),
+            suggested_tool: "memory_health",
+            suggested_arguments: json!({
+                "entity": report.entity,
+                "predicate": report.predicate_filter,
+                "low_confidence_threshold": 0.7,
+                "stale_after_days": 90
+            }),
+            workflow_impact: "monitoring",
+            risk_if_skipped: "low",
+            automation_confidence: 0.93,
+        }));
+    }
+
+    ranked_actions.sort_by(|left, right| right.0.total_cmp(&left.0));
+    let recommended_action_id = ranked_actions
+        .first()
+        .and_then(|(_, action)| action.get("id"))
+        .and_then(JsonValue::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| "monitor_health".to_string());
+    let automation_ready = ranked_actions.iter().any(|(_, action)| {
+        action
+            .get("execution_mode")
+            .and_then(JsonValue::as_str)
+            .is_some_and(|mode| mode != "human_confirm")
+    });
+    let next_actions: Vec<JsonValue> = ranked_actions
+        .into_iter()
+        .map(|(_, action)| action)
+        .collect();
+
+    json!({
+        "schema_version": AGENT_BRIEF_SCHEMA_VERSION,
+        "decision_mode": "agent_first",
+        "status": status,
+        "urgency": urgency,
+        "summary": format!(
+            "{} active / {} total; {} low-confidence; {} stale high-impact; {} contradictions",
+            report.active_fact_count,
+            report.total_fact_count,
+            report.low_confidence_facts.len(),
+            report.stale_high_impact_facts.len(),
+            report.contradiction_count
+        ),
+        "signals": {
+            "active_fact_count": report.active_fact_count,
+            "total_fact_count": report.total_fact_count,
+            "low_confidence_count": report.low_confidence_facts.len(),
+            "low_confidence_high_impact_count": low_conf_high_impact,
+            "stale_high_impact_count": report.stale_high_impact_facts.len(),
+            "stale_high_impact_predicates": stale_predicates,
+            "contradiction_count": report.contradiction_count
+        },
+        "recommended_action_id": recommended_action_id,
+        "automation_ready": automation_ready,
+        "next_actions": next_actions
+    })
+}
+
+fn recall_scored_agent_brief(
+    recall: &[(Fact, RecallScore)],
+    query: &str,
+    limit: usize,
+    hybrid_requested: bool,
+) -> JsonValue {
+    let result_count = recall.len();
+    let hybrid_hit_count = recall
+        .iter()
+        .filter(|(_, score)| matches!(score, RecallScore::Hybrid { .. }))
+        .count();
+    let top_confidence = recall.first().map(|(_, score)| score.confidence()).unwrap_or(0.0);
+    let top_score_type = recall
+        .first()
+        .map(|(_, score)| match score {
+            RecallScore::Hybrid { .. } => "hybrid",
+            RecallScore::TextOnly { .. } => "text",
+            _ => "unknown",
+        })
+        .unwrap_or("none");
+
+    let status = if result_count == 0 {
+        "no_results"
+    } else if hybrid_requested && hybrid_hit_count == 0 {
+        "hybrid_not_applied"
+    } else if top_confidence < 0.7 {
+        "low_confidence_top"
+    } else {
+        "healthy"
+    };
+
+    let mut ranked_actions: Vec<(f32, JsonValue)> = Vec::new();
+    if result_count == 0 {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "broaden_query",
+            priority: "high",
+            action: "Broaden query or lower threshold to recover candidate facts.".to_string(),
+            rationale: "No retrieval results means downstream decisions will likely miss context."
+                .to_string(),
+            suggested_tool: "recall_scored",
+            suggested_arguments: json!({
+                "query": query,
+                "limit": (limit.max(1) * 2).min(MAX_RECALL_LIMIT),
+                "min_confidence": 0.0
+            }),
+            workflow_impact: "context_coverage",
+            risk_if_skipped: "high",
+            automation_confidence: 0.76,
+        }));
+    }
+
+    if hybrid_requested && hybrid_hit_count == 0 {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "check_hybrid_inputs",
+            priority: "high",
+            action: "Verify embedding and hybrid flags; rerun hybrid retrieval.".to_string(),
+            rationale:
+                "Hybrid requested but no hybrid-scored rows returned; likely input/config mismatch."
+                    .to_string(),
+            suggested_tool: "recall_scored",
+            suggested_arguments: json!({
+                "query": query,
+                "use_hybrid": true,
+                "limit": limit.max(1),
+            }),
+            workflow_impact: "decision_reliability",
+            risk_if_skipped: "high",
+            automation_confidence: 0.81,
+        }));
+    }
+
+    if result_count > 0 && top_confidence < 0.7 {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "verify_top_result",
+            priority: "high",
+            action: "Re-validate top result before committing to an action.".to_string(),
+            rationale:
+                "Low-confidence top retrieval increases risk of wrong memory-driven decisions."
+                    .to_string(),
+            suggested_tool: "memory_health",
+            suggested_arguments: json!({
+                "entity": recall[0].0.subject.clone(),
+                "low_confidence_threshold": 0.7,
+                "stale_after_days": 90
+            }),
+            workflow_impact: "decision_reliability",
+            risk_if_skipped: "high",
+            automation_confidence: 0.78,
+        }));
+    }
+
+    if result_count > 0 {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "build_context",
+            priority: if top_confidence < 0.7 { "medium" } else { "high" },
+            action: "Build concise context payload from top retrieved facts.".to_string(),
+            rationale:
+                "Consolidated context improves agent planning quality and reduces extra turns."
+                    .to_string(),
+            suggested_tool: "assemble_context",
+            suggested_arguments: json!({
+                "query": query,
+                "max_tokens": 350
+            }),
+            workflow_impact: "decision_reliability",
+            risk_if_skipped: "medium",
+            automation_confidence: 0.9,
+        }));
+    }
+
+    if ranked_actions.is_empty() {
+        ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
+            id: "monitor_retrieval",
+            priority: "low",
+            action: "Retrieval is stable; continue monitoring quality signals.".to_string(),
+            rationale: "No immediate retrieval risks detected for this query.".to_string(),
+            suggested_tool: "recall_scored",
+            suggested_arguments: json!({
+                "query": query,
+                "limit": limit.max(1),
+                "use_hybrid": hybrid_requested
+            }),
+            workflow_impact: "monitoring",
+            risk_if_skipped: "low",
+            automation_confidence: 0.94,
+        }));
+    }
+
+    ranked_actions.sort_by(|left, right| right.0.total_cmp(&left.0));
+    let recommended_action_id = ranked_actions
+        .first()
+        .and_then(|(_, action)| action.get("id"))
+        .and_then(JsonValue::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| "monitor_retrieval".to_string());
+    let automation_ready = ranked_actions.iter().any(|(_, action)| {
+        action
+            .get("execution_mode")
+            .and_then(JsonValue::as_str)
+            .is_some_and(|mode| mode != "human_confirm")
+    });
+    let next_actions: Vec<JsonValue> = ranked_actions
+        .into_iter()
+        .map(|(_, action)| action)
+        .collect();
+
+    json!({
+        "schema_version": AGENT_BRIEF_SCHEMA_VERSION,
+        "decision_mode": "agent_first",
+        "status": status,
+        "summary": format!(
+            "{} result(s), top score type: {}, top confidence: {:.3}",
+            result_count,
+            top_score_type,
+            top_confidence
+        ),
+        "signals": {
+            "result_count": result_count,
+            "hybrid_requested": hybrid_requested,
+            "hybrid_hit_count": hybrid_hit_count,
+            "top_score_type": top_score_type,
+            "top_confidence": top_confidence
+        },
+        "recommended_action_id": recommended_action_id,
+        "automation_ready": automation_ready,
+        "next_actions": next_actions
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1041,6 +1767,31 @@ mod tests {
             .is_some());
         assert!(score.get("effective_confidence").is_some());
         assert!(results[0].get("fact").is_some());
+
+        let brief = out
+            .get("structuredContent")
+            .and_then(|v| v.get("agent_brief"))
+            .expect("agent_brief should be present");
+        assert_eq!(
+            brief
+                .get("decision_mode")
+                .and_then(JsonValue::as_str),
+            Some("agent_first")
+        );
+        assert_eq!(
+            brief
+                .get("signals")
+                .and_then(|v| v.get("result_count"))
+                .and_then(JsonValue::as_u64),
+            Some(1)
+        );
+        assert!(
+            brief
+                .get("recommended_action_id")
+                .and_then(JsonValue::as_str)
+                .is_some(),
+            "agent brief should include a recommended action"
+        );
     }
 
     #[test]
@@ -1186,6 +1937,337 @@ mod tests {
         );
     }
 
+    #[test]
+    fn what_changed_tool_reports_corrections() {
+        let mut state = temp_state();
+        let first = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme"
+                }
+            })),
+        )
+        .unwrap();
+        let first_id = first
+            .get("structuredContent")
+            .and_then(|v| v.get("fact_id"))
+            .and_then(JsonValue::as_str)
+            .expect("first fact_id");
+
+        let since = Utc::now().to_rfc3339();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "invalidate_fact",
+                "arguments": { "fact_id": first_id }
+            })),
+        )
+        .unwrap();
+
+        let facts = call_tool(
+            &mut state,
+            Some(&json!({ "name": "facts_about", "arguments": { "entity": "alice" } })),
+        )
+        .unwrap();
+        let expired_at = facts
+            .get("structuredContent")
+            .and_then(|v| v.get("facts"))
+            .and_then(JsonValue::as_array)
+            .and_then(|rows| {
+                rows.iter()
+                    .find(|row| row.get("id").and_then(JsonValue::as_str) == Some(first_id))
+            })
+            .and_then(|row| row.get("expired_at"))
+            .and_then(JsonValue::as_str)
+            .expect("expired_at should exist after invalidation");
+
+        let second = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Beta Corp",
+                    "valid_from": expired_at,
+                    "confidence": 0.6
+                }
+            })),
+        )
+        .unwrap();
+        let second_id = second
+            .get("structuredContent")
+            .and_then(|v| v.get("fact_id"))
+            .and_then(JsonValue::as_str)
+            .expect("second fact_id");
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "what_changed",
+                "arguments": {
+                    "entity": "alice",
+                    "since": since,
+                    "predicate": "works_at"
+                }
+            })),
+        )
+        .unwrap();
+
+        let report = out
+            .get("structuredContent")
+            .and_then(|v| v.get("report"))
+            .expect("report should be present");
+        assert_eq!(
+            report
+                .get("new_facts")
+                .and_then(JsonValue::as_array)
+                .map_or(0, Vec::len),
+            1
+        );
+        assert_eq!(
+            report
+                .get("invalidated_facts")
+                .and_then(JsonValue::as_array)
+                .map_or(0, Vec::len),
+            1
+        );
+        let corrections = report
+            .get("corrections")
+            .and_then(JsonValue::as_array)
+            .expect("corrections array");
+        assert_eq!(corrections.len(), 1);
+        assert_eq!(
+            corrections[0]
+                .get("old_fact")
+                .and_then(|v| v.get("id"))
+                .and_then(JsonValue::as_str),
+            Some(first_id)
+        );
+        assert_eq!(
+            corrections[0]
+                .get("new_fact")
+                .and_then(|v| v.get("id"))
+                .and_then(JsonValue::as_str),
+            Some(second_id)
+        );
+
+        let agent_brief = out
+            .get("structuredContent")
+            .and_then(|v| v.get("agent_brief"))
+            .expect("agent_brief should be present");
+        assert_eq!(
+            agent_brief
+                .get("schema_version")
+                .and_then(JsonValue::as_str),
+            Some("1.0")
+        );
+        assert_eq!(
+            agent_brief.get("status").and_then(JsonValue::as_str),
+            Some("attention_needed")
+        );
+        assert_eq!(
+            agent_brief
+                .get("decision_mode")
+                .and_then(JsonValue::as_str),
+            Some("agent_first")
+        );
+        assert_eq!(
+            agent_brief
+                .get("recommended_action_id")
+                .and_then(JsonValue::as_str),
+            Some("verify_corrections")
+        );
+        assert_eq!(
+            agent_brief
+                .get("automation_ready")
+                .and_then(JsonValue::as_bool),
+            Some(true)
+        );
+        let actions = agent_brief
+            .get("next_actions")
+            .and_then(JsonValue::as_array)
+            .expect("next_actions array expected");
+        assert!(!actions.is_empty(), "expected at least one next action");
+        let first_score = actions[0]
+            .get("action_score")
+            .and_then(JsonValue::as_f64)
+            .expect("action_score expected");
+        if actions.len() > 1 {
+            let second_score = actions[1]
+                .get("action_score")
+                .and_then(JsonValue::as_f64)
+                .expect("action_score expected");
+            assert!(
+                first_score >= second_score,
+                "actions should be sorted by descending action_score"
+            );
+        }
+        assert!(
+            actions[0]
+                .get("execution_mode")
+                .and_then(JsonValue::as_str)
+                .is_some(),
+            "execution_mode should be present for agent orchestration"
+        );
+    }
+
+    #[test]
+    fn memory_health_tool_reports_low_confidence_and_stale() {
+        let mut state = temp_state();
+        let old = (Utc::now() - chrono::Duration::days(200)).to_rfc3339();
+
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "nickname",
+                    "object": "Bex",
+                    "confidence": 0.4,
+                    "valid_from": old
+                }
+            })),
+        )
+        .unwrap();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "email",
+                    "object": "alice@example.com",
+                    "confidence": 0.9,
+                    "valid_from": old
+                }
+            })),
+        )
+        .unwrap();
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "memory_health",
+                "arguments": {
+                    "entity": "alice",
+                    "low_confidence_threshold": 0.7,
+                    "stale_after_days": 90
+                }
+            })),
+        )
+        .unwrap();
+
+        let report = out
+            .get("structuredContent")
+            .and_then(|v| v.get("report"))
+            .expect("report should be present");
+        assert_eq!(
+            report
+                .get("total_fact_count")
+                .and_then(JsonValue::as_u64)
+                .unwrap_or(0),
+            2
+        );
+        assert_eq!(
+            report
+                .get("low_confidence_facts")
+                .and_then(JsonValue::as_array)
+                .map_or(0, Vec::len),
+            1
+        );
+        assert_eq!(
+            report
+                .get("stale_high_impact_facts")
+                .and_then(JsonValue::as_array)
+                .map_or(0, Vec::len),
+            1
+        );
+
+        let agent_brief = out
+            .get("structuredContent")
+            .and_then(|v| v.get("agent_brief"))
+            .expect("agent_brief should be present");
+        assert_eq!(
+            agent_brief
+                .get("schema_version")
+                .and_then(JsonValue::as_str),
+            Some("1.0")
+        );
+        assert_eq!(
+            agent_brief.get("status").and_then(JsonValue::as_str),
+            Some("attention_needed")
+        );
+        assert_eq!(
+            agent_brief
+                .get("urgency")
+                .and_then(JsonValue::as_str),
+            Some("medium")
+        );
+        assert_eq!(
+            agent_brief
+                .get("decision_mode")
+                .and_then(JsonValue::as_str),
+            Some("agent_first")
+        );
+        assert_eq!(
+            agent_brief
+                .get("recommended_action_id")
+                .and_then(JsonValue::as_str),
+            Some("verify_low_confidence")
+        );
+        assert_eq!(
+            agent_brief
+                .get("automation_ready")
+                .and_then(JsonValue::as_bool),
+            Some(true)
+        );
+        let actions = agent_brief
+            .get("next_actions")
+            .and_then(JsonValue::as_array)
+            .expect("next_actions should be present");
+        assert!(
+            actions
+                .iter()
+                .all(|entry| entry.get("workflow_impact").is_some()),
+            "each action should include workflow impact metadata"
+        );
+        assert!(
+            actions
+                .iter()
+                .all(|entry| entry.get("risk_if_skipped").is_some()),
+            "each action should include skip-risk metadata"
+        );
+        assert!(
+            actions.iter().any(|entry| {
+                entry
+                    .get("id")
+                    .and_then(JsonValue::as_str)
+                    .is_some_and(|id| id == "verify_low_confidence")
+            }),
+            "expected low-confidence validation guidance"
+        );
+        let first_score = actions[0]
+            .get("action_score")
+            .and_then(JsonValue::as_f64)
+            .expect("action_score expected");
+        if actions.len() > 1 {
+            let second_score = actions[1]
+                .get("action_score")
+                .and_then(JsonValue::as_f64)
+                .expect("action_score expected");
+            assert!(
+                first_score >= second_score,
+                "actions should be ranked by descending action_score"
+            );
+        }
+    }
+
     #[cfg(not(feature = "hybrid"))]
     #[test]
     fn recall_scored_with_query_embedding_errors_without_hybrid() {
@@ -1287,6 +2369,31 @@ mod tests {
             .and_then(JsonValue::as_str)
             .unwrap_or("");
         assert_eq!(on_type, "hybrid");
+
+        let off_brief = off
+            .get("structuredContent")
+            .and_then(|v| v.get("agent_brief"))
+            .expect("agent_brief should exist for scored output");
+        assert_eq!(
+            off_brief
+                .get("signals")
+                .and_then(|v| v.get("hybrid_hit_count"))
+                .and_then(JsonValue::as_u64),
+            Some(0)
+        );
+
+        let on_brief = on
+            .get("structuredContent")
+            .and_then(|v| v.get("agent_brief"))
+            .expect("agent_brief should exist for scored output");
+        assert!(
+            on_brief
+                .get("signals")
+                .and_then(|v| v.get("hybrid_hit_count"))
+                .and_then(JsonValue::as_u64)
+                .is_some_and(|count| count >= 1),
+            "hybrid-on path should report hybrid hits"
+        );
     }
 
     #[test]
