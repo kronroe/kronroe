@@ -16,6 +16,10 @@ classifiers = [
   "License :: OSI Approved :: GNU Affero General Public License v3",
 ]
 
+[project.urls]
+Homepage = "https://kronroe.dev"
+Repository = "https://github.com/kronroe/kronroe"
+
 [tool.maturin]
 bindings = "pyo3"
 module-name = "kronroe"
