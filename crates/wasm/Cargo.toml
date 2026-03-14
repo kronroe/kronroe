@@ -5,7 +5,11 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 description = "Kronroe temporal graph database — WebAssembly bindings"
+homepage = "https://kronroe.dev"
+documentation = "https://docs.rs/kronroe-wasm"
 readme = "../../README.md"
+keywords = ["wasm", "webassembly", "temporal", "graph", "embedded"]
+categories = ["database-implementations", "wasm"]
 repository.workspace = true
 
 [lib]
@@ -20,8 +24,8 @@ uncertainty = ["kronroe-agent-memory/uncertainty"]
 [dependencies]
 # default-features = false excludes the `fulltext` feature (tantivy/zstd-sys),
 # which has C dependencies that cannot compile to wasm32-unknown-unknown.
-kronroe = { version = "0.1.1", path = "../core", default-features = false }
-kronroe-agent-memory = { version = "0.1.1", path = "../agent-memory", default-features = false }
+kronroe = { version = "0.1.2", path = "../core", default-features = false }
+kronroe-agent-memory = { version = "0.1.2", path = "../agent-memory", default-features = false }
 wasm-bindgen = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }

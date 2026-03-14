@@ -6,7 +6,11 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Android JNI bindings for Kronroe"
+homepage = "https://kronroe.dev"
+documentation = "https://docs.rs/kronroe-android"
 readme = "../../README.md"
+keywords = ["android", "jni", "temporal", "graph", "embedded"]
+categories = ["database-implementations", "api-bindings"]
 
 [lib]
 name = "kronroe_android"
@@ -14,7 +18,7 @@ path = "src/android_bindings.rs"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-kronroe = { version = "0.1.1", path = "../core", default-features = false }
+kronroe = { version = "0.1.2", path = "../core", default-features = false }
 jni = { workspace = true }
 chrono = { workspace = true }
 serde_json = { workspace = true }
