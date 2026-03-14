@@ -6,7 +6,11 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "iOS FFI bindings for Kronroe"
+homepage = "https://kronroe.dev"
+documentation = "https://docs.rs/kronroe-ios"
 readme = "README.md"
+keywords = ["ios", "ffi", "temporal", "graph", "embedded"]
+categories = ["database-implementations", "api-bindings"]
 
 [lib]
 name = "kronroe_ios"
@@ -14,6 +18,6 @@ path = "src/ffi.rs"
 crate-type = ["staticlib"]
 
 [dependencies]
-kronroe = { version = "0.1.1", path = "../core", default-features = false }
+kronroe = { version = "0.1.2", path = "../core", default-features = false }
 chrono = { workspace = true }
 serde_json = { workspace = true }

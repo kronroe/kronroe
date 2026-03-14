@@ -1,6 +1,8 @@
 # kronroe-mcp
 
-Native MCP server wrapping Kronroe `AgentMemory`.
+MCP (Model Context Protocol) server for Kronroe temporal graph memory. Gives Claude Desktop, Cursor, and any MCP-compatible AI assistant persistent, bi-temporal memory.
+
+Built on `kronroe-agent-memory`. No separate database server required — memory is stored in a single file.
 
 ## Run locally
 
@@ -35,18 +37,14 @@ export KRONROE_MCP_DB_PATH=/path/to/memory.kronroe
 {
   "mcpServers": {
     "kronroe": {
-      "command": "cargo",
-      "args": ["run", "-p", "kronroe-mcp"],
-      "cwd": "/Users/rebekahcole/kronroe",
+      "command": "kronroe-mcp",
       "env": {
-        "KRONROE_MCP_DB_PATH": "/Users/rebekahcole/kronroe/.data/kronroe-mcp.kronroe"
+        "KRONROE_MCP_DB_PATH": "~/.kronroe/memory.kronroe"
       }
     }
   }
 }
 ```
-
-For production usage, replace `cargo run` with a compiled `kronroe-mcp` binary.
 
 ## Distribution wrappers
 

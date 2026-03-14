@@ -6,6 +6,8 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "MCP server for Kronroe AgentMemory"
+homepage = "https://kronroe.dev"
+documentation = "https://docs.rs/kronroe-mcp"
 readme = "README.md"
 keywords = ["mcp", "agent-memory", "kronroe", "memory", "tools"]
 
@@ -16,8 +18,8 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { workspace = true }
 chrono = { workspace = true }
-kronroe = { version = "0.1.1", path = "../core" }
-kronroe-agent-memory = { version = "0.1.1", path = "../agent-memory" }
+kronroe = { version = "0.1.2", path = "../core" }
+kronroe-agent-memory = { version = "0.1.2", path = "../agent-memory" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
