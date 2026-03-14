@@ -1019,6 +1019,24 @@
         letter-spacing: -0.05em;
       }
 
+      .empty-ghost {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.5rem 0.75rem;
+        margin: 1rem auto 0.75rem;
+        max-width: 340px;
+        border: 1.5px dashed var(--border-hi);
+        border-radius: 8px;
+        opacity: 0.35;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        color: var(--text-mid);
+        pointer-events: none;
+        user-select: none;
+      }
+      .empty-ghost .tag { font-size: 0.68rem; padding: 0.15rem 0.4rem; }
+
       /* ── Fact row ── */
       .fact-row {
         display: grid;
@@ -1455,6 +1473,24 @@
         .hero-cta { flex-direction: column; gap: 0.5rem; }
         .hero-cta .hero-btn { text-align: center; justify-content: center; }
       }
+
+      @media (max-width: 480px) {
+        .hero-install { flex-direction: column; align-items: stretch; }
+        .hero-install .install-sep { text-align: center; }
+        .install-cmd { text-align: center; }
+
+        .fact-row {
+          flex-wrap: wrap;
+          gap: 0.25rem;
+        }
+        .fact-row .fact-timestamps { width: 100%; text-align: right; }
+        .fact-row .btn-invalidate { position: absolute; top: 0.35rem; right: 0.35rem; }
+
+        .entity-card summary { flex-wrap: wrap; }
+        .entity-stats { width: 100%; margin-top: 0.25rem; }
+
+        .stream-body { min-height: 220px; }
+      }
     </style>
   </head>
   <body>
@@ -1651,8 +1687,8 @@
                 <button class="btn-ghost" id="show-all-btn">Show all</button>
               </div>
               <div class="qrow">
-                <input type="datetime-local" id="query-at" title="point in time — leave blank for current facts" />
                 <span class="at-hint">at&nbsp;time</span>
+                <input type="datetime-local" id="query-at" title="point in time — leave blank for current facts" />
               </div>
               <div class="status" id="query-status" role="status" aria-live="polite"></div>
             </div>
@@ -1702,6 +1738,14 @@
             <div class="empty">
               <span class="empty-glyph">◈</span>
               No facts yet.<br>Click a <strong>TRY</strong> chip or run the <strong>Time-travel demo</strong> to begin.
+              <div class="empty-ghost">
+                <span class="tag tag-s">alice</span>
+                <span class="sep">&middot;</span>
+                <span class="tag tag-p">works_at</span>
+                <span class="sep">&rarr;</span>
+                <span class="tag tag-o">@Acme</span>
+                <span class="fact-time" style="margin-left:auto; font-size:0.65rem">12:34:05</span>
+              </div>
             </div>
           </div>
           <div class="entity-cards" id="entity-cards">

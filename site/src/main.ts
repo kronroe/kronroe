@@ -648,8 +648,17 @@ async function init() {
     el.className   = `status${kind ? " " + kind : ""}`;
   }
 
+  const ghostFactHtml = `<div class="empty-ghost">
+    <span class="tag tag-s">alice</span>
+    <span class="sep">&middot;</span>
+    <span class="tag tag-p">works_at</span>
+    <span class="sep">&rarr;</span>
+    <span class="tag tag-o">@Acme</span>
+    <span class="fact-time" style="margin-left:auto; font-size:0.65rem">12:34:05</span>
+  </div>`;
+
   function showEmpty(message: string) {
-    streamBody.innerHTML = `<div class="empty"><span class="empty-glyph">◈</span>${message}</div>`;
+    streamBody.innerHTML = `<div class="empty"><span class="empty-glyph">◈</span>${message}${ghostFactHtml}</div>`;
   }
 
   function renderFacts(facts: WasmFact[], modeLabel: string) {
@@ -1053,9 +1062,14 @@ async function init() {
 
   document.querySelectorAll('.install-cmd').forEach(el => {
     el.addEventListener('click', () => {
-      navigator.clipboard.writeText(el.textContent?.trim() ?? '');
+      const original = el.textContent?.trim() ?? '';
+      navigator.clipboard.writeText(original);
       (el as HTMLElement).setAttribute('data-copied', '1');
-      setTimeout(() => (el as HTMLElement).removeAttribute('data-copied'), 1500);
+      el.textContent = 'Copied ✓';
+      setTimeout(() => {
+        el.textContent = original;
+        (el as HTMLElement).removeAttribute('data-copied');
+      }, 1500);
     });
   });
 
