@@ -6,6 +6,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Android JNI bindings for Kronroe"
+readme = "../../README.md"
 
 [lib]
 name = "kronroe_android"

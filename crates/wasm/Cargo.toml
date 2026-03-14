@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 description = "Kronroe temporal graph database — WebAssembly bindings"
+readme = "../../README.md"
 repository.workspace = true
 
 [lib]

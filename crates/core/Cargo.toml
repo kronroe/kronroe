@@ -6,6 +6,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Embedded temporal property graph database"
+readme = "../../README.md"
 keywords = ["graph", "database", "temporal", "embedded", "agent-memory"]
 categories = ["database-implementations", "data-structures"]
 

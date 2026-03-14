@@ -6,6 +6,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "High-level agent memory API built on Kronroe"
+readme = "../../README.md"
 keywords = ["agent-memory", "ai", "graph", "temporal", "mcp"]
 categories = ["database-implementations"]
 

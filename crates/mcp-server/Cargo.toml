@@ -6,6 +6,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "MCP server for Kronroe AgentMemory"
+readme = "README.md"
 keywords = ["mcp", "agent-memory", "kronroe", "memory", "tools"]
 
 [[bin]]
