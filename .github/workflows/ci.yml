@@ -15,6 +15,7 @@ on:
       - "crates/wasm/**"
       - "packages/kronroe-mcp/**"
       - "python/kronroe-mcp/**"
+      - "scripts/wrapper_smoke.py"
       - "site/**"
       - "firebase.json"
       - ".firebaserc"
@@ -32,6 +33,7 @@ on:
       - "crates/wasm/**"
       - "packages/kronroe-mcp/**"
       - "python/kronroe-mcp/**"
+      - "scripts/wrapper_smoke.py"
       - "site/**"
       - "firebase.json"
       - ".firebaserc"
@@ -79,6 +81,7 @@ jobs:
             wrappers:
               - 'packages/kronroe-mcp/**'
               - 'python/kronroe-mcp/**'
+              - 'scripts/wrapper_smoke.py'
             site:
               - 'site/**'
               - 'firebase.json'
@@ -234,8 +237,45 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+
       - name: Syntax-check npm wrapper
         run: node --check packages/kronroe-mcp/bin/kronroe-mcp.js
 
       - name: Syntax-check Python wrapper
         run: python3 -c "import ast, sys; ast.parse(open(sys.argv[1]).read())" python/kronroe-mcp/src/kronroe_mcp/cli.py
+
+      - name: Build MCP binary (hybrid)
+        run: cargo build -p kronroe-mcp --features hybrid
+
+      - name: Prepare wrapper smoke logs
+        run: mkdir -p wrapper-smoke-logs
+
+      - name: Hybrid smoke via npm wrapper
+        run: python3 scripts/wrapper_smoke.py --wrapper npm --binary target/debug/kronroe-mcp --summary-out wrapper-smoke-logs/npm-wrapper-smoke.json 2>&1 | tee wrapper-smoke-logs/npm-wrapper-smoke.log
+
+      - name: Hybrid smoke via Python wrapper
+        run: python3 scripts/wrapper_smoke.py --wrapper python --binary target/debug/kronroe-mcp --summary-out wrapper-smoke-logs/python-wrapper-smoke.json 2>&1 | tee wrapper-smoke-logs/python-wrapper-smoke.log
+
+      - name: Stage 3 wrapper gate decision
+        run: |
+          python3 scripts/hybrid_stage3_gate.py \
+            --input wrapper-smoke-logs/npm-wrapper-smoke.json \
+            --input wrapper-smoke-logs/python-wrapper-smoke.json \
+            --output wrapper-smoke-logs/stage3-wrapper-gate.json \
+            --max-duration-ms 5000 \
+            2>&1 | tee wrapper-smoke-logs/stage3-wrapper-gate.log
+
+      - name: Upload wrapper smoke logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wrapper-smoke-logs
+          path: |
+            wrapper-smoke-logs/*.log
+            wrapper-smoke-logs/*.json
+          if-no-files-found: warn

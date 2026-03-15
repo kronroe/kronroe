@@ -71,6 +71,24 @@ def run_agent_memory_checks(db_path: Path) -> None:
         "scored fact should satisfy min_confidence",
     )
 
+    # Task-focused decision report
+    task_report = mem.recall_for_task(
+        "prepare account update",
+        subject="bob",
+        horizon_days=90,
+        limit=8,
+    )
+    require(isinstance(task_report, dict), "recall_for_task should return a dict")
+    require(task_report.get("subject") == "bob", "task report should keep subject context")
+    require(
+        isinstance(task_report.get("key_facts"), list),
+        "task report should include key_facts list",
+    )
+    require(
+        isinstance(task_report.get("recommended_next_checks"), list),
+        "task report should include recommended_next_checks list",
+    )
+
     # Context assembly
     context = mem.assemble_context("Acme", 200)
     require(isinstance(context, str) and context, "assemble_context should return non-empty text")

@@ -346,6 +346,73 @@ pub struct AssertParams {
     pub valid_from: DateTime<Utc>,
 }
 
+/// A paired correction event linking the invalidated fact and its replacement.
+#[derive(Debug, Clone)]
+pub struct FactCorrection {
+    pub old_fact: Fact,
+    pub new_fact: Fact,
+}
+
+/// Confidence movement between two related facts.
+#[derive(Debug, Clone)]
+pub struct ConfidenceShift {
+    pub from_fact_id: FactId,
+    pub to_fact_id: FactId,
+    pub from_confidence: f32,
+    pub to_confidence: f32,
+}
+
+/// Summary of changes for one entity since a timestamp.
+#[derive(Debug, Clone)]
+pub struct WhatChangedReport {
+    pub entity: String,
+    pub since: DateTime<Utc>,
+    pub predicate_filter: Option<String>,
+    pub new_facts: Vec<Fact>,
+    pub invalidated_facts: Vec<Fact>,
+    pub corrections: Vec<FactCorrection>,
+    pub confidence_shifts: Vec<ConfidenceShift>,
+}
+
+/// Operational memory-quality snapshot for one entity.
+#[derive(Debug, Clone)]
+pub struct MemoryHealthReport {
+    pub entity: String,
+    pub generated_at: DateTime<Utc>,
+    pub predicate_filter: Option<String>,
+    pub total_fact_count: usize,
+    pub active_fact_count: usize,
+    pub low_confidence_facts: Vec<Fact>,
+    pub stale_high_impact_facts: Vec<Fact>,
+    pub contradiction_count: usize,
+    pub recommended_actions: Vec<String>,
+}
+
+/// Decision-ready recall result shaped around a concrete user task.
+#[derive(Debug, Clone)]
+pub struct RecallForTaskReport {
+    pub task: String,
+    pub subject: Option<String>,
+    pub generated_at: DateTime<Utc>,
+    pub horizon_days: i64,
+    pub query_used: String,
+    pub key_facts: Vec<Fact>,
+    pub low_confidence_count: usize,
+    pub stale_high_impact_count: usize,
+    pub contradiction_count: usize,
+    pub watchouts: Vec<String>,
+    pub recommended_next_checks: Vec<String>,
+}
+
+fn is_high_impact_predicate(predicate: &str) -> bool {
+    matches!(
+        predicate,
+        "works_at" | "lives_in" | "job_title" | "email" | "phone"
+    )
+}
+
+const CORRECTION_LINK_TOLERANCE_SECONDS: i64 = 2;
+
 impl AgentMemory {
     /// Open or create an agent memory store at the given path.
     ///
@@ -451,6 +518,335 @@ impl AgentMemory {
     /// Get currently valid facts for one `(entity, predicate)` pair.
     pub fn current_facts(&self, entity: &str, predicate: &str) -> Result<Vec<Fact>> {
         self.graph.current_facts(entity, predicate)
+    }
+
+    /// Return what changed for an entity since a given timestamp.
+    ///
+    /// This is intentionally decision-oriented: it groups newly-recorded facts,
+    /// recently invalidated facts, inferred correction pairs, and confidence shifts.
+    pub fn what_changed(
+        &self,
+        entity: &str,
+        since: DateTime<Utc>,
+        predicate_filter: Option<&str>,
+    ) -> Result<WhatChangedReport> {
+        let mut facts = self.graph.all_facts_about(entity)?;
+        if let Some(predicate) = predicate_filter {
+            facts.retain(|fact| fact.predicate == predicate);
+        }
+
+        let mut new_facts: Vec<Fact> = facts
+            .iter()
+            .filter(|fact| fact.recorded_at >= since)
+            .cloned()
+            .collect();
+        new_facts.sort_by_key(|fact| fact.recorded_at);
+
+        let mut invalidated_facts: Vec<Fact> = facts
+            .iter()
+            .filter(|fact| {
+                fact.expired_at.map(|expired| expired >= since).unwrap_or(false)
+                    || fact.valid_to.map(|valid_to| valid_to >= since).unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+        invalidated_facts.sort_by_key(|fact| {
+            fact.expired_at
+                .or(fact.valid_to)
+                .unwrap_or(fact.recorded_at)
+        });
+
+        let mut corrections = Vec::new();
+        let mut confidence_shifts = Vec::new();
+
+        for new_fact in &new_facts {
+            let exact_match = facts
+                .iter()
+                .filter(|old| {
+                    old.id != new_fact.id
+                        && old.subject == new_fact.subject
+                        && old.predicate == new_fact.predicate
+                        && old.expired_at == Some(new_fact.valid_from)
+                        && old.recorded_at <= new_fact.recorded_at
+                })
+                .max_by_key(|old| old.recorded_at);
+
+            let old_match = exact_match.or_else(|| {
+                facts
+                    .iter()
+                    .filter(|old| {
+                        old.id != new_fact.id
+                            && old.subject == new_fact.subject
+                            && old.predicate == new_fact.predicate
+                            && old.recorded_at <= new_fact.recorded_at
+                    })
+                    .filter_map(|old| {
+                        old.expired_at
+                            .map(|expired| (old, (expired - new_fact.valid_from).num_seconds().abs()))
+                    })
+                    .filter(|(_, delta_seconds)| {
+                        *delta_seconds <= CORRECTION_LINK_TOLERANCE_SECONDS
+                    })
+                    .min_by(|(left_fact, left_delta), (right_fact, right_delta)| {
+                        left_delta
+                            .cmp(right_delta)
+                            .then_with(|| right_fact.recorded_at.cmp(&left_fact.recorded_at))
+                    })
+                    .map(|(old, _)| old)
+            });
+
+            if let Some(old_fact) = old_match {
+                corrections.push(FactCorrection {
+                    old_fact: old_fact.clone(),
+                    new_fact: new_fact.clone(),
+                });
+                if (old_fact.confidence - new_fact.confidence).abs() > f32::EPSILON {
+                    confidence_shifts.push(ConfidenceShift {
+                        from_fact_id: old_fact.id.clone(),
+                        to_fact_id: new_fact.id.clone(),
+                        from_confidence: old_fact.confidence,
+                        to_confidence: new_fact.confidence,
+                    });
+                }
+            }
+        }
+
+        corrections.sort_by_key(|pair| pair.new_fact.recorded_at);
+        confidence_shifts.sort_by(|left, right| left.to_fact_id.0.cmp(&right.to_fact_id.0));
+
+        Ok(WhatChangedReport {
+            entity: entity.to_string(),
+            since,
+            predicate_filter: predicate_filter.map(str::to_string),
+            new_facts,
+            invalidated_facts,
+            corrections,
+            confidence_shifts,
+        })
+    }
+
+    /// Produce a health report for one entity's memory state.
+    ///
+    /// The report flags low-confidence active facts, stale high-impact facts,
+    /// and contradiction counts (when contradiction support is enabled).
+    pub fn memory_health(
+        &self,
+        entity: &str,
+        predicate_filter: Option<&str>,
+        low_confidence_threshold: f32,
+        stale_after_days: i64,
+    ) -> Result<MemoryHealthReport> {
+        let threshold = normalize_min_confidence(low_confidence_threshold)?;
+        let stale_days = stale_after_days.max(0);
+
+        let mut facts = self.graph.all_facts_about(entity)?;
+        if let Some(predicate) = predicate_filter {
+            facts.retain(|fact| fact.predicate == predicate);
+        }
+
+        let generated_at = Utc::now();
+        let stale_cutoff = generated_at - chrono::Duration::days(stale_days);
+        let active_facts: Vec<Fact> = facts
+            .iter()
+            .filter(|fact| fact.is_currently_valid())
+            .cloned()
+            .collect();
+
+        let mut low_confidence_facts: Vec<Fact> = active_facts
+            .iter()
+            .filter(|fact| fact.confidence < threshold)
+            .cloned()
+            .collect();
+        low_confidence_facts.sort_by(|left, right| {
+            left.confidence
+                .partial_cmp(&right.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let mut stale_high_impact_facts: Vec<Fact> = active_facts
+            .iter()
+            .filter(|fact| {
+                is_high_impact_predicate(&fact.predicate) && fact.valid_from <= stale_cutoff
+            })
+            .cloned()
+            .collect();
+        stale_high_impact_facts.sort_by_key(|fact| fact.valid_from);
+
+        #[cfg(feature = "contradiction")]
+        let contradiction_count = if let Some(predicate) = predicate_filter {
+            self.graph.detect_contradictions(entity, predicate)?.len()
+        } else {
+            self.audit(entity)?.len()
+        };
+        #[cfg(not(feature = "contradiction"))]
+        let contradiction_count = 0usize;
+
+        let mut recommended_actions = Vec::new();
+        if contradiction_count > 0 {
+            recommended_actions.push(format!(
+                "Resolve {contradiction_count} contradiction(s) before relying on this memory."
+            ));
+        }
+        if !low_confidence_facts.is_empty() {
+            recommended_actions.push(format!(
+                "Review {} low-confidence active fact(s).",
+                low_confidence_facts.len()
+            ));
+        }
+        if !stale_high_impact_facts.is_empty() {
+            recommended_actions.push(format!(
+                "Refresh {} stale high-impact fact(s).",
+                stale_high_impact_facts.len()
+            ));
+        }
+        if recommended_actions.is_empty() {
+            recommended_actions.push("No immediate memory health issues detected.".to_string());
+        }
+
+        Ok(MemoryHealthReport {
+            entity: entity.to_string(),
+            generated_at,
+            predicate_filter: predicate_filter.map(str::to_string),
+            total_fact_count: facts.len(),
+            active_fact_count: active_facts.len(),
+            low_confidence_facts,
+            stale_high_impact_facts,
+            contradiction_count,
+            recommended_actions,
+        })
+    }
+
+    /// Build task-focused recall output that is immediately useful for planning
+    /// and execution-oriented workflows.
+    pub fn recall_for_task(
+        &self,
+        task: &str,
+        subject: Option<&str>,
+        now: Option<DateTime<Utc>>,
+        horizon_days: Option<i64>,
+        limit: usize,
+        #[cfg(feature = "hybrid")] query_embedding: Option<&[f32]>,
+        #[cfg(not(feature = "hybrid"))] _query_embedding: Option<&[f32]>,
+    ) -> Result<RecallForTaskReport> {
+        if limit == 0 {
+            return Err(Error::Search(
+                "recall_for_task limit must be >= 1".to_string(),
+            ));
+        }
+
+        let generated_at = now.unwrap_or_else(Utc::now);
+        let horizon_days = horizon_days.unwrap_or(30).max(1);
+        let subject = subject.and_then(|raw| {
+            let trimmed = raw.trim();
+            (!trimmed.is_empty()).then_some(trimmed)
+        });
+
+        let query_used = if let Some(subject) = subject {
+            format!("{task} {subject}")
+        } else {
+            task.to_string()
+        };
+
+        let opts = RecallOptions::new(&query_used).with_limit(limit);
+        #[cfg(feature = "hybrid")]
+        let opts = if let Some(embedding) = query_embedding {
+            opts.with_embedding(embedding).with_hybrid(true)
+        } else {
+            opts
+        };
+        #[cfg(not(feature = "hybrid"))]
+        if _query_embedding.is_some() {
+            return Err(Error::Search(
+                "query_embedding requires the hybrid feature".to_string(),
+            ));
+        }
+
+        let mut scored = self.recall_scored_with_options(&opts)?;
+        if let Some(subject) = subject {
+            scored.retain(|(fact, _)| fact.subject == subject);
+        }
+
+        let key_facts: Vec<Fact> = scored.into_iter().map(|(fact, _)| fact).collect();
+        let low_confidence_count = key_facts
+            .iter()
+            .filter(|fact| fact.confidence < 0.7)
+            .count();
+
+        let stale_cutoff = generated_at - chrono::Duration::days(horizon_days);
+        let stale_high_impact_count = key_facts
+            .iter()
+            .filter(|fact| {
+                is_high_impact_predicate(&fact.predicate) && fact.valid_from <= stale_cutoff
+            })
+            .count();
+
+        #[cfg(feature = "contradiction")]
+        let contradiction_count = if let Some(subject) = subject {
+            self.audit(subject)?.len()
+        } else {
+            0
+        };
+        #[cfg(not(feature = "contradiction"))]
+        let contradiction_count = 0usize;
+
+        let mut watchouts = Vec::new();
+        if key_facts.is_empty() {
+            watchouts.push("No matching facts were found for this task context.".to_string());
+        }
+        if low_confidence_count > 0 {
+            watchouts.push(format!(
+                "{low_confidence_count} key fact(s) are low confidence (< 0.7)."
+            ));
+        }
+        if stale_high_impact_count > 0 {
+            watchouts.push(format!(
+                "{stale_high_impact_count} high-impact key fact(s) are stale for the selected horizon."
+            ));
+        }
+        if contradiction_count > 0 {
+            watchouts.push(format!(
+                "{contradiction_count} contradiction(s) exist for the subject."
+            ));
+        }
+
+        let mut recommended_next_checks = Vec::new();
+        if key_facts.is_empty() {
+            recommended_next_checks
+                .push("Ask a clarifying follow-up question before acting.".to_string());
+        }
+        if low_confidence_count > 0 {
+            recommended_next_checks
+                .push("Verify low-confidence facts with the latest source of truth.".to_string());
+        }
+        if stale_high_impact_count > 0 {
+            recommended_next_checks.push(
+                "Refresh stale high-impact facts (employment, location, role, contact)."
+                    .to_string(),
+            );
+        }
+        if contradiction_count > 0 {
+            recommended_next_checks.push(
+                "Resolve contradictions before generating irreversible actions.".to_string(),
+            );
+        }
+        if recommended_next_checks.is_empty() {
+            recommended_next_checks
+                .push("Proceed with the top facts and monitor for new updates.".to_string());
+        }
+
+        Ok(RecallForTaskReport {
+            task: task.to_string(),
+            subject: subject.map(str::to_string),
+            generated_at,
+            horizon_days,
+            query_used,
+            key_facts,
+            low_confidence_count,
+            stale_high_impact_count,
+            contradiction_count,
+            watchouts,
+            recommended_next_checks,
+        })
     }
 
     /// Full-text search across known facts.
@@ -1332,6 +1728,45 @@ mod tests {
     }
 
     #[test]
+    fn recall_for_task_returns_subject_focused_report() {
+        let (mem, _tmp) = open_temp_memory();
+        let old = Utc::now() - chrono::Duration::days(120);
+        mem.assert_with_confidence_with_params(
+            "alice",
+            "works_at",
+            "Acme",
+            AssertParams { valid_from: old },
+            0.65,
+        )
+        .unwrap();
+        mem.assert_with_confidence("alice", "project", "Renewal Q2", 0.95)
+            .unwrap();
+        mem.assert_with_confidence("bob", "project", "Other deal", 0.99)
+            .unwrap();
+
+        let report = mem
+            .recall_for_task(
+                "prepare renewal call",
+                Some("alice"),
+                None,
+                Some(90),
+                10,
+                None,
+            )
+            .unwrap();
+
+        assert_eq!(report.subject.as_deref(), Some("alice"));
+        assert!(!report.key_facts.is_empty(), "expected task facts for alice");
+        assert!(
+            report.key_facts.iter().all(|fact| fact.subject == "alice"),
+            "task report should stay focused on the requested subject"
+        );
+        assert!(report.low_confidence_count >= 1);
+        assert!(report.stale_high_impact_count >= 1);
+        assert!(!report.recommended_next_checks.is_empty());
+    }
+
+    #[test]
     fn test_assemble_context_returns_string() {
         let (mem, _tmp) = open_temp_memory();
         mem.remember("Alice is a Rust expert", "ep-001", None)
@@ -1384,6 +1819,29 @@ mod tests {
         let hits = mem.recall("language", Some(&[1.0, 0.0]), 1).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].subject, "ep-rust");
+    }
+
+    #[cfg(feature = "hybrid")]
+    #[test]
+    fn recall_for_task_accepts_query_embedding_for_hybrid_path() {
+        let (mem, _tmp) = open_temp_memory();
+        mem.remember("Alice focuses on Rust API reliability", "alice", Some(vec![1.0, 0.0]))
+            .unwrap();
+        mem.remember("Bob focuses on ML experiments", "bob", Some(vec![0.0, 1.0]))
+            .unwrap();
+
+        let report = mem
+            .recall_for_task(
+                "prepare reliability review",
+                Some("alice"),
+                None,
+                Some(30),
+                5,
+                Some(&[1.0, 0.0]),
+            )
+            .unwrap();
+        assert!(!report.key_facts.is_empty());
+        assert_eq!(report.subject.as_deref(), Some("alice"));
     }
 
     #[cfg(feature = "hybrid")]
@@ -2194,6 +2652,206 @@ mod tests {
         assert_eq!(facts[0].predicate, "works_at");
         assert!((facts[0].valid_from - valid_from).num_seconds().abs() < 1);
         assert!((facts[0].confidence - 0.85).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn what_changed_reports_new_invalidated_and_confidence_shift() {
+        let (mem, _tmp) = open_temp_memory();
+        let original_id = mem
+            .assert_with_params(
+                "alice",
+                "works_at",
+                "Acme",
+                AssertParams {
+                    valid_from: Utc::now() - chrono::Duration::days(365),
+                },
+            )
+            .unwrap();
+
+        let since = Utc::now();
+        mem.invalidate_fact(&original_id).unwrap();
+
+        let original_fact = mem
+            .facts_about("alice")
+            .unwrap()
+            .into_iter()
+            .find(|fact| fact.id == original_id)
+            .expect("original fact should still exist in history");
+        let replacement_valid_from = original_fact
+            .expired_at
+            .expect("invalidated fact should have expired_at");
+
+        let replacement_id = mem
+            .assert_with_confidence_with_params(
+                "alice",
+                "works_at",
+                "Beta Corp",
+                AssertParams {
+                    valid_from: replacement_valid_from,
+                },
+                0.6,
+            )
+            .unwrap();
+
+        let report = mem
+            .what_changed("alice", since, Some("works_at"))
+            .expect("what_changed should succeed");
+        assert_eq!(report.new_facts.len(), 1);
+        assert_eq!(report.new_facts[0].id, replacement_id);
+        assert_eq!(report.invalidated_facts.len(), 1);
+        assert_eq!(report.invalidated_facts[0].id, original_id);
+        assert_eq!(report.corrections.len(), 1);
+        assert_eq!(report.corrections[0].old_fact.id, original_id);
+        assert_eq!(report.corrections[0].new_fact.id, replacement_id);
+        assert_eq!(report.confidence_shifts.len(), 1);
+        assert_eq!(report.confidence_shifts[0].from_fact_id, original_id);
+        assert_eq!(report.confidence_shifts[0].to_fact_id, replacement_id);
+    }
+
+    #[test]
+    fn what_changed_links_correction_with_small_timestamp_jitter() {
+        let (mem, _tmp) = open_temp_memory();
+        let original_id = mem
+            .assert_with_params(
+                "alice",
+                "works_at",
+                "Acme",
+                AssertParams {
+                    valid_from: Utc::now() - chrono::Duration::days(30),
+                },
+            )
+            .unwrap();
+
+        let since = Utc::now();
+        mem.invalidate_fact(&original_id).unwrap();
+
+        let original_fact = mem
+            .facts_about("alice")
+            .unwrap()
+            .into_iter()
+            .find(|fact| fact.id == original_id)
+            .expect("original fact should exist in history");
+        let expired_at = original_fact
+            .expired_at
+            .expect("expired_at should be present after invalidation");
+        let jittered_valid_from = expired_at + chrono::Duration::milliseconds(900);
+
+        mem.assert_with_confidence_with_params(
+            "alice",
+            "works_at",
+            "Beta Corp",
+            AssertParams {
+                valid_from: jittered_valid_from,
+            },
+            0.65,
+        )
+        .unwrap();
+
+        let report = mem
+            .what_changed("alice", since, Some("works_at"))
+            .expect("what_changed should succeed");
+        assert_eq!(
+            report.corrections.len(),
+            1,
+            "sub-second drift should still link as a correction"
+        );
+    }
+
+    #[test]
+    fn what_changed_does_not_link_far_apart_replacements() {
+        let (mem, _tmp) = open_temp_memory();
+        let original_id = mem
+            .assert_with_params(
+                "alice",
+                "works_at",
+                "Acme",
+                AssertParams {
+                    valid_from: Utc::now() - chrono::Duration::days(30),
+                },
+            )
+            .unwrap();
+
+        let since = Utc::now();
+        mem.invalidate_fact(&original_id).unwrap();
+
+        let original_fact = mem
+            .facts_about("alice")
+            .unwrap()
+            .into_iter()
+            .find(|fact| fact.id == original_id)
+            .expect("original fact should exist in history");
+        let expired_at = original_fact
+            .expired_at
+            .expect("expired_at should be present after invalidation");
+        let distant_valid_from = expired_at + chrono::Duration::seconds(10);
+
+        mem.assert_with_confidence_with_params(
+            "alice",
+            "works_at",
+            "Beta Corp",
+            AssertParams {
+                valid_from: distant_valid_from,
+            },
+            0.65,
+        )
+        .unwrap();
+
+        let report = mem
+            .what_changed("alice", since, Some("works_at"))
+            .expect("what_changed should succeed");
+        assert_eq!(
+            report.corrections.len(),
+            0,
+            "larger timing gaps should not be auto-linked as corrections"
+        );
+    }
+
+    #[test]
+    fn memory_health_reports_low_confidence_and_stale_high_impact() {
+        let (mem, _tmp) = open_temp_memory();
+        let old = Utc::now() - chrono::Duration::days(200);
+
+        mem.assert_with_confidence_with_params(
+            "alice",
+            "nickname",
+            "Bex",
+            AssertParams { valid_from: old },
+            0.4,
+        )
+        .unwrap();
+        mem.assert_with_confidence_with_params(
+            "alice",
+            "email",
+            "alice@example.com",
+            AssertParams { valid_from: old },
+            0.9,
+        )
+        .unwrap();
+
+        let report = mem
+            .memory_health("alice", None, 0.7, 90)
+            .expect("memory_health should succeed");
+        assert_eq!(report.total_fact_count, 2);
+        assert_eq!(report.active_fact_count, 2);
+        assert_eq!(report.low_confidence_facts.len(), 1);
+        assert_eq!(report.low_confidence_facts[0].predicate, "nickname");
+        assert_eq!(report.stale_high_impact_facts.len(), 1);
+        assert_eq!(report.stale_high_impact_facts[0].predicate, "email");
+        assert_eq!(report.contradiction_count, 0);
+        assert!(
+            report
+                .recommended_actions
+                .iter()
+                .any(|entry| entry.contains("low-confidence")),
+            "expected low-confidence action"
+        );
+        assert!(
+            report
+                .recommended_actions
+                .iter()
+                .any(|entry| entry.contains("stale high-impact")),
+            "expected stale high-impact action"
+        );
     }
 
     #[cfg(feature = "uncertainty")]

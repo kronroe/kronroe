@@ -1,5 +1,5 @@
-use ::chrono::Utc;
-use kronroe_agent_memory::{AgentMemory, RecallOptions, RecallScore};
+use ::chrono::{DateTime, Utc};
+use kronroe_agent_memory::{AgentMemory, RecallForTaskReport, RecallOptions, RecallScore};
 use kronroe_core::{Fact, TemporalGraph, Value};
 #[cfg(feature = "hybrid")]
 use kronroe_core::{TemporalIntent, TemporalOperator};
@@ -202,6 +202,30 @@ fn recall_score_to_dict(py: Python<'_>, score: &RecallScore) -> PyResult<Py<PyDi
         }
     }
     Ok(d.unbind())
+}
+
+fn recall_for_task_report_to_dict<'py>(
+    py: Python<'py>,
+    report: &RecallForTaskReport,
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("task", report.task.clone())?;
+    d.set_item("subject", report.subject.clone())?;
+    d.set_item("generated_at", report.generated_at.to_rfc3339())?;
+    d.set_item("horizon_days", report.horizon_days)?;
+    d.set_item("query_used", report.query_used.clone())?;
+
+    let mut key_facts = Vec::with_capacity(report.key_facts.len());
+    for fact in &report.key_facts {
+        key_facts.push(fact_to_dict(py, fact)?.unbind());
+    }
+    d.set_item("key_facts", key_facts)?;
+    d.set_item("low_confidence_count", report.low_confidence_count)?;
+    d.set_item("stale_high_impact_count", report.stale_high_impact_count)?;
+    d.set_item("contradiction_count", report.contradiction_count)?;
+    d.set_item("watchouts", report.watchouts.clone())?;
+    d.set_item("recommended_next_checks", report.recommended_next_checks.clone())?;
+    Ok(d)
 }
 
 #[cfg(feature = "hybrid")]
@@ -569,6 +593,66 @@ impl PyAgentMemory {
         .map_err(to_py_err)
     }
 
+    #[pyo3(signature = (task, subject=None, now=None, horizon_days=None, limit=8, query_embedding=None, use_hybrid=false))]
+    #[allow(clippy::too_many_arguments)]
+    fn recall_for_task(
+        &self,
+        py: Python<'_>,
+        task: &str,
+        subject: Option<&str>,
+        now: Option<&str>,
+        horizon_days: Option<i64>,
+        limit: usize,
+        query_embedding: Option<Vec<f64>>,
+        use_hybrid: bool,
+    ) -> PyResult<Py<PyDict>> {
+        if limit == 0 {
+            return Err(PyValueError::new_err("limit must be >= 1"));
+        }
+
+        let now = now
+            .map(|value| {
+                value
+                    .parse::<DateTime<Utc>>()
+                    .map_err(|_| PyValueError::new_err("now must be RFC3339"))
+            })
+            .transpose()?;
+
+        let embedding = parse_query_embedding(query_embedding)?;
+        #[cfg(not(feature = "hybrid"))]
+        if embedding.is_some() || use_hybrid {
+            return Err(PyRuntimeError::new_err(
+                "query_embedding/use_hybrid require the hybrid feature",
+            ));
+        }
+
+        #[cfg(feature = "hybrid")]
+        let embedding_for_call = if use_hybrid {
+            embedding.as_deref()
+        } else {
+            None
+        };
+        #[cfg(not(feature = "hybrid"))]
+        let embedding_for_call: Option<&[f32]> = None;
+
+        let task = task.to_owned();
+        let subject = subject.map(str::to_owned);
+        let report = py
+            .allow_threads(|| {
+                self.inner.recall_for_task(
+                    &task,
+                    subject.as_deref(),
+                    now,
+                    horizon_days,
+                    limit,
+                    embedding_for_call,
+                )
+            })
+            .map_err(to_py_err)?;
+
+        Ok(recall_for_task_report_to_dict(py, &report)?.unbind())
+    }
+
     #[pyo3(signature = (entity, predicate, at))]
     fn facts_about_at(
         &self,
@@ -634,6 +718,7 @@ mod tests {
         let _ = stringify!(super::PyAgentMemory::recall_scored);
         let _ = stringify!(super::PyAgentMemory::recall_scored_with_options);
         let _ = stringify!(super::PyAgentMemory::assemble_context);
+        let _ = stringify!(super::PyAgentMemory::recall_for_task);
         let _ = stringify!(super::PyAgentMemory::correct_fact);
         let _ = stringify!(super::PyAgentMemory::invalidate_fact);
     }
@@ -960,6 +1045,66 @@ mod tests {
                     .recall(py, "rust", Some(vec![1.0e40]), 10)
                     .expect_err("expected f32 overflow error");
                 assert!(err.to_string().contains("overflow f32 range"));
+            });
+        }
+
+        #[test]
+        fn python_recall_for_task_returns_subject_scoped_report() {
+            with_memory(|py, memory| {
+                let stale =
+                    (::chrono::Utc::now() - ::chrono::Duration::days(180)).to_rfc3339();
+                let object = PyString::new(py, "Acme").into_any();
+                memory
+                    .assert_with_confidence(py, "alice", "works_at", &object, 0.6, None)
+                    .expect("assert_with_confidence");
+
+                let rows = memory.facts_about(py, "alice").expect("facts_about");
+                let row = rows[0].bind(py);
+                let fact_id = row
+                    .get_item("id")
+                    .expect("id key")
+                    .expect("id value")
+                    .extract::<String>()
+                    .expect("id string");
+                memory
+                    .invalidate_fact(py, &fact_id)
+                    .expect("invalidate old row");
+
+                let refreshed = PyString::new(py, "Acme").into_any();
+                memory
+                    .assert_with_confidence(py, "alice", "works_at", &refreshed, 0.6, None)
+                    .expect("assert refreshed");
+
+                let report_obj = memory
+                    .recall_for_task(
+                        py,
+                        "prepare renewal call",
+                        Some("alice"),
+                        Some(&stale),
+                        Some(90),
+                        10,
+                        None,
+                        false,
+                    )
+                    .expect("recall_for_task");
+                let report_any = report_obj.bind(py);
+                let report = report_any.downcast::<PyDict>().expect("report dict");
+
+                let subject = report
+                    .get_item("subject")
+                    .expect("subject key")
+                    .expect("subject value")
+                    .extract::<String>()
+                    .expect("subject string");
+                assert_eq!(subject, "alice");
+
+                let key_facts = report
+                    .get_item("key_facts")
+                    .expect("key_facts key")
+                    .expect("key_facts value")
+                    .extract::<Vec<pyo3::Py<PyDict>>>()
+                    .expect("key_facts list");
+                assert!(!key_facts.is_empty());
             });
         }
 
