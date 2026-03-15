@@ -94,11 +94,11 @@
         z-index: 10;
         height: 52px;
         padding: 0 2.5rem;
-        border-bottom: 1px solid rgba(46, 33, 28, 0.25);
+        border-bottom: 1px solid rgba(46, 33, 28, 0.30);
         display: flex;
         align-items: center;
         gap: 0.875rem;
-        background: rgb(0, 0, 0);
+        background: var(--bg);
       }
 
       .logo {
@@ -109,7 +109,7 @@
         font-size: 1.1rem;
         font-weight: 600;
         letter-spacing: 0;
-        color: #fff;
+        color: var(--espresso);
       }
 
       .logo img {
@@ -124,7 +124,7 @@
         font-weight: 600;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.95);
+        color: rgba(46, 33, 28, 0.75);
       }
 
       .badge {
@@ -151,11 +151,11 @@
       }
 
       .header-nav a {
-        color: rgba(255, 255, 255, 0.60);
+        color: rgba(46, 33, 28, 0.55);
         text-decoration: none;
         transition: color 0.12s;
       }
-      .header-nav a:hover { color: #fff; }
+      .header-nav a:hover { color: var(--espresso); }
       .header-nav a:focus-visible {
         outline: 2px solid var(--violet);
         outline-offset: 3px;
@@ -1551,7 +1551,7 @@
     <!-- Header -->
     <header>
       <div class="logo">
-        <img src="/logo-v3x6-violet.svg" alt="Kronroe" height="38" style="display:block;" />
+        <img src="/kronroe-logo.svg" alt="Kronroe" height="38" style="display:block;" />
         <span class="logo-wordmark">KRONROE</span>
       </div>
       <div class="badge">WASM</div>
