@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <title>Kronroe Favicon</title>
   <rect width="32" height="32" rx="6" fill="#0d0d0d"/>
-  <circle cx="8" cy="21" r="4.5" fill="#7C5CFC"/>
-  <circle cx="24" cy="21" r="4.5" fill="#5A8A00"/>
-  <circle cx="16" cy="10" r="3.5" fill="#C04800"/>
-  <line x1="8" y1="21" x2="16" y2="10" stroke="#7C5CFC" stroke-width="1.2" stroke-linecap="round" opacity="0.4"/>
-  <line x1="24" y1="21" x2="16" y2="10" stroke="#5A8A00" stroke-width="1.2" stroke-linecap="round" opacity="0.35"/>
+  <circle cx="8" cy="21" r="4" fill="#7C5CFC"/>
+  <circle cx="24" cy="21" r="4" fill="#5A8A00"/>
+  <circle cx="16" cy="10" r="4" fill="#C04800"/>
+  <line x1="8" y1="21" x2="16" y2="10" stroke="#7C5CFC" stroke-width="1.2" stroke-linecap="round" opacity="0.45"/>
+  <line x1="24" y1="21" x2="16" y2="10" stroke="#5A8A00" stroke-width="1.2" stroke-linecap="round" opacity="0.4"/>
 </svg>

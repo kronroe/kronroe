@@ -94,11 +94,11 @@
         z-index: 10;
         height: 52px;
         padding: 0 2.5rem;
-        border-bottom: 1.5px solid rgba(46, 33, 28, 0.85);
+        border-bottom: 1px solid rgba(46, 33, 28, 0.25);
         display: flex;
         align-items: center;
         gap: 0.875rem;
-        background: var(--bg);
+        background: rgb(0, 0, 0);
       }
 
       .logo {
@@ -109,7 +109,7 @@
         font-size: 1.1rem;
         font-weight: 600;
         letter-spacing: 0;
-        color: var(--espresso);
+        color: #fff;
       }
 
       .logo img {
@@ -124,7 +124,7 @@
         font-weight: 600;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: rgba(46, 33, 28, 0.75);
+        color: rgba(255, 255, 255, 0.95);
       }
 
       .badge {
@@ -134,9 +134,9 @@
         letter-spacing: 0.1em;
         padding: 0.15rem 0.4rem;
         border-radius: 3px;
-        background: rgba(124, 92, 252, 0.12);
-        border: 1.5px solid rgba(124, 92, 252, 0.65);
-        color: #5B3FD4;
+        background: rgba(180, 92, 252, 0.18);
+        border: 1px solid rgba(180, 92, 252, 0.35);
+        color: #C8A0FC;
       }
 
       .header-nav {
@@ -151,11 +151,11 @@
       }
 
       .header-nav a {
-        color: rgba(46, 33, 28, 0.55);
+        color: rgba(255, 255, 255, 0.60);
         text-decoration: none;
         transition: color 0.12s;
       }
-      .header-nav a:hover { color: var(--espresso); }
+      .header-nav a:hover { color: #fff; }
       .header-nav a:focus-visible {
         outline: 2px solid var(--violet);
         outline-offset: 3px;
@@ -1551,7 +1551,7 @@
     <!-- Header -->
     <header>
       <div class="logo">
-        <img src="/kronroe-logo.svg" alt="Kronroe" height="38" style="display:block;" />
+        <img src="/logo-v3x6-violet.svg" alt="Kronroe" height="38" style="display:block;" />
         <span class="logo-wordmark">KRONROE</span>
       </div>
       <div class="badge">WASM</div>
@@ -1649,12 +1649,12 @@
             <p>Give your agents persistent memory that tracks how knowledge evolves. No server, no LLM calls for storage — just assert facts and query any point in time.</p>
           </div>
           <div class="use-case-card">
-            <div class="use-case-icon" style="color: var(--violet);">◈</div>
+            <div class="use-case-icon" style="color: var(--orange);">◈</div>
             <h3>Mobile and edge apps</h3>
             <p>Full relationship graph on iOS and Android with zero network latency. Compiles to a native library under 6 MB. Privacy-first — data never leaves the device.</p>
           </div>
           <div class="use-case-card">
-            <div class="use-case-icon" style="color: var(--violet);">◈</div>
+            <div class="use-case-icon" style="color: var(--lime);">◈</div>
             <h3>MCP tool memory</h3>
             <p>Drop-in memory for Claude Desktop, Cursor, and any MCP client. Eight tools out of the box — remember, recall, assert, correct, invalidate, and more.</p>
           </div>
