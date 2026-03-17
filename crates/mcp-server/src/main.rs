@@ -543,15 +543,12 @@ fn call_tool_recall(
 
     let mut opts = RecallOptions::new(query).with_limit(limit);
     let query_embedding = parse_embedding(args.get("query_embedding"))?;
-    let use_hybrid = args
-        .get("use_hybrid")
-        .and_then(JsonValue::as_bool)
-        .unwrap_or(false);
+    let use_hybrid = args.get("use_hybrid").and_then(JsonValue::as_bool);
     if let Some(embedding) = query_embedding.as_deref() {
         opts = opts.with_embedding(embedding);
         #[cfg(feature = "hybrid")]
         {
-            if use_hybrid {
+            if use_hybrid != Some(false) {
                 opts = opts.with_hybrid(true);
             }
             if let Some(intent) = parse_temporal_intent(args.get("temporal_intent"))? {
@@ -563,7 +560,7 @@ fn call_tool_recall(
         }
         #[cfg(not(feature = "hybrid"))]
         {
-            if use_hybrid {
+            if use_hybrid == Some(true) {
                 anyhow::bail!("hybrid is unavailable in this build");
             }
             if args.get("temporal_intent").is_some() || args.get("temporal_operator").is_some() {
@@ -573,7 +570,7 @@ fn call_tool_recall(
                 anyhow::bail!("query_embedding is unavailable without hybrid feature");
             }
         }
-    } else if use_hybrid {
+    } else if use_hybrid == Some(true) {
         anyhow::bail!("use_hybrid requires query_embedding");
     } else {
         #[cfg(feature = "hybrid")]
@@ -1217,7 +1214,7 @@ mod tests {
 
     #[cfg(feature = "hybrid")]
     #[test]
-    fn recall_scored_embedding_respects_use_hybrid_toggle() {
+    fn recall_scored_embedding_defaults_to_hybrid_and_honors_toggle() {
         let mut state = temp_state();
         let _ = call_tool(
             &mut state,
@@ -1257,7 +1254,7 @@ mod tests {
             .and_then(|v| v.get("type"))
             .and_then(JsonValue::as_str)
             .unwrap_or("");
-        assert_eq!(off_type, "text");
+        assert_eq!(off_type, "hybrid");
 
         let on = call_tool(
             &mut state,
@@ -1266,7 +1263,7 @@ mod tests {
                 "arguments": {
                     "query": "rust",
                     "query_embedding": [1.0, 0.0, 0.0],
-                    "use_hybrid": true,
+                    "use_hybrid": false,
                     "limit": 1
                 }
             })),
@@ -1286,7 +1283,7 @@ mod tests {
             .and_then(|v| v.get("type"))
             .and_then(JsonValue::as_str)
             .unwrap_or("");
-        assert_eq!(on_type, "hybrid");
+        assert_eq!(on_type, "text");
     }
 
     #[test]

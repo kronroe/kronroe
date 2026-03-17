@@ -58,7 +58,7 @@ struct RecallScoredArgs {
     min_confidence: Option<f64>,
     confidence_filter_mode: Option<String>,
     max_scored_rows: Option<usize>,
-    use_hybrid: bool,
+    use_hybrid: Option<bool>,
     temporal_intent: Option<String>,
     temporal_operator: Option<String>,
 }
@@ -71,7 +71,7 @@ impl Default for RecallScoredArgs {
             min_confidence: None,
             confidence_filter_mode: None,
             max_scored_rows: None,
-            use_hybrid: false,
+            use_hybrid: None,
             temporal_intent: None,
             temporal_operator: None,
         }
@@ -113,7 +113,7 @@ fn parse_recall_scored_args_from_options(
     }
     if let Some(value) = options.get_item("use_hybrid")? {
         if !value.is_none() {
-            args.use_hybrid = value.extract::<bool>()?;
+            args.use_hybrid = Some(value.extract::<bool>()?);
         }
     }
     if let Some(value) = options.get_item("temporal_intent")? {
@@ -300,7 +300,7 @@ impl PyAgentMemory {
             ));
         }
         #[cfg(not(feature = "hybrid"))]
-        if args.use_hybrid {
+        if args.use_hybrid == Some(true) {
             return Err(PyRuntimeError::new_err(
                 "use_hybrid requires the 'hybrid' feature",
             ));
@@ -321,10 +321,10 @@ impl PyAgentMemory {
         #[cfg(feature = "hybrid")]
         {
             if has_embedding {
-                if args.use_hybrid {
+                if args.use_hybrid.unwrap_or(true) {
                     opts = opts.with_hybrid(true);
                 }
-            } else if args.use_hybrid
+            } else if args.use_hybrid == Some(true)
                 || args.temporal_intent.is_some()
                 || args.temporal_operator.is_some()
             {
@@ -377,7 +377,10 @@ impl PyAgentMemory {
         }
 
         #[cfg(not(feature = "hybrid"))]
-        if args.temporal_intent.is_some() || args.temporal_operator.is_some() || args.use_hybrid {
+        if args.temporal_intent.is_some()
+            || args.temporal_operator.is_some()
+            || args.use_hybrid == Some(true)
+        {
             return Err(PyRuntimeError::new_err(
                 "hybrid/temporal controls are unavailable without hybrid feature",
             ));
@@ -500,7 +503,7 @@ impl PyAgentMemory {
         facts_to_pylist(py, facts)
     }
 
-    #[pyo3(signature = (query, limit=10, query_embedding=None, min_confidence=None, confidence_filter_mode=None, max_scored_rows=None, use_hybrid=false, temporal_intent=None, temporal_operator=None))]
+    #[pyo3(signature = (query, limit=10, query_embedding=None, min_confidence=None, confidence_filter_mode=None, max_scored_rows=None, use_hybrid=None, temporal_intent=None, temporal_operator=None))]
     #[allow(clippy::too_many_arguments)]
     fn recall_scored(
         &self,
@@ -511,7 +514,7 @@ impl PyAgentMemory {
         min_confidence: Option<f64>,
         confidence_filter_mode: Option<String>,
         max_scored_rows: Option<usize>,
-        use_hybrid: bool,
+        use_hybrid: Option<bool>,
         temporal_intent: Option<String>,
         temporal_operator: Option<String>,
     ) -> PyResult<Vec<Py<PyDict>>> {
@@ -731,7 +734,7 @@ mod tests {
                         Some(0.9),
                         Some("base".to_string()),
                         None,
-                        false,
+                        None,
                         None,
                         None,
                     )
@@ -772,7 +775,7 @@ mod tests {
                         Some(0.1),
                         Some("base".to_string()),
                         None,
-                        false,
+                        None,
                         None,
                         None,
                     )
@@ -821,7 +824,7 @@ mod tests {
                         Some(0.1),
                         Some("base".to_string()),
                         Some(128),
-                        false,
+                        None,
                         None,
                         None,
                     )
@@ -908,7 +911,7 @@ mod tests {
                         Some(f64::NAN),
                         Some("base".to_string()),
                         None,
-                        false,
+                        None,
                         None,
                         None,
                     )
@@ -930,7 +933,7 @@ mod tests {
                         None,
                         Some("base".to_string()),
                         None,
-                        false,
+                        None,
                         None,
                         None,
                     )
@@ -968,11 +971,106 @@ mod tests {
         fn python_recall_scored_requires_embedding_for_hybrid_controls() {
             with_memory(|py, memory| {
                 let err = memory
-                    .recall_scored(py, "rust", 10, None, None, None, None, true, None, None)
+                    .recall_scored(
+                        py,
+                        "rust",
+                        10,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some(true),
+                        None,
+                        None,
+                    )
                     .expect_err("expected hybrid control validation error");
                 assert!(err
                     .to_string()
                     .contains("query_embedding is required for hybrid/temporal controls"));
+            });
+        }
+
+        #[cfg(feature = "hybrid")]
+        #[test]
+        fn python_recall_scored_embedding_defaults_to_hybrid() {
+            with_memory(|py, memory| {
+                let object = PyString::new(py, "rust hybrid default").into_any();
+                memory
+                    .assert_with_confidence(py, "hybrid-default", "memory", &object, 0.9, None)
+                    .expect("assert_with_confidence");
+
+                let rows = memory
+                    .recall_scored(
+                        py,
+                        "rust",
+                        10,
+                        Some(vec![1.0, 0.0, 0.0]),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
+                    .expect("recall_scored");
+                assert!(!rows.is_empty());
+
+                let row = rows[0].bind(py);
+                let score = row
+                    .get_item("score")
+                    .expect("score key")
+                    .expect("score value")
+                    .downcast_into::<PyDict>()
+                    .expect("score dict");
+                let score_type = score
+                    .get_item("type")
+                    .expect("type key")
+                    .expect("type value")
+                    .extract::<String>()
+                    .expect("type as string");
+                assert_eq!(score_type, "hybrid");
+            });
+        }
+
+        #[cfg(feature = "hybrid")]
+        #[test]
+        fn python_recall_scored_embedding_honors_use_hybrid_false() {
+            with_memory(|py, memory| {
+                let object = PyString::new(py, "rust hybrid override").into_any();
+                memory
+                    .assert_with_confidence(py, "hybrid-override", "memory", &object, 0.9, None)
+                    .expect("assert_with_confidence");
+
+                let rows = memory
+                    .recall_scored(
+                        py,
+                        "rust",
+                        10,
+                        Some(vec![1.0, 0.0, 0.0]),
+                        None,
+                        None,
+                        None,
+                        Some(false),
+                        None,
+                        None,
+                    )
+                    .expect("recall_scored");
+                assert!(!rows.is_empty());
+
+                let row = rows[0].bind(py);
+                let score = row
+                    .get_item("score")
+                    .expect("score key")
+                    .expect("score value")
+                    .downcast_into::<PyDict>()
+                    .expect("score dict");
+                let score_type = score
+                    .get_item("type")
+                    .expect("type key")
+                    .expect("type value")
+                    .extract::<String>()
+                    .expect("type as string");
+                assert_eq!(score_type, "text");
             });
         }
     }
