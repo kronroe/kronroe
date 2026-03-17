@@ -80,6 +80,9 @@ jobs:
               - 'packages/kronroe-mcp/**'
               - 'python/kronroe-mcp/**'
             site:
+              - 'crates/core/**'
+              - 'crates/agent-memory/**'
+              - 'crates/wasm/**'
               - 'site/**'
               - 'firebase.json'
               - '.firebaserc'
