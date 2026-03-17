@@ -3,9 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Kronroe — embedded temporal property graph database. Try it live in your browser." />
+    <meta name="description" content="Kronroe — embedded bi-temporal property graph database. Track not just what's true, but when it became true. Pure Rust, runs in your browser via WebAssembly." />
+    <!-- Canonical -->
+    <link rel="canonical" href="https://kronroe.dev/" />
+    <!-- Open Graph -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:url"         content="https://kronroe.dev/" />
+    <meta property="og:title"       content="Kronroe — Bi-temporal Graph Database" />
+    <meta property="og:description" content="Track not just what's true — but when it became true, and when you recorded it. Embedded, mobile-ready, runs in your browser via WebAssembly." />
+    <!-- Twitter Card -->
+    <meta name="twitter:card"        content="summary" />
+    <meta name="twitter:title"       content="Kronroe — Bi-temporal Graph Database" />
+    <meta name="twitter:description" content="Track not just what's true — but when it became true, and when you recorded it. Embedded, mobile-ready, runs in your browser via WebAssembly." />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://excalidraw.com data:; img-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self';" />
-    <title>Kronroe — Temporal Graph Playground</title>
+    <title>Kronroe — Bi-temporal Graph Database</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -75,6 +86,44 @@
         display: flex;
         flex-direction: column;
         position: relative;
+      }
+
+      /* ── Screen reader only ── */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* ── Skip-nav ── */
+      .skip-nav {
+        position: absolute;
+        left: -9999px;
+        top: auto;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+      }
+      .skip-nav:focus {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: auto;
+        height: auto;
+        padding: 0.5rem 1.25rem;
+        background: var(--violet);
+        color: #fff;
+        z-index: 9999;
+        font-size: 0.85rem;
+        font-family: var(--body);
+        border-radius: 0 0 8px 0;
+        text-decoration: none;
       }
 
       /* Dot-grid texture */
@@ -1609,6 +1658,7 @@
     </style>
   </head>
   <body>
+    <a href="#main-content" class="skip-nav">Skip to main content</a>
 
     <!-- Loading -->
     <div class="loading-overlay" id="loading">
@@ -1638,7 +1688,7 @@
     <section class="hero">
       <div class="hero-inner">
         <div class="hero-text">
-          <h1>Bi-<span class="temporal-accent">temporal</span> graph.<br><span class="lime">In your browser.</span></h1>
+          <h1>Bi-<span class="temporal-accent">temporal</span> graph.<br> <span class="lime">In your browser.</span></h1>
           <p class="hero-explain">Track not just what's true — but when it became true, and when you recorded it. Query any point in time.</p>
           <p class="sub">// Pure Rust → WebAssembly. No server. No network. No schema.</p>
           <div class="hero-install">
@@ -1693,9 +1743,9 @@
     </section>
 
     <!-- Explain: what is bi-temporal? -->
-    <section class="explain" id="explain">
+    <section class="explain" id="explain" aria-labelledby="heading-explain">
       <div class="explain-inner">
-        <h2 class="section-title">What does <span class="temporal-accent">bi-temporal</span> mean?</h2>
+        <h2 class="section-title" id="heading-explain">What does <span class="temporal-accent">bi-temporal</span> mean?</h2>
         <p class="section-sub">Every fact in Kronroe carries four timestamps — not just "created_at"</p>
 
         <div class="explain-grid">
@@ -1718,30 +1768,31 @@
     </section>
 
     <!-- Why Kronroe: comparison table -->
-    <section class="why" id="why">
+    <section class="why" id="why" aria-labelledby="heading-why">
       <div class="why-inner">
-        <h2 class="section-title">Why Kronroe?</h2>
+        <h2 class="section-title" id="heading-why">Why Kronroe?</h2>
         <p class="section-sub">The only embedded, mobile-ready temporal graph engine</p>
 
         <div class="comparison-table-wrap">
           <table class="comparison-table">
+            <caption class="sr-only">Feature comparison: Kronroe vs Graphiti/Zep vs mcp-memory-service</caption>
             <thead>
               <tr>
-                <th></th>
-                <th class="col-kronroe">Kronroe</th>
-                <th>Graphiti / Zep</th>
-                <th>mcp-memory-service</th>
+                <th scope="col"></th>
+                <th scope="col" class="col-kronroe">Kronroe</th>
+                <th scope="col">Graphiti / Zep</th>
+                <th scope="col">mcp-memory-service</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td>Requires server</td><td class="col-kronroe">No — single file</td><td>Yes — Neo4j</td><td>No</td></tr>
-              <tr><td>Temporal model</td><td class="col-kronroe">Bi-temporal</td><td>Bi-temporal (via Neo4j)</td><td>None</td></tr>
-              <tr><td>Mobile / edge</td><td class="col-kronroe">iOS, Android, WASM</td><td>No</td><td>No</td></tr>
-              <tr><td>LLM required</td><td class="col-kronroe">No</td><td>Yes</td><td>No</td></tr>
-              <tr><td>Contradiction detection</td><td class="col-kronroe">Engine-native</td><td>LLM-based</td><td>No</td></tr>
-              <tr><td>Confidence / uncertainty</td><td class="col-kronroe">Engine-native</td><td>No</td><td>No</td></tr>
-              <tr><td>Full-text search</td><td class="col-kronroe">BM25 + fuzzy</td><td>Via Neo4j</td><td>No</td></tr>
-              <tr><td>Vector search</td><td class="col-kronroe">Cosine + temporal</td><td>Via Neo4j</td><td>No</td></tr>
+              <tr><th scope="row">Requires server</th><td class="col-kronroe">No — single file</td><td>Yes — Neo4j</td><td>No</td></tr>
+              <tr><th scope="row">Temporal model</th><td class="col-kronroe">Bi-temporal</td><td>Bi-temporal (via Neo4j)</td><td>None</td></tr>
+              <tr><th scope="row">Mobile / edge</th><td class="col-kronroe">iOS, Android, WASM</td><td>No</td><td>No</td></tr>
+              <tr><th scope="row">LLM required</th><td class="col-kronroe">No</td><td>Yes</td><td>No (uses embeddings)</td></tr>
+              <tr><th scope="row">Contradiction detection</th><td class="col-kronroe">Engine-native</td><td>LLM-based</td><td>No</td></tr>
+              <tr><th scope="row">Confidence / uncertainty</th><td class="col-kronroe">Engine-native</td><td>No</td><td>No</td></tr>
+              <tr><th scope="row">Full-text search</th><td class="col-kronroe">BM25 + fuzzy</td><td>Via Neo4j</td><td>No</td></tr>
+              <tr><th scope="row">Vector search</th><td class="col-kronroe">Cosine + temporal</td><td>Via Neo4j</td><td>Yes — embeddings</td></tr>
             </tbody>
           </table>
         </div>
@@ -1749,9 +1800,9 @@
     </section>
 
     <!-- Use cases -->
-    <section class="use-cases" id="use-cases">
+    <section class="use-cases" id="use-cases" aria-labelledby="heading-use-cases">
       <div class="use-cases-inner">
-        <h2 class="section-title">Built for</h2>
+        <h2 class="section-title" id="heading-use-cases">Built for</h2>
 
         <div class="use-case-grid">
           <div class="use-case-card">
@@ -1774,13 +1825,13 @@
     </section>
 
     <!-- Playground -->
-    <section class="playground-section" id="playground">
+    <section class="playground-section" id="playground" aria-labelledby="heading-playground">
       <div class="playground-section-hdr">
-        <h2 class="section-title">Try it live</h2>
+        <h2 class="section-title" id="heading-playground">Try it live</h2>
         <p class="section-sub">Pure Rust compiled to WebAssembly. Every fact runs in your browser — nothing is sent to a server.</p>
       </div>
 
-      <main class="playground">
+      <main class="playground" id="main-content">
         <!-- Quick Start box -->
         <div class="hero-guide" style="grid-column: 1 / -1;">
           <div class="hero-guide-label">QUICK START</div>
@@ -1799,19 +1850,19 @@
             </div>
             <div class="panel-body">
               <div class="triple">
-                <input id="subject"   placeholder="subject" />
-                <input id="predicate" placeholder="predicate" />
-                <input id="object"    placeholder="value" />
+                <input id="subject"   placeholder="subject"   aria-label="Subject entity" />
+                <input id="predicate" placeholder="predicate" aria-label="Predicate" />
+                <input id="object"    placeholder="value"     aria-label="Object value" />
               </div>
               <div class="type-at-row">
-                <select id="obj-type" title="Object value type">
+                <select id="obj-type" title="Object value type" aria-label="Value type">
                   <option value="Text">Text</option>
                   <option value="Number">Number</option>
                   <option value="Boolean">Boolean</option>
                   <option value="Entity">Entity →</option>
                 </select>
                 <span class="at-hint" title="Bi-temporal tip: set valid_from to record when this was true in the real world.">valid from</span>
-                <input type="datetime-local" id="assert-at" title="valid_from — optional. If set, this fact starts being true at that time; leave blank for now." />
+                <input type="datetime-local" id="assert-at" title="valid_from — optional. If set, this fact starts being true at that time; leave blank for now." aria-label="Valid from (optional)" />
               </div>
               <div class="btn-row">
                 <button class="btn-primary" id="assert-btn">Assert →</button>
@@ -1839,16 +1890,16 @@
             </div>
             <div class="panel-body">
               <div class="qrow">
-                <input id="query-entity" placeholder="entity (e.g. alice)" />
+                <input id="query-entity" placeholder="entity (e.g. alice)" aria-label="Entity to search" />
                 <button class="btn-primary" id="query-btn">Find →</button>
               </div>
               <div class="qrow">
-                <input id="query-pred" placeholder="predicate (optional)" />
+                <input id="query-pred" placeholder="predicate (optional)" aria-label="Predicate filter (optional)" />
                 <button class="btn-ghost" id="show-all-btn">Show all</button>
               </div>
               <div class="qrow">
                 <span class="at-hint">at&nbsp;time</span>
-                <input type="datetime-local" id="query-at" title="point in time — leave blank for current facts" />
+                <input type="datetime-local" id="query-at" title="point in time — leave blank for current facts" aria-label="Query at point in time (optional)" />
               </div>
               <div class="status" id="query-status" role="status" aria-live="polite"></div>
             </div>
@@ -1876,7 +1927,7 @@
                 <div class="rail-track" id="rail-valid-track" title="valid_from events"></div>
                 <div class="rail-track" id="rail-recorded-track" title="recorded/retracted events"></div>
                 <div class="rail-controls">
-                  <input type="range" id="rail-scrubber" min="0" max="0" step="1" value="0" disabled />
+                  <input type="range" id="rail-scrubber" min="0" max="0" step="1" value="0" disabled aria-label="Time scrubber" />
                   <div class="rail-meta">
                     <span id="rail-time-label">No temporal points yet.</span>
                     <span id="rail-count-label">0 visible</span>
@@ -1887,8 +1938,8 @@
             <div class="viz-block">
               <div class="viz-label">TIME DIFF A/B</div>
               <div class="diff-row">
-                <input type="datetime-local" id="diff-a" title="Timestamp A" />
-                <input type="datetime-local" id="diff-b" title="Timestamp B" />
+                <input type="datetime-local" id="diff-a" title="Timestamp A" aria-label="Diff timestamp A" />
+                <input type="datetime-local" id="diff-b" title="Timestamp B" aria-label="Diff timestamp B" />
                 <button class="btn-ghost" id="diff-compare-btn">Compare</button>
               </div>
               <div class="diff-summary" id="diff-summary">Pick two points in time to compare state changes.</div>

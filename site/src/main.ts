@@ -196,7 +196,7 @@ function factRowHtml(f: WasmFact): string {
       <span class="fact-time">${fmtTime(f.valid_from)}</span>
       ${tsTooltipHtml(f)}
     </div>
-    <button class="btn-invalidate" data-id="${esc(f.id)}" title="Invalidate fact"${expired ? " disabled" : ""}>×</button>
+    <button class="btn-invalidate" data-id="${esc(f.id)}" title="Invalidate fact" aria-label="Invalidate ${esc(f.subject)} ${esc(f.predicate)} ${esc(fmtValue(f.object))}"${expired ? " disabled" : ""}>×</button>
   </div>`;
 }
 
