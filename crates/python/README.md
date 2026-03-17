@@ -44,11 +44,13 @@ for row in scored:
     print(f"{row['fact']['subject']}: {row['score']}")
 
 # Assemble LLM-ready context with a token budget
-context = memory.assemble_context("alice", token_budget=200)
+context = memory.assemble_context("alice", max_tokens=200)
 print(context)
 
 # Store facts with confidence and source provenance
-memory.assert_with_confidence("alice", "works_at", "Beta Corp", 0.95, source="hr:system")
+fact_id = memory.assert_with_confidence(
+    "alice", "works_at", "Beta Corp", 0.95, source="hr:system"
+)
 
 # Correct a fact — old value is preserved in history, never deleted
 memory.correct_fact(fact_id, "New Corp")

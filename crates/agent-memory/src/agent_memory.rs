@@ -660,12 +660,14 @@ impl AgentMemory {
         query: &str,
         query_embedding: Option<&[f32]>,
         limit: usize,
+        candidate_window: usize,
         intent: TemporalIntent,
         operator: TemporalOperator,
     ) -> Result<Vec<(Fact, RecallScore)>> {
         if let Some(emb) = query_embedding {
             let params = HybridSearchParams {
                 k: limit,
+                candidate_window: candidate_window.max(1),
                 intent,
                 operator,
                 ..HybridSearchParams::default()
@@ -713,6 +715,7 @@ impl AgentMemory {
         query: &str,
         _query_embedding: Option<&[f32]>,
         limit: usize,
+        _candidate_window: usize,
         _intent: (),
         _operator: (),
     ) -> Result<Vec<(Fact, RecallScore)>> {
@@ -914,6 +917,7 @@ impl AgentMemory {
                         opts.query,
                         query_embedding_for_path,
                         max_scored_rows,
+                        max_scored_rows,
                         #[cfg(feature = "hybrid")]
                         opts.temporal_intent,
                         #[cfg(feature = "hybrid")]
@@ -946,6 +950,7 @@ impl AgentMemory {
                     let scored = self.recall_scored_internal(
                         opts.query,
                         query_embedding_for_path,
+                        fetch_limit,
                         fetch_limit,
                         #[cfg(feature = "hybrid")]
                         opts.temporal_intent,
@@ -1009,6 +1014,7 @@ impl AgentMemory {
             None => self.recall_scored_internal(
                 opts.query,
                 query_embedding_for_path,
+                opts.limit,
                 opts.limit,
                 #[cfg(feature = "hybrid")]
                 opts.temporal_intent,
@@ -2041,6 +2047,7 @@ mod tests {
 
         let opts = RecallOptions::new("rust")
             .with_embedding(&[1.0, 0.0])
+            .with_hybrid(true)
             .with_limit(5)
             .with_min_effective_confidence(0.0)
             .with_max_scored_rows(2);

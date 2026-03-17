@@ -4,7 +4,7 @@ use kronroe::{Fact, FactId, Value};
 #[cfg(feature = "hybrid")]
 use kronroe::{TemporalIntent, TemporalOperator};
 use kronroe_agent_memory::{AgentMemory, RecallOptions, RecallScore};
-use serde_json::{json, Value as JsonValue};
+use serde_json::{json, Map, Value as JsonValue};
 use std::env;
 use std::io::{self, BufRead, BufReader, Write};
 
@@ -14,6 +14,68 @@ const MAX_QUERY_BYTES: usize = 8 * 1024; // 8 KiB
 const MAX_EPISODE_ID_BYTES: usize = 512;
 const MAX_IDEMPOTENCY_KEY_BYTES: usize = 512;
 const MAX_RECALL_LIMIT: usize = 200;
+
+fn confidence_filter_mode_schema() -> JsonValue {
+    #[cfg(feature = "uncertainty")]
+    {
+        json!({ "type": "string", "enum": ["base", "effective"] })
+    }
+    #[cfg(not(feature = "uncertainty"))]
+    {
+        json!({ "type": "string", "enum": ["base"] })
+    }
+}
+
+fn recall_input_schema(include_scores: bool) -> JsonValue {
+    let mut properties = Map::new();
+    properties.insert("query".to_string(), json!({ "type": "string" }));
+    properties.insert(
+        "limit".to_string(),
+        json!({ "type": "integer", "minimum": 1, "maximum": MAX_RECALL_LIMIT }),
+    );
+    properties.insert(
+        "min_confidence".to_string(),
+        json!({ "type": "number", "minimum": 0.0, "maximum": 1.0 }),
+    );
+    properties.insert(
+        "confidence_filter_mode".to_string(),
+        confidence_filter_mode_schema(),
+    );
+    if include_scores {
+        properties.insert("include_scores".to_string(), json!({ "type": "boolean" }));
+    }
+    properties.insert(
+        "max_scored_rows".to_string(),
+        json!({ "type": "integer", "minimum": 1 }),
+    );
+    #[cfg(feature = "hybrid")]
+    {
+        properties.insert(
+            "query_embedding".to_string(),
+            json!({ "type": "array", "items": {"type": "number"} }),
+        );
+        properties.insert("use_hybrid".to_string(), json!({ "type": "boolean" }));
+        properties.insert(
+            "temporal_intent".to_string(),
+            json!({
+                "type": "string",
+                "enum": ["timeless", "current_state", "historical_point", "historical_interval"]
+            }),
+        );
+        properties.insert(
+            "temporal_operator".to_string(),
+            json!({
+                "type": "string",
+                "enum": ["current", "as_of", "during", "before", "by", "after", "unknown"]
+            }),
+        );
+    }
+    json!({
+        "type": "object",
+        "properties": properties,
+        "required": ["query"]
+    })
+}
 
 struct AppState {
     memory: AgentMemory,
@@ -203,41 +265,12 @@ fn tools_schema() -> Vec<JsonValue> {
         json!({
             "name": "recall",
             "description": "Recall facts by natural language query.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string"},
-                    "limit": {"type": "integer", "minimum": 1, "maximum": MAX_RECALL_LIMIT},
-                    "min_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                    "confidence_filter_mode": {"type": "string", "enum": ["base", "effective"]},
-                    "include_scores": {"type": "boolean"},
-                    "query_embedding": {"type": "array", "items": {"type": "number"}},
-                    "use_hybrid": {"type": "boolean"},
-                    "temporal_intent": {"type": "string", "enum": ["timeless", "current_state", "historical_point", "historical_interval"]},
-                    "temporal_operator": {"type": "string", "enum": ["current", "as_of", "during", "before", "by", "after", "unknown"]},
-                    "max_scored_rows": {"type": "integer", "minimum": 1}
-                },
-                "required": ["query"]
-            }
+            "inputSchema": recall_input_schema(true)
         }),
         json!({
             "name": "recall_scored",
             "description": "Recall facts with per-channel scoring metadata.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string"},
-                    "limit": {"type": "integer", "minimum": 1, "maximum": MAX_RECALL_LIMIT},
-                    "min_confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                    "confidence_filter_mode": {"type": "string", "enum": ["base", "effective"]},
-                    "query_embedding": {"type": "array", "items": {"type": "number"}},
-                    "use_hybrid": {"type": "boolean"},
-                    "temporal_intent": {"type": "string", "enum": ["timeless", "current_state", "historical_point", "historical_interval"]},
-                    "temporal_operator": {"type": "string", "enum": ["current", "as_of", "during", "before", "by", "after", "unknown"]},
-                    "max_scored_rows": {"type": "integer", "minimum": 1}
-                },
-                "required": ["query"]
-            }
+            "inputSchema": recall_input_schema(false)
         }),
         json!({
             "name": "assemble_context",
@@ -526,8 +559,19 @@ fn call_tool_recall(
         anyhow::bail!("query exceeds max allowed size ({} bytes)", MAX_QUERY_BYTES);
     }
     let (limit, include_scores) = {
-        let raw_limit = args.get("limit").and_then(JsonValue::as_u64).unwrap_or(10);
-        let limit = usize::try_from(raw_limit).context("limit must be a valid integer")?;
+        let limit = match args.get("limit") {
+            Some(value) => {
+                let raw_limit = value
+                    .as_u64()
+                    .context("limit must be an integer greater than or equal to 1")?;
+                let parsed = usize::try_from(raw_limit).context("limit must be a valid integer")?;
+                if parsed == 0 {
+                    anyhow::bail!("limit must be greater than or equal to 1");
+                }
+                parsed
+            }
+            None => 10,
+        };
         if limit > MAX_RECALL_LIMIT {
             anyhow::bail!("limit exceeds max allowed value ({MAX_RECALL_LIMIT})");
         }
@@ -580,7 +624,13 @@ fn call_tool_recall(
         // Text-only path preserves historical behavior.
     }
 
-    if let Some(max_scored_rows) = args.get("max_scored_rows").and_then(JsonValue::as_u64) {
+    if let Some(value) = args.get("max_scored_rows") {
+        let max_scored_rows = value
+            .as_u64()
+            .context("max_scored_rows must be an integer greater than or equal to 1")?;
+        if max_scored_rows == 0 {
+            anyhow::bail!("max_scored_rows must be greater than or equal to 1");
+        }
         opts = opts.with_max_scored_rows(
             max_scored_rows
                 .try_into()
@@ -864,6 +914,20 @@ mod tests {
         }
     }
 
+    fn get_tool_schema<'a>(tools: &'a [JsonValue], name: &str) -> &'a JsonValue {
+        tools
+            .iter()
+            .find(|tool| tool.get("name").and_then(JsonValue::as_str) == Some(name))
+            .expect("tool should be present")
+    }
+
+    fn get_recall_properties(tool: &JsonValue) -> &serde_json::Map<String, JsonValue> {
+        tool.get("inputSchema")
+            .and_then(|v| v.get("properties"))
+            .and_then(JsonValue::as_object)
+            .expect("recall tool schema properties should exist")
+    }
+
     #[test]
     fn remember_then_recall_returns_facts() {
         let mut state = temp_state();
@@ -1116,6 +1180,42 @@ mod tests {
     }
 
     #[test]
+    fn recall_rejects_invalid_limit_type() {
+        let mut state = temp_state();
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall",
+                "arguments": {
+                    "query": "alice",
+                    "limit": "10"
+                }
+            })),
+        )
+        .expect_err("expected limit type validation error")
+        .to_string();
+        assert!(err.contains("limit must be an integer"));
+    }
+
+    #[test]
+    fn recall_rejects_zero_limit() {
+        let mut state = temp_state();
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall",
+                "arguments": {
+                    "query": "alice",
+                    "limit": 0
+                }
+            })),
+        )
+        .expect_err("expected zero limit validation error")
+        .to_string();
+        assert!(err.contains("limit must be greater than or equal to 1"));
+    }
+
+    #[test]
     fn recall_rejects_embedding_values_outside_f32_range() {
         let mut state = temp_state();
         let err = call_tool(
@@ -1347,6 +1447,44 @@ mod tests {
                 .and_then(JsonValue::as_i64),
             Some(-32600)
         );
+    }
+
+    #[cfg(not(feature = "hybrid"))]
+    #[test]
+    fn tools_schema_omits_hybrid_fields_without_feature() {
+        let tools = tools_schema();
+        let recall = get_tool_schema(&tools, "recall");
+        let recall_props = get_recall_properties(recall);
+        assert!(
+            !recall_props.contains_key("query_embedding"),
+            "default build should not advertise query_embedding"
+        );
+        assert!(
+            !recall_props.contains_key("use_hybrid"),
+            "default build should not advertise use_hybrid"
+        );
+        assert!(
+            !recall_props.contains_key("temporal_intent"),
+            "default build should not advertise temporal_intent"
+        );
+        assert!(
+            !recall_props.contains_key("temporal_operator"),
+            "default build should not advertise temporal_operator"
+        );
+    }
+
+    #[cfg(not(feature = "uncertainty"))]
+    #[test]
+    fn tools_schema_omits_effective_confidence_mode_without_feature() {
+        let tools = tools_schema();
+        let recall_scored = get_tool_schema(&tools, "recall_scored");
+        let recall_props = get_recall_properties(recall_scored);
+        let modes = recall_props
+            .get("confidence_filter_mode")
+            .and_then(|v| v.get("enum"))
+            .and_then(JsonValue::as_array)
+            .expect("confidence_filter_mode enum");
+        assert_eq!(modes, &vec![json!("base")]);
     }
 
     #[test]
