@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120">
+  <circle cx="48" cy="38" r="16" fill="#5DE0E0"/>
+  <line x1="65" y1="38" x2="119" y2="38" stroke="#5DE0E0" stroke-width="3.5" stroke-linecap="round" opacity="0.45"/>
+  <circle cx="136" cy="38" r="14" fill="none" stroke="#C8F567" stroke-width="3.5"/>
+  <circle cx="136" cy="38" r="5" fill="#C8F567" opacity="0.6"/>
+  <circle cx="48" cy="82" r="16" fill="#F09060"/>
+  <line x1="65" y1="82" x2="119" y2="82" stroke="#F09060" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5" opacity="0.45"/>
+  <circle cx="136" cy="82" r="14" fill="none" stroke="#9B7EFF" stroke-width="3.5"/>
+  <circle cx="136" cy="82" r="5" fill="#9B7EFF" opacity="0.6"/>
+  <text x="172" y="72"
+    font-family="'Inter', 'DM Sans', 'Helvetica Neue', Arial, sans-serif"
+    font-size="44"
+    font-weight="600"
+    fill="#F0ECE4"
+    letter-spacing="-0.5">Kronroe</text>
+</svg>

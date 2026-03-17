@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- valid_from: filled aqua -->
+  <circle cx="22" cy="22" r="13" fill="#3EC9C9"/>
+  <!-- rail -->
+  <line x1="36" y1="22" x2="64" y2="22" stroke="#3EC9C9" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+  <!-- valid_to: hollow lime -->
+  <circle cx="78" cy="22" r="11" fill="none" stroke="#8BBF20" stroke-width="3"/>
+  <circle cx="78" cy="22" r="4" fill="#8BBF20" opacity="0.6"/>
+  <!-- recorded_from: filled copper -->
+  <circle cx="22" cy="78" r="13" fill="#E87D4A"/>
+  <!-- rail -->
+  <line x1="36" y1="78" x2="64" y2="78" stroke="#E87D4A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="7 4" opacity="0.45"/>
+  <!-- recorded_to: hollow violet -->
+  <circle cx="78" cy="78" r="11" fill="none" stroke="#7C5CFC" stroke-width="3"/>
+  <circle cx="78" cy="78" r="4" fill="#7C5CFC" opacity="0.6"/>
+</svg>
