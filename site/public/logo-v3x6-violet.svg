@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 25 180 105">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="24 28 152 88">
   <title>Kronroe Logo — Graph Triangle (dark)</title>
   <desc>Three-node graph for dark backgrounds. Equal nodes. Higher opacity edges.</desc>
   <line x1="44" y1="100" x2="156" y2="100" stroke="#7C5CFC" stroke-width="5" stroke-linecap="round" opacity="0.5"/>

@@ -173,7 +173,74 @@
       }
 
       .hero-inner {
-        max-width: 640px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 3.5rem;
+        align-items: center;
+      }
+
+      .hero-visual {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .hero-graph-card {
+        background: var(--surface);
+        border: 1.5px solid var(--border-hi);
+        border-radius: 16px;
+        padding: 1.5rem 1.25rem 1.25rem;
+        width: 100%;
+        max-width: 360px;
+        box-shadow: 0 2px 16px rgba(46, 33, 28, 0.07);
+      }
+
+      .hero-graph-svg {
+        width: 100%;
+        height: auto;
+        display: block;
+        margin-bottom: 1rem;
+      }
+
+      .hero-sample-facts {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .hero-sample-row {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.35rem 0.5rem;
+        background: var(--surface-2);
+        border-radius: 6px;
+        border: 1px solid var(--border);
+      }
+
+      .hero-sample-row.muted {
+        opacity: 0.45;
+      }
+
+      .hero-sample-time {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 0.58rem;
+        color: var(--text-dim);
+        white-space: nowrap;
+      }
+
+      .hero-sample-invalid {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 0.52rem;
+        padding: 0.05rem 0.28rem;
+        border-radius: 3px;
+        letter-spacing: 0.04em;
+        color: var(--orange);
+        border: 1px solid var(--orange-border);
+        background: var(--orange-bg);
+        white-space: nowrap;
       }
 
       .hero h1 {
@@ -280,11 +347,12 @@
 
       a.btn-ghost {
         background: transparent;
-        border: 1.5px solid rgba(46, 33, 28, 0.18);
-        color: var(--text-mid);
+        border: 1.5px solid rgba(46, 33, 28, 0.40);
+        color: var(--text);
       }
       a.btn-ghost:hover {
-        border-color: var(--text-mid);
+        border-color: var(--espresso);
+        background: rgba(46, 33, 28, 0.05);
         color: var(--text);
       }
 
@@ -485,8 +553,9 @@
         position: relative;
         z-index: 1;
         padding-top: 1rem;
-        border-top: 1px solid var(--border);
+        border-top: 2px solid var(--violet-border);
         margin-top: 1rem;
+        background: rgba(124, 92, 252, 0.03);
       }
 
       .playground-section-hdr {
@@ -1501,6 +1570,8 @@
         .diff-row { grid-template-columns: 1fr; }
 
         .hero { padding: 2rem 1.25rem 1.5rem; }
+        .hero-inner { grid-template-columns: 1fr; gap: 0; }
+        .hero-visual { display: none; }
         .explain { padding: 2rem 1.25rem; }
         .why { padding: 1.5rem 1.25rem; }
         .use-cases { padding: 1.5rem 1.25rem; }
@@ -1566,17 +1637,57 @@
     <!-- Hero -->
     <section class="hero">
       <div class="hero-inner">
-        <h1>Bi-<span class="temporal-accent">temporal</span> graph.<br><span class="lime">In your browser.</span></h1>
-        <p class="hero-explain">Track not just what's true — but when it became true, and when you recorded it. Query any point in time.</p>
-        <p class="sub">// Pure Rust → WebAssembly. No server. No network. No schema.</p>
-        <div class="hero-install">
-          <code class="install-cmd" title="Click to copy">pip install kronroe</code>
-          <span class="install-sep">or</span>
-          <code class="install-cmd" title="Click to copy">cargo add kronroe</code>
+        <div class="hero-text">
+          <h1>Bi-<span class="temporal-accent">temporal</span> graph.<br><span class="lime">In your browser.</span></h1>
+          <p class="hero-explain">Track not just what's true — but when it became true, and when you recorded it. Query any point in time.</p>
+          <p class="sub">// Pure Rust → WebAssembly. No server. No network. No schema.</p>
+          <div class="hero-install">
+            <code class="install-cmd" title="Click to copy">pip install kronroe</code>
+            <span class="install-sep">or</span>
+            <code class="install-cmd" title="Click to copy">cargo add kronroe</code>
+          </div>
+          <div class="hero-cta">
+            <a href="#playground" class="btn-primary hero-btn">Try the playground ↓</a>
+            <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener" class="btn-ghost hero-btn">View on GitHub</a>
+          </div>
         </div>
-        <div class="hero-cta">
-          <a href="#playground" class="btn-primary hero-btn">Try the playground ↓</a>
-          <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener" class="btn-ghost hero-btn">View on GitHub</a>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hero-graph-card">
+            <svg class="hero-graph-svg" xmlns="http://www.w3.org/2000/svg" viewBox="10 25 180 105">
+              <line x1="44" y1="100" x2="156" y2="100" stroke="#7C5CFC" stroke-width="5" stroke-linecap="round" opacity="0.35"/>
+              <line x1="44" y1="100" x2="100" y2="48" stroke="#7C5CFC" stroke-width="4" stroke-linecap="round" opacity="0.3"/>
+              <line x1="156" y1="100" x2="100" y2="48" stroke="#5A8A00" stroke-width="4" stroke-linecap="round" opacity="0.3"/>
+              <circle cx="44" cy="100" r="16" fill="#7C5CFC"/>
+              <circle cx="156" cy="100" r="16" fill="#5A8A00"/>
+              <circle cx="100" cy="48" r="16" fill="#C04800"/>
+            </svg>
+            <div class="hero-sample-facts">
+              <div class="hero-sample-row">
+                <span class="tag tag-s">alice</span>
+                <span class="sep">&middot;</span>
+                <span class="tag tag-p">works_at</span>
+                <span class="sep">&rarr;</span>
+                <span class="tag tag-o">@Acme</span>
+                <span class="hero-sample-time">2023-06 → now</span>
+              </div>
+              <div class="hero-sample-row muted">
+                <span class="tag tag-s">alice</span>
+                <span class="sep">&middot;</span>
+                <span class="tag tag-p">works_at</span>
+                <span class="sep">&rarr;</span>
+                <span class="tag tag-o">@Initech</span>
+                <span class="hero-sample-invalid">ended</span>
+              </div>
+              <div class="hero-sample-row">
+                <span class="tag tag-s">alice</span>
+                <span class="sep">&middot;</span>
+                <span class="tag tag-p">lives_in</span>
+                <span class="sep">&rarr;</span>
+                <span class="tag tag-o">London</span>
+                <span class="hero-sample-time">2019-03 → now</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
