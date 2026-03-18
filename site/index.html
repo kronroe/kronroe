@@ -115,7 +115,7 @@
       header {
         position: relative;
         z-index: 10;
-        height: 72px;
+        height: 80px;
         padding: 0 2.5rem;
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         display: flex;
@@ -133,7 +133,7 @@
       /* The inline SVG logo sits here — no img tag, no file loading */
       .logo svg {
         display: block;
-        height: 48px;
+        height: 64px;
         width: auto;
       }
 
@@ -155,7 +155,7 @@
         display: flex;
         gap: 2rem;
         font-family: var(--body);
-        font-size: 0.82rem;
+        font-size: 0.88rem;
         font-weight: var(--w-label);
       }
 
@@ -214,7 +214,7 @@
       .hero h1 { font-family: var(--body); font-size: clamp(1.8rem, 3.8vw, 2.9rem); font-weight: var(--w-heading); letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 0.7rem; }
       .hero h1 .lime { font-family: var(--hand); font-weight: 400; color: var(--violet); }
       .temporal-accent { color: var(--violet); text-decoration: underline; text-decoration-color: var(--violet); text-underline-offset: 3px; text-decoration-thickness: 2px; }
-      .hero-explain { font-family: var(--body); font-size: 1.05rem; font-weight: var(--w-body); color: var(--text); max-width: 540px; line-height: 1.5; margin-bottom: 0.5rem; }
+      .hero-explain { font-family: var(--body); font-size: 1.05rem; font-weight: var(--w-body); color: var(--text); max-width: 540px; line-height: 1.65; margin-bottom: 0.5rem; }
       .hero .sub { font-family: var(--mono); font-size: 0.75rem; color: var(--text-mid); line-height: 1.65; letter-spacing: 0.01em; max-width: 480px; }
       .hero-install { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem; }
       .install-cmd { font-family: var(--mono); font-size: 0.78rem; font-weight: 500; padding: 0.35rem 0.75rem; border-radius: 6px; background: var(--espresso); color: rgba(255,255,255,0.9); cursor: pointer; transition: background 0.15s; user-select: all; }
@@ -258,7 +258,7 @@
       .use-cases-inner { max-width: 900px; margin: 0 auto; }
       .use-case-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-top: 1.5rem; }
       .use-case-card { background: var(--surface); border: 1.5px solid var(--border-hi); border-radius: 12px; padding: 1.25rem; }
-      .use-case-icon { font-size: 1.4rem; margin-bottom: 0.6rem; opacity: 0.7; }
+      .use-case-icon { font-size: 2.2rem; margin-bottom: 0.6rem; opacity: 1; }
       .use-case-card h3 { font-family: var(--body); font-size: 0.92rem; font-weight: var(--w-heading); margin-bottom: 0.5rem; }
       .use-case-card p { font-family: var(--body); font-size: 0.78rem; color: var(--text-mid); line-height: 1.55; }
 
@@ -465,7 +465,8 @@
     <!-- Header with INLINE SVG logo — no external file, no img tag -->
     <header>
       <div class="logo">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" height="36" style="display:block;width:auto;" aria-label="Kronroe">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
+             height="64" style="display:block;width:auto;" aria-label="Kronroe">
           <!-- Valid timeline (solid rail) -->
           <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
           <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
@@ -476,9 +477,15 @@
           <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5"/>
           <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
           <circle cx="136" cy="82" r="5" fill="#7C5CFC"/>
-          <!-- Wordmark: Kron + roe, no gap -->
-          <text x="172" y="74" font-family="'Quicksand','Inter',system-ui,sans-serif" font-size="46" font-weight="700" fill="#FFFFFF">Kron</text>
-          <text x="268" y="74" font-family="'Quicksand','Inter',system-ui,sans-serif" font-size="46" font-weight="700" fill="#E87D4A">roe</text>
+          <!-- Wordmark — Quicksand 700, Kron white + roe copper, no gap -->
+          <text x="168" y="75"
+            font-family="'Quicksand',system-ui,sans-serif"
+            font-size="52" font-weight="700" letter-spacing="-1"
+            fill="#FFFFFF">Kron</text>
+          <text x="282" y="75"
+            font-family="'Quicksand',system-ui,sans-serif"
+            font-size="52" font-weight="700" letter-spacing="-1"
+            fill="#E87D4A">roe</text>
         </svg>
       </div>
       <div class="badge">WASM</div>
