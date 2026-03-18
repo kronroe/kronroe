@@ -116,7 +116,7 @@
         position: relative;
         z-index: 10;
         height: 80px;
-        padding: 0 2.5rem;
+        padding: 0 2.5rem 0 3rem;
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         display: flex;
         align-items: center;
@@ -139,10 +139,10 @@
 
       .badge {
         font-family: var(--mono);
-        font-size: 0.62rem;
+        font-size: 0.72rem;
         font-weight: 600;
         letter-spacing: 0.08em;
-        padding: 0.18rem 0.45rem;
+        padding: 0.25rem 0.55rem;
         border-radius: 4px;
         background: rgba(180, 92, 252, 0.15);
         border: 1px solid rgba(180, 92, 252, 0.30);
@@ -214,7 +214,15 @@
       .hero h1 { font-family: var(--body); font-size: clamp(1.8rem, 3.8vw, 2.9rem); font-weight: var(--w-heading); letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 0.7rem; }
       .hero h1 .lime { font-family: var(--hand); font-weight: 400; color: var(--violet); }
       .temporal-accent { color: var(--violet); text-decoration: underline; text-decoration-color: var(--violet); text-underline-offset: 3px; text-decoration-thickness: 2px; }
-      .hero-explain { font-family: var(--body); font-size: 1.05rem; font-weight: var(--w-body); color: var(--text); max-width: 540px; line-height: 1.65; margin-bottom: 0.5rem; }
+      .hero-explain {
+        font-family: var(--body);
+        font-size: 1.05rem;
+        font-weight: var(--w-body);
+        color: var(--text);
+        max-width: 540px;
+        line-height: 1.75;
+        margin-bottom: 1.25rem;
+      }
       .hero .sub { font-family: var(--mono); font-size: 0.75rem; color: var(--text-mid); line-height: 1.65; letter-spacing: 0.01em; max-width: 480px; }
       .hero-install { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem; }
       .install-cmd { font-family: var(--mono); font-size: 0.78rem; font-weight: 500; padding: 0.35rem 0.75rem; border-radius: 6px; background: var(--espresso); color: rgba(255,255,255,0.9); cursor: pointer; transition: background 0.15s; user-select: all; }
@@ -258,7 +266,12 @@
       .use-cases-inner { max-width: 900px; margin: 0 auto; }
       .use-case-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-top: 1.5rem; }
       .use-case-card { background: var(--surface); border: 1.5px solid var(--border-hi); border-radius: 12px; padding: 1.25rem; }
-      .use-case-icon { font-size: 2.2rem; margin-bottom: 0.6rem; opacity: 1; }
+      .use-case-icon {
+        font-size: 2.8rem;
+        margin-bottom: 0.75rem;
+        opacity: 1;
+        line-height: 1;
+      }
       .use-case-card h3 { font-family: var(--body); font-size: 0.92rem; font-weight: var(--w-heading); margin-bottom: 0.5rem; }
       .use-case-card p { font-family: var(--body); font-size: 0.78rem; color: var(--text-mid); line-height: 1.55; }
 
@@ -610,17 +623,42 @@
         <h2 class="section-title" id="heading-use-cases">Built for</h2>
         <div class="use-case-grid">
           <div class="use-case-card">
-            <div class="use-case-icon" style="color:var(--violet);">◈</div>
+            <div class="use-case-icon">
+              <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="22" cy="22" r="20" stroke="#7C5CFC" stroke-width="2"/>
+                <circle cx="22" cy="22" r="8" fill="#7C5CFC" fill-opacity="0.2" stroke="#7C5CFC" stroke-width="1.5"/>
+                <line x1="22" y1="2" x2="22" y2="14" stroke="#7C5CFC" stroke-width="2" stroke-linecap="round"/>
+                <line x1="22" y1="30" x2="22" y2="42" stroke="#7C5CFC" stroke-width="2" stroke-linecap="round"/>
+                <line x1="2" y1="22" x2="14" y2="22" stroke="#7C5CFC" stroke-width="2" stroke-linecap="round"/>
+                <line x1="30" y1="22" x2="42" y2="22" stroke="#7C5CFC" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
             <h3>AI agent memory</h3>
             <p>Give your agents persistent memory that tracks how knowledge evolves. No server, no LLM calls for storage — just assert facts and query any point in time.</p>
           </div>
           <div class="use-case-card">
-            <div class="use-case-icon" style="color:var(--orange);">◈</div>
+            <div class="use-case-icon">
+              <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="12" y="2" width="20" height="40" rx="4" stroke="#C04800" stroke-width="2"/>
+                <line x1="12" y1="34" x2="32" y2="34" stroke="#C04800" stroke-width="1.5"/>
+                <circle cx="22" cy="38.5" r="1.5" fill="#C04800"/>
+                <line x1="18" y1="7" x2="26" y2="7" stroke="#C04800" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
             <h3>Mobile and edge apps</h3>
             <p>Full relationship graph on iOS and Android with zero network latency. Compiles to a native library under 6 MB. Privacy-first — data never leaves the device.</p>
           </div>
           <div class="use-case-card">
-            <div class="use-case-icon" style="color:var(--lime);">◈</div>
+            <div class="use-case-icon">
+              <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="8" width="40" height="28" rx="4" stroke="#5A8A00" stroke-width="2"/>
+                <circle cx="12" cy="22" r="4" fill="#5A8A00" fill-opacity="0.2" stroke="#5A8A00" stroke-width="1.5"/>
+                <circle cx="22" cy="22" r="4" fill="#5A8A00" fill-opacity="0.2" stroke="#5A8A00" stroke-width="1.5"/>
+                <circle cx="32" cy="22" r="4" fill="#5A8A00" fill-opacity="0.2" stroke="#5A8A00" stroke-width="1.5"/>
+                <line x1="16" y1="22" x2="18" y2="22" stroke="#5A8A00" stroke-width="1.5"/>
+                <line x1="26" y1="22" x2="28" y2="22" stroke="#5A8A00" stroke-width="1.5"/>
+              </svg>
+            </div>
             <h3>MCP tool memory</h3>
             <p>Drop-in memory for Claude Desktop, Cursor, and any MCP client. Eight tools out of the box — remember, recall, assert, correct, invalidate, and more.</p>
           </div>
