@@ -1,42 +1,41 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Kronroe Logo — Master SVG
-  Four timestamps · Two timelines · Hollow rings encoding
-
-  Colour meaning:
-  ● Aqua   (#3EC9C9) = valid_from   — truth begins in the world
-  ○ Lime   (#8BBF20) = valid_to     — truth ends / open (hollow ring)
-  ● Copper (#E87D4A) = recorded_from — pen touches paper
-  ○ Violet (#7C5CFC) = recorded_to  — record closes (hollow ring)
-
-  Rail meaning:
-  —— solid  = valid time (world truth)
-  - - dashed = recorded time (database record)
+  Kronroe Logo — Master (light/cream backgrounds) — FINAL CORRECT VERSION
+  
+  Mark:      Two rails · four nodes · hollow rings for "to" timestamps
+  Wordmark:  Kron (near-black #1A1612) + roe (copper #E87D4A) · no space · TWO SEPARATE <text> elements
+  
+  TECHNICAL NOTES:
+  - NO opacity attributes anywhere — opacity breaks when SVG loaded via <img> tag
+  - TWO separate <text> elements NOT <tspan>
+  - Colour meaning:
+    ● Aqua   #3EC9C9  valid_from
+    ○ Lime   #8BBF20  valid_to     (hollow ring)
+    ● Copper #E87D4A  recorded_from
+    ○ Violet #7C5CFC  recorded_to  (hollow ring)
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120">
-  <!-- Valid timeline rail (solid) -->
-  <!-- valid_from: filled aqua -->
-  <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
-  <!-- rail -->
-  <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round" opacity="0.45"/>
-  <!-- valid_to: hollow lime ring with centre dot -->
-  <circle cx="136" cy="38" r="14" fill="none" stroke="#8BBF20" stroke-width="3.5"/>
-  <circle cx="136" cy="38" r="5" fill="#8BBF20" opacity="0.6"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" width="420" height="100">
 
-  <!-- Recorded timeline rail (dashed) -->
-  <!-- recorded_from: filled copper -->
-  <circle cx="48" cy="82" r="16" fill="#E87D4A"/>
-  <!-- rail -->
-  <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5" opacity="0.45"/>
-  <!-- recorded_to: hollow violet ring with centre dot -->
-  <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
-  <circle cx="136" cy="82" r="5" fill="#7C5CFC" opacity="0.6"/>
+  <!-- Valid timeline (solid rail) -->
+  <circle cx="40" cy="30" r="14" fill="#3EC9C9"/>
+  <line x1="55" y1="30" x2="97" y2="30" stroke="#3EC9C9" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="112" cy="30" r="12" fill="none" stroke="#8BBF20" stroke-width="3"/>
+  <circle cx="112" cy="30" r="4.5" fill="#8BBF20"/>
 
-  <!-- Wordmark -->
-  <text x="172" y="72"
-    font-family="'Inter', 'DM Sans', 'Helvetica Neue', Arial, sans-serif"
-    font-size="44"
-    font-weight="600"
-    fill="#1A1612"
-    letter-spacing="-0.5">Kronroe</text>
+  <!-- Recorded timeline (dashed rail) -->
+  <circle cx="40" cy="70" r="14" fill="#E87D4A"/>
+  <line x1="55" y1="70" x2="97" y2="70" stroke="#E87D4A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="8 4"/>
+  <circle cx="112" cy="70" r="12" fill="none" stroke="#7C5CFC" stroke-width="3"/>
+  <circle cx="112" cy="70" r="4.5" fill="#7C5CFC"/>
+
+  <!-- Wordmark: TWO separate <text> elements — NOT tspan -->
+  <text x="138" y="65"
+    font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif"
+    font-size="42" font-weight="600" letter-spacing="-0.8"
+    fill="#1A1612">Kron</text>
+  <text x="228" y="65"
+    font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif"
+    font-size="42" font-weight="600" letter-spacing="-0.8"
+    fill="#E87D4A">roe</text>
+
 </svg>
