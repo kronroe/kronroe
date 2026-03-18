@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://kronroe.dev/sitemap.xml
