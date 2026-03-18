@@ -166,7 +166,7 @@
         align-items: center;
       }
 
-      .logo img {
+      .logo img, .logo svg {
         display: block;
         height: 44px;
         width: auto;
@@ -1666,12 +1666,20 @@
     <!-- Header -->
     <header>
       <div class="logo">
-        <img
-          src="/kronroe-logo-master-dark.svg"
-          alt="Kronroe"
-          height="44"
-          style="display:block; width:auto;"
-        >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
+             height="44" style="display:block;width:auto;"
+             aria-label="Kronroe">
+          <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
+          <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="136" cy="38" r="14" fill="none" stroke="#8BBF20" stroke-width="3.5"/>
+          <circle cx="136" cy="38" r="5" fill="#8BBF20"/>
+          <circle cx="48" cy="82" r="16" fill="#E87D4A"/>
+          <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5"/>
+          <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
+          <circle cx="136" cy="82" r="5" fill="#7C5CFC"/>
+          <text x="172" y="72" font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif" font-size="44" font-weight="700" letter-spacing="-0.8" fill="#F0ECE4">Kron</text>
+          <text x="284" y="72" font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif" font-size="44" font-weight="700" letter-spacing="-0.8" fill="#E87D4A">roe</text>
+        </svg>
       </div>
       <div class="badge">WASM</div>
       <nav class="header-nav">
