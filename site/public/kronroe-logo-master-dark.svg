@@ -1,41 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Kronroe Logo — Master (dark backgrounds) — FINAL CORRECT VERSION
-  
-  Mark:      Two rails · four nodes · hollow rings for "to" timestamps
-  Wordmark:  Kron (cream #F0ECE4) + roe (copper #F09060) · no space · TWO SEPARATE <text> elements
-  
-  TECHNICAL NOTES:
-  - NO opacity attributes anywhere — opacity breaks when SVG loaded via <img> tag
-  - TWO separate <text> elements NOT <tspan> — tspan fill inheritance breaks in <img> loaded SVGs
-  - Colour meaning:
-    ● Aqua   #5DE0E0  valid_from   — truth begins in the world (filled)
-    ○ Lime   #C8F567  valid_to     — truth ends / open (hollow ring)
-    ● Copper #F09060  recorded_from — pen touches paper (filled)
-    ○ Violet #9B7EFF  recorded_to  — record closes (hollow ring)
+  Kronroe Logo — Master (dark backgrounds) — NAV FINAL
+  ViewBox: 0 0 280 44  (matches rendered height exactly)
+  Designed for height="44" in a 68px header.
+  NO opacity. TWO separate text elements.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" width="420" height="100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 44" width="280" height="44">
 
-  <!-- Valid timeline (solid rail) -->
-  <circle cx="40" cy="30" r="14" fill="#5DE0E0"/>
-  <line x1="55" y1="30" x2="97" y2="30" stroke="#5DE0E0" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="112" cy="30" r="12" fill="none" stroke="#C8F567" stroke-width="3"/>
-  <circle cx="112" cy="30" r="4.5" fill="#C8F567"/>
+  <!-- Valid timeline top rail y=13 -->
+  <circle cx="13" cy="13" r="11" fill="#5DE0E0"/>
+  <line x1="25" y1="13" x2="61" y2="13" stroke="#5DE0E0" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="73" cy="13" r="10" fill="none" stroke="#C8F567" stroke-width="3"/>
+  <circle cx="73" cy="13" r="3.8" fill="#C8F567"/>
 
-  <!-- Recorded timeline (dashed rail) -->
-  <circle cx="40" cy="70" r="14" fill="#F09060"/>
-  <line x1="55" y1="70" x2="97" y2="70" stroke="#F09060" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="8 4"/>
-  <circle cx="112" cy="70" r="12" fill="none" stroke="#9B7EFF" stroke-width="3"/>
-  <circle cx="112" cy="70" r="4.5" fill="#9B7EFF"/>
+  <!-- Recorded timeline bottom rail y=31 -->
+  <circle cx="13" cy="31" r="11" fill="#F09060"/>
+  <line x1="25" y1="31" x2="61" y2="31" stroke="#F09060" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="7 3.5"/>
+  <circle cx="73" cy="31" r="10" fill="none" stroke="#9B7EFF" stroke-width="3"/>
+  <circle cx="73" cy="31" r="3.8" fill="#9B7EFF"/>
 
-  <!-- Wordmark: TWO separate <text> elements — NOT tspan — so fill works in <img> -->
-  <text x="138" y="65"
+  <!-- Wordmark — vertically centred between rail centres (13+31)/2 = 22, text baseline ~28 -->
+  <text x="92" y="30"
     font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif"
-    font-size="42" font-weight="600" letter-spacing="-0.8"
+    font-size="24" font-weight="600" letter-spacing="-0.5"
     fill="#F0ECE4">Kron</text>
-  <text x="228" y="65"
+  <text x="156" y="30"
     font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif"
-    font-size="42" font-weight="600" letter-spacing="-0.8"
+    font-size="24" font-weight="600" letter-spacing="-0.5"
     fill="#F09060">roe</text>
 
 </svg>
