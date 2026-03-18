@@ -1,32 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Kronroe Logo — Master (dark backgrounds) — NAV FINAL
-  ViewBox: 0 0 280 44  (matches rendered height exactly)
-  Designed for height="44" in a 68px header.
-  NO opacity. TWO separate text elements.
+  Kronroe Logo — Master dark — FIXED
+  Rendered: 240x44px  ViewBox: 0 0 240 44
+  Header: 68px tall. Logo sits centred vertically.
+  TWO text elements, NO opacity.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 44" width="280" height="44">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 44" width="240" height="44">
 
-  <!-- Valid timeline top rail y=13 -->
+  <!-- Valid timeline — top rail, centre y=13 -->
   <circle cx="13" cy="13" r="11" fill="#5DE0E0"/>
-  <line x1="25" y1="13" x2="61" y2="13" stroke="#5DE0E0" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="73" cy="13" r="10" fill="none" stroke="#C8F567" stroke-width="3"/>
-  <circle cx="73" cy="13" r="3.8" fill="#C8F567"/>
+  <line x1="25" y1="13" x2="57" y2="13" stroke="#5DE0E0" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="68" cy="13" r="9" fill="none" stroke="#C8F567" stroke-width="2.5"/>
+  <circle cx="68" cy="13" r="3.5" fill="#C8F567"/>
 
-  <!-- Recorded timeline bottom rail y=31 -->
+  <!-- Recorded timeline — bottom rail, centre y=31 -->
   <circle cx="13" cy="31" r="11" fill="#F09060"/>
-  <line x1="25" y1="31" x2="61" y2="31" stroke="#F09060" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="7 3.5"/>
-  <circle cx="73" cy="31" r="10" fill="none" stroke="#9B7EFF" stroke-width="3"/>
-  <circle cx="73" cy="31" r="3.8" fill="#9B7EFF"/>
+  <line x1="25" y1="31" x2="57" y2="31" stroke="#F09060" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="6 3"/>
+  <circle cx="68" cy="31" r="9" fill="none" stroke="#9B7EFF" stroke-width="2.5"/>
+  <circle cx="68" cy="31" r="3.5" fill="#9B7EFF"/>
 
-  <!-- Wordmark — vertically centred between rail centres (13+31)/2 = 22, text baseline ~28 -->
-  <text x="92" y="30"
+  <!-- Wordmark — baseline y=30, "Kron" starts x=86 -->
+  <!-- "Kron" at Inter 600 24px ≈ 58px wide, so "roe" starts at x=144 -->
+  <text x="86" y="30"
     font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif"
-    font-size="24" font-weight="600" letter-spacing="-0.5"
+    font-size="24" font-weight="700" letter-spacing="-0.3"
     fill="#F0ECE4">Kron</text>
-  <text x="156" y="30"
+  <text x="143" y="30"
     font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif"
-    font-size="24" font-weight="600" letter-spacing="-0.5"
+    font-size="24" font-weight="700" letter-spacing="-0.3"
     fill="#F09060">roe</text>
 
 </svg>
