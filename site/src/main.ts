@@ -1,6 +1,9 @@
 // Kronroe WASM Playground
 // Interfaces with the kronroe-wasm crate's WasmGraph export.
 
+import './animations';
+import './hero-graph';
+
 // ── WASM types ──────────────────────────────────────────────────────────────
 
 type WasmModule = {

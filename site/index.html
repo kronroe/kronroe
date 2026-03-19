@@ -2,10 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QC2EK11KHY"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-QC2EK11KHY');
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Track not just what's true — but when it became true, and when you recorded it. Kronroe is an embedded bi-temporal property graph database. Pure Rust, zero server, runs in your browser via WebAssembly." />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#0A0806" />
+    <meta name="theme-color" content="#2A1D12" />
     <link rel="canonical" href="https://kronroe.dev/" />
     <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
     <!-- Open Graph -->
@@ -66,13 +74,30 @@
         font-display: swap;
       }
 
+      /* ── Animatable CSS custom properties ── */
+      @property --pill-angle {
+        syntax: '<angle>';
+        initial-value: 0deg;
+        inherits: false;
+      }
+      @property --card-beam-angle {
+        syntax: '<angle>';
+        initial-value: 0deg;
+        inherits: false;
+      }
+      @property --win-beam-angle {
+        syntax: '<angle>';
+        initial-value: 0deg;
+        inherits: false;
+      }
+
       :root {
         --bg:         #FBF8F2;
         --surface:    #FFFFFF;
         --surface-2:  #F7F3ED;
-        --border:     rgba(46, 33, 28, 0.10);
-        --border-hi:  rgba(46, 33, 28, 0.18);
-        --espresso:       #2E211C;
+        --border:     rgba(26, 21, 16, 0.10);
+        --border-hi:  rgba(26, 21, 16, 0.18);
+        --espresso:       #2A1D12;
         --violet:         #7C5CFC;
         --violet-bg:      rgba(124, 92, 252, 0.08);
         --violet-border:  rgba(124, 92, 252, 0.22);
@@ -89,9 +114,9 @@
         --orange:         #C04800;
         --orange-bg:      rgba(192, 72, 0, 0.08);
         --orange-border:  rgba(192, 72, 0, 0.20);
-        --text:     #2E211C;
-        --text-mid: rgba(46, 33, 28, 0.52);
-        --text-dim: rgba(46, 33, 28, 0.36);
+        --text:     #2A1D12;
+        --text-mid: rgba(26, 21, 16, 0.52);
+        --text-dim: rgba(26, 21, 16, 0.36);
         --green: #2E7D4F;
         --red:   #C53030;
         --body:    "Quicksand", system-ui, sans-serif;
@@ -136,7 +161,7 @@
       body::before {
         content: "";
         position: fixed; inset: 0;
-        background-image: radial-gradient(circle, rgba(46, 33, 28, 0.07) 1px, transparent 1px);
+        background-image: radial-gradient(circle, rgba(26, 21, 16, 0.07) 1px, transparent 1px);
         background-size: 34px 34px;
         pointer-events: none; z-index: 0;
       }
@@ -151,7 +176,7 @@
         display: flex;
         align-items: center;
         gap: 1rem;
-        background: #0A0806;
+        background: #2A1D12;
       }
 
       .logo {
@@ -160,7 +185,6 @@
         flex-shrink: 0;
       }
 
-      /* The inline SVG logo sits here — no img tag, no file loading */
       .logo svg {
         display: block;
         height: 64px;
@@ -201,22 +225,44 @@
         border-radius: 3px;
       }
 
-      /* ── Hero section ── */
+      /* ── Hero section — split: cream text left / dark graph right ── */
       .hero {
-        position: relative; z-index: 1;
-        max-width: 1280px; width: 100%;
-        margin: 0 auto;
-        padding: 3rem 2.5rem 2rem;
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        background: var(--bg);
+        background-image: radial-gradient(circle, rgba(124, 92, 252, 0.17) 1.2px, transparent 1.2px);
+        background-size: 28px 28px;
+        overflow: hidden; /* prevent canvas scroll bleed */
       }
 
       .hero-inner {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 3.5rem;
-        align-items: center;
+        gap: 0;
+        align-items: stretch;
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        min-height: 520px;
       }
 
-      .hero-visual { display: flex; justify-content: center; align-items: center; }
+      /* Left text column — responsive padding keeps content within the 1280px grid */
+      .hero-text {
+        padding: 3.5rem max(2rem, 3vw) 3rem max(2.5rem, calc((100vw - 1280px) / 2 + 2.5rem));
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      /* Right panel — full-bleed dark, no card wrapper */
+      .hero-visual {
+        background: #2A1D12;
+        border-left: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
 
       .hero-graph-card {
         background: var(--surface);
@@ -224,48 +270,188 @@
         border-radius: 16px;
         padding: 1.5rem 1.25rem 1.25rem;
         width: 100%; max-width: 360px;
-        box-shadow: 0 2px 16px rgba(46, 33, 28, 0.07);
+        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+        color: var(--text); /* reset from hero dark */
       }
 
-      .hero-graph-svg { width: 100%; height: auto; display: block; margin-bottom: 1rem; }
-
-      .hero-sample-facts { display: flex; flex-direction: column; gap: 0.35rem; }
-
-      .hero-sample-row {
-        display: flex; align-items: center; gap: 0.3rem;
-        padding: 0.35rem 0.5rem;
-        background: var(--surface-2);
-        border-radius: 6px; border: 1px solid var(--border);
-      }
-      .hero-sample-row.muted { opacity: 0.45; }
-      .hero-sample-time { margin-left: auto; font-family: var(--mono); font-size: 0.58rem; color: var(--text-dim); white-space: nowrap; }
-      .hero-sample-invalid { margin-left: auto; font-family: var(--mono); font-size: 0.52rem; padding: 0.05rem 0.28rem; border-radius: 3px; letter-spacing: 0.04em; color: var(--orange); border: 1px solid var(--orange-border); background: var(--orange-bg); white-space: nowrap; }
-
-      .hero h1 { font-family: var(--body); font-size: clamp(1.8rem, 3.8vw, 2.9rem); font-weight: var(--w-heading); letter-spacing: -0.02em; line-height: 1.22; margin-bottom: 1.4rem; }
+      .hero h1 { font-family: var(--body); font-size: clamp(1.8rem, 3.8vw, 2.9rem); font-weight: var(--w-heading); letter-spacing: -0.02em; line-height: 1.22; margin-bottom: 1.4rem; color: var(--text); }
       .hero h1 .lime { font-family: var(--hand); font-weight: 400; color: var(--violet); }
       .temporal-accent { color: var(--violet); text-decoration: underline; text-decoration-color: var(--violet); text-underline-offset: 3px; text-decoration-thickness: 2px; }
+      .temporal-shiny {
+        position: relative;
+        display: inline-block; /* required: inline-block creates block formatting context so overflow:hidden clips ::after */
+        overflow: hidden;
+      }
+      .temporal-shiny::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 60%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          rgba(163, 137, 253, 0.55) 50%,
+          transparent 100%
+        );
+        animation: shiny-sweep 4s ease-in-out infinite;
+        animation-delay: 1.5s;
+      }
+      @keyframes shiny-sweep {
+        0% { left: -100%; }
+        40%, 100% { left: 200%; }
+      }
+
+      /* ── Announce pill — ANIMATED GRADIENT BORDER ── */
+      .announce-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.3rem 0.75rem 0.3rem 0.5rem;
+        border-radius: 100px;
+        background:
+          rgba(124, 92, 252, 0.12) padding-box,
+          conic-gradient(from var(--pill-angle),
+            rgba(124,92,252,0.15) 0%,
+            #7C5CFC 25%,
+            #B45CFC 48%,
+            rgba(180,92,252,0.15) 65%,
+            rgba(124,92,252,0.15) 100%
+          ) border-box;
+        border: 1px solid transparent;
+        color: #a389fd;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        text-decoration: none;
+        margin-bottom: 1.25rem;
+        width: fit-content;
+        animation: pill-border-spin 3s linear infinite;
+        transition: background 0.2s;
+      }
+      .announce-pill:hover {
+        background:
+          rgba(124, 92, 252, 0.18) padding-box,
+          conic-gradient(from var(--pill-angle),
+            rgba(124,92,252,0.25) 0%,
+            #7C5CFC 25%,
+            #B45CFC 48%,
+            rgba(180,92,252,0.25) 65%,
+            rgba(124,92,252,0.25) 100%
+          ) border-box;
+      }
+      @keyframes pill-border-spin {
+        to { --pill-angle: 360deg; }
+      }
+      .announce-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #a389fd;
+        animation: pulse-dot 2s ease-in-out infinite;
+        flex-shrink: 0;
+      }
+      @keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.75); }
+      }
+
+      /* Canvas fills the full dark right panel */
+      #hero-3d-graph {
+        width: 100%;
+        flex: 1;
+        display: block;
+        min-height: 380px;
+      }
+
       .hero-explain {
         font-family: var(--body);
         font-size: 1.05rem;
         font-weight: var(--w-body);
-        color: var(--text);
+        color: var(--text-mid);
         max-width: 540px;
         line-height: 1.75;
         margin-top: 0.5rem;
         margin-bottom: 1.25rem;
       }
-      .hero .sub { font-family: var(--mono); font-size: 0.75rem; color: var(--text-mid); line-height: 1.65; letter-spacing: 0.01em; max-width: 480px; }
+      .hero .sub { font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); line-height: 1.65; letter-spacing: 0.01em; max-width: 480px; }
       .hero-install { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem; }
       .install-cmd { font-family: var(--mono); font-size: 0.78rem; font-weight: 500; padding: 0.35rem 0.75rem; border-radius: 6px; background: var(--espresso); color: rgba(255,255,255,0.9); cursor: pointer; transition: background 0.15s; user-select: all; }
-      .install-cmd:hover { background: #3d2e27; }
+      .install-cmd:hover { background: #2A1D12; }
       .install-cmd[data-copied="1"] { background: var(--green); }
       .install-sep { font-family: var(--hand); font-size: 0.85rem; color: var(--text-dim); }
       .hero-cta { display: flex; gap: 0.75rem; margin-top: 1.25rem; }
       .hero-btn { display: inline-flex; align-items: center; text-decoration: none; padding: 0.55rem 1.25rem; font-size: 0.85rem; border-radius: 8px; font-family: var(--body); font-weight: var(--w-label); transition: all 0.1s; }
       a.btn-primary { background: var(--violet); color: #fff; border: 1.5px solid var(--espresso); }
       a.btn-primary:hover { background: #8d6ffd; }
-      a.btn-ghost { background: transparent; border: 1.5px solid rgba(46,33,28,0.40); color: var(--text); }
-      a.btn-ghost:hover { border-color: var(--espresso); background: rgba(46,33,28,0.05); color: var(--text); }
+      a.btn-ghost { background: transparent; border: 1.5px solid rgba(26,21,16,0.40); color: var(--text); }
+      a.btn-ghost:hover { border-color: var(--espresso); background: rgba(26,21,16,0.05); color: var(--text); }
+
+      /* ── Scroll reveals — progressive enhancement ── */
+      /* Elements are visible by default. The JS adds `animations-ready` to <html>
+         which opts them into the fade-up transition. This prevents blank page if
+         the script is delayed or blocked by CSP. */
+      .animations-ready .reveal-on-scroll {
+        opacity: 0;
+        transform: translateY(28px);
+        transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .animations-ready .reveal-on-scroll.revealed {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* ── Trust marquee strip ── */
+      .trust-strip {
+        width: 100%;
+        background: #2A1D12;
+        border-top: 1px solid rgba(255,255,255,0.06);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        padding: 0.7rem 0;
+        overflow: hidden;
+        position: relative;
+      }
+      /* Fade edges */
+      .trust-strip::before,
+      .trust-strip::after {
+        content: '';
+        position: absolute;
+        top: 0; bottom: 0;
+        width: 6rem;
+        z-index: 2;
+        pointer-events: none;
+      }
+      .trust-strip::before { left: 0;  background: linear-gradient(to right, #2A1D12, transparent); }
+      .trust-strip::after  { right: 0; background: linear-gradient(to left,  #2A1D12, transparent); }
+      .trust-track {
+        display: flex;
+        width: max-content;
+        animation: trust-scroll 32s linear infinite;
+      }
+      .trust-track:hover { animation-play-state: paused; }
+      @keyframes trust-scroll {
+        from { transform: translateX(0); }
+        to   { transform: translateX(-50%); }
+      }
+      .trust-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0 1.75rem;
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        color: rgba(255,255,255,0.36);
+        white-space: nowrap;
+        letter-spacing: 0.04em;
+      }
+      .trust-dot {
+        width: 3px; height: 3px;
+        border-radius: 50%;
+        background: rgba(124,92,252,0.55);
+        flex-shrink: 0;
+      }
 
       /* ── Explain section ── */
       .explain { position: relative; z-index: 1; max-width: 1280px; width: 100%; margin: 0 auto; padding: 2.5rem 2.5rem; }
@@ -281,22 +467,324 @@
       .explain-card-body p { font-family: var(--body); font-size: 0.82rem; color: var(--text-mid); line-height: 1.55; }
       .ts-inline { color: var(--violet); font-size: 0.65rem; }
 
+      /* ── Temporal lifecycle stepper ── */
+      .temporal-steps {
+        margin-top: 2.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        position: relative;
+      }
+      .temporal-steps-label {
+        font-family: var(--hand);
+        font-size: 0.8rem;
+        color: var(--text-dim);
+        text-align: center;
+        margin-bottom: 1.5rem;
+        letter-spacing: 0.06em;
+      }
+      .temporal-step {
+        display: grid;
+        grid-template-columns: 2.25rem 1fr;
+        gap: 1rem;
+        align-items: start;
+        position: relative;
+      }
+      /* Vertical connector between steps */
+      .temporal-step:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        left: 1.05rem;
+        top: 2.25rem;
+        width: 2px;
+        height: calc(100% + 0.65rem);
+        background: linear-gradient(to bottom, var(--violet-border), transparent);
+      }
+      .step-badge {
+        width: 2.25rem;
+        height: 2.25rem;
+        border-radius: 50%;
+        background: var(--violet-bg);
+        border: 1.5px solid var(--violet-border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--violet);
+        flex-shrink: 0;
+        position: relative;
+        z-index: 1;
+      }
+      .step-body {
+        background: var(--surface);
+        border: 1.5px solid var(--border-hi);
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 0.65rem;
+      }
+      .step-verb {
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+        color: var(--violet);
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+        text-transform: uppercase;
+      }
+      .step-code {
+        display: block;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        background: var(--surface-2);
+        padding: 0.45rem 0.65rem;
+        border-radius: 6px;
+        margin-bottom: 0.5rem;
+        line-height: 1.55;
+        color: var(--text);
+        word-break: break-all;
+      }
+      .step-note {
+        font-family: var(--body);
+        font-size: 0.78rem;
+        color: var(--text-mid);
+        line-height: 1.5;
+        margin: 0;
+      }
+      .step-note .ts { color: var(--violet); font-family: var(--mono); font-size: 0.68rem; }
+      @media (max-width: 540px) {
+        .temporal-steps { margin-top: 2rem; }
+        .step-code { font-size: 0.65rem; }
+      }
+
       /* ── Why section ── */
       .why { position: relative; z-index: 1; max-width: 1280px; width: 100%; margin: 0 auto; padding: 2rem 2.5rem 2.5rem; }
-      .why-inner { max-width: 860px; margin: 0 auto; }
-      .comparison-table-wrap { overflow-x: auto; border: 1.5px solid var(--border-hi); border-radius: 12px; background: var(--surface); }
-      .comparison-table { width: 100%; border-collapse: collapse; font-family: var(--body); font-size: 0.78rem; }
-      .comparison-table th { font-weight: var(--w-label); padding: 0.7rem 0.75rem; text-align: left; border-bottom: 1.5px solid var(--border-hi); color: var(--text-mid); font-size: 0.72rem; letter-spacing: 0.02em; }
-      .comparison-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-mid); }
-      .comparison-table tr:last-child td { border-bottom: none; }
-      .comparison-table .col-kronroe { color: var(--violet); font-weight: var(--w-label); background: var(--violet-bg); }
-      .comparison-table th.col-kronroe { color: var(--violet); background: var(--violet-bg); }
+      .why-inner { max-width: 900px; margin: 0 auto; }
+
+      /* ── Bento Grid (replaces comparison table) ── */
+      .bento-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.875rem;
+        margin-top: 1.5rem;
+      }
+      .bento-tile {
+        background: var(--surface);
+        border: 1.5px solid var(--border-hi);
+        border-radius: 14px;
+        padding: 1.3rem 1.3rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        position: relative;
+        overflow: hidden;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
+      }
+      .bento-tile:hover { box-shadow: 0 4px 24px rgba(26,21,16,0.07); }
+      .bento-tile--wide { grid-column: 1 / 3; }
+      .bento-tile--violet { border-color: var(--violet-border); background: var(--violet-bg); }
+      .bento-tile--orange { border-color: var(--orange-border); background: var(--orange-bg); }
+      .bento-tile--rose   { border-color: var(--rose-border);   background: var(--rose-bg); }
+      .bento-tile--lime   { border-color: var(--lime-border);   background: var(--lime-bg); }
+      .bento-eyebrow {
+        font-family: var(--mono);
+        font-size: 0.58rem;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+      .bento-tile--violet .bento-eyebrow { color: var(--violet); }
+      .bento-tile--orange .bento-eyebrow { color: var(--orange); }
+      .bento-tile--rose   .bento-eyebrow { color: var(--rose-text); }
+      .bento-tile--lime   .bento-eyebrow { color: var(--lime); }
+      .bento-title {
+        font-family: var(--body);
+        font-size: 0.97rem;
+        font-weight: var(--w-heading);
+        color: var(--text);
+        line-height: 1.3;
+        margin-bottom: 0.15rem;
+      }
+      .bento-body {
+        font-family: var(--body);
+        font-size: 0.78rem;
+        color: var(--text-mid);
+        line-height: 1.62;
+        flex: 1;
+      }
+      .bento-vs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.28rem;
+        margin-top: 0.5rem;
+      }
+      .bento-vs-item {
+        font-family: var(--mono);
+        font-size: 0.56rem;
+        padding: 0.1rem 0.38rem;
+        border-radius: 3px;
+        border: 1px solid var(--border);
+        white-space: nowrap;
+      }
+      .bento-vs--no      { color: var(--red);    border-color: rgba(197,48,48,0.22);  background: rgba(197,48,48,0.06); }
+      .bento-vs--partial { color: var(--orange); border-color: var(--orange-border);  background: var(--orange-bg); }
+      .bento-vs--ok      { color: var(--green);  border-color: rgba(46,125,79,0.22);  background: rgba(46,125,79,0.06); }
+      .bento-platform-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.28rem;
+        margin-top: 0.4rem;
+      }
+      .bento-badge {
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        font-weight: 600;
+        padding: 0.12rem 0.42rem;
+        border-radius: 4px;
+        background: var(--rose-bg);
+        border: 1px solid var(--rose-border);
+        color: var(--rose-text);
+      }
+      /* Timeline mini-visual inside the wide tile */
+      .bento-timeline {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        margin: 0.6rem 0 0.2rem;
+      }
+      .bento-timeline-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .bento-timeline-label {
+        font-family: var(--mono);
+        font-size: 0.55rem;
+        color: var(--text-dim);
+        min-width: 58px;
+      }
+      .bento-timeline-bar {
+        height: 6px;
+        border-radius: 3px;
+        background: linear-gradient(90deg, var(--violet), rgba(124,92,252,0.3));
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+      }
+      .bento-timeline-bar::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 50%, transparent 100%);
+        animation: bar-shimmer 2.5s ease-in-out infinite;
+      }
+      .bento-timeline-bar--tx {
+        background: linear-gradient(90deg, var(--orange), rgba(192,72,0,0.3));
+        width: 70%;
+      }
+      @keyframes bar-shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(200%); }
+      }
+
+      /* ── Stats strip ── */
+      .stats-strip {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        background: #2A1D12;
+        border-top: 1px solid rgba(255,255,255,0.05);
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        padding: 3rem 2.5rem;
+        overflow: hidden;
+      }
+      .stats-strip::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse 70% 80% at 50% 0%, rgba(124,92,252,0.10), transparent);
+        pointer-events: none;
+      }
+      .stats-inner {
+        max-width: 860px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 2rem;
+        position: relative;
+      }
+      .stat-item {
+        text-align: center;
+      }
+      .stat-value {
+        font-family: var(--mono);
+        font-size: clamp(2.2rem, 5vw, 3.6rem);
+        font-weight: 700;
+        color: var(--violet);
+        line-height: 1;
+        display: block;
+        margin-bottom: 0.55rem;
+        letter-spacing: -0.03em;
+      }
+      .stat-label {
+        font-family: var(--body);
+        font-size: 0.92rem;
+        font-weight: var(--w-label);
+        color: rgba(255,255,255,0.62);
+        display: block;
+      }
+      .stat-sublabel {
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        color: rgba(255,255,255,0.25);
+        letter-spacing: 0.05em;
+        display: block;
+        margin-top: 0.3rem;
+      }
 
       /* ── Use Cases ── */
       .use-cases { position: relative; z-index: 1; max-width: 1280px; width: 100%; margin: 0 auto; padding: 1.5rem 2.5rem 2.5rem; }
       .use-cases-inner { max-width: 900px; margin: 0 auto; }
       .use-case-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-top: 1.5rem; }
-      .use-case-card { background: var(--surface); border: 1.5px solid var(--border-hi); border-radius: 12px; padding: 1.25rem; }
+      .use-case-card {
+        background: var(--surface);
+        border: 1.5px solid var(--border-hi);
+        border-radius: 12px;
+        padding: 1.25rem;
+        position: relative;
+        isolation: isolate;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        will-change: transform;
+      }
+      /* BorderBeam pseudo-element — always present, opacity toggled on hover */
+      .use-case-card::before {
+        content: '';
+        position: absolute;
+        inset: -1.5px;
+        border-radius: 13.5px;
+        background: conic-gradient(from var(--card-beam-angle),
+          transparent 0%,
+          rgba(124,92,252,0.85) 6%,
+          rgba(180,92,252,0.55) 12%,
+          transparent 22%
+        );
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: -1;
+        animation: card-beam-spin 3.5s linear infinite paused;
+      }
+      .use-case-card:hover::before {
+        opacity: 1;
+        animation-play-state: running;
+      }
+      .use-case-card:hover {
+        box-shadow: 0 12px 36px rgba(124,92,252,0.13), 0 2px 8px rgba(0,0,0,0.05);
+      }
+      @keyframes card-beam-spin {
+        to { --card-beam-angle: 360deg; }
+      }
       .use-case-icon {
         font-size: 2.8rem;
         margin-bottom: 0.75rem;
@@ -314,21 +802,88 @@
       /* ── Playground ── */
       .playground-section { position: relative; z-index: 1; padding-top: 1rem; border-top: 2px solid var(--violet-border); margin-top: 1rem; background: rgba(124,92,252,0.03); }
       .playground-section-hdr { max-width: 1280px; width: 100%; margin: 0 auto; padding: 2rem 2.5rem 0; }
+
+      /* ── macOS window chrome ── */
+      .mac-window-wrap {
+        position: relative;
+        margin: 1.5rem auto 2rem;
+        max-width: calc(1280px - 5rem);
+        width: calc(100% - 5rem);
+        border-radius: 12px;
+        background:
+          var(--surface) padding-box,
+          conic-gradient(from var(--win-beam-angle),
+            rgba(26,21,16,0.10) 0%,
+            rgba(124,92,252,0.65) 8%,
+            rgba(180,92,252,0.40) 14%,
+            rgba(26,21,16,0.10) 24%,
+            rgba(26,21,16,0.10) 100%
+          ) border-box;
+        border: 1.5px solid transparent;
+        animation: win-beam-spin 8s linear infinite;
+        overflow: hidden;
+        box-shadow: 0 8px 48px rgba(26,21,16,0.08), 0 2px 12px rgba(26,21,16,0.04);
+      }
+      @keyframes win-beam-spin {
+        to { --win-beam-angle: 360deg; }
+      }
+      .mac-titlebar {
+        height: 40px;
+        background: var(--surface-2);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        padding: 0 1rem;
+        gap: 0.5rem;
+        position: relative;
+        flex-shrink: 0;
+      }
+      .mac-dots {
+        display: flex;
+        gap: 0.42rem;
+        align-items: center;
+      }
+      .mac-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .mac-dot-red    { background: #FF5F57; box-shadow: 0 0 0 0.5px rgba(0,0,0,0.12) inset; }
+      .mac-dot-yellow { background: #FEBC2E; box-shadow: 0 0 0 0.5px rgba(0,0,0,0.12) inset; }
+      .mac-dot-green  { background: #28C840; box-shadow: 0 0 0 0.5px rgba(0,0,0,0.12) inset; }
+      .mac-title {
+        font-family: var(--mono);
+        font-size: 0.66rem;
+        color: var(--text-dim);
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+      }
+      /* Override playground padding when inside mac window */
+      .mac-window-wrap .playground {
+        max-width: none;
+        width: 100%;
+        margin: 0;
+        padding: 1.5rem;
+      }
+
       .playground { position: relative; z-index: 1; flex: 1; display: grid; grid-template-columns: 360px 1fr; grid-template-rows: auto 1fr; max-width: 1280px; width: 100%; margin: 0 auto; padding: 2.25rem 2.5rem; gap: 2rem; }
       .hero-guide { grid-column: 1/-1; max-width: 560px; border: 1px solid var(--violet-border); border-radius: 12px; background: var(--violet-bg); padding: 0.55rem 0.7rem; }
       .hero-guide-label { font-family: var(--hand); font-size: 0.85rem; letter-spacing: 0.08em; color: var(--violet); margin-bottom: 0.3rem; }
       .hero-guide-copy { font-family: var(--mono); font-size: 0.68rem; color: var(--text-mid); line-height: 1.6; }
       .hero-guide-keys { margin-top: 0.3rem; font-family: var(--mono); font-size: 0.62rem; color: var(--text-dim); letter-spacing: 0.01em; }
       .controls { display: flex; flex-direction: column; gap: 1.25rem; }
-      .panel { background: var(--surface); border: 1.5px solid rgba(46,33,28,0.25); border-radius: 10px 12px 11px 13px; box-shadow: 1px 2px 0 rgba(46,33,28,0.04); overflow: hidden; transition: box-shadow 0.14s ease, border-color 0.14s ease; }
-      .panel:focus-within { border-color: var(--violet-border); box-shadow: 0 0 0 2px var(--violet-bg), 1px 2px 0 rgba(46,33,28,0.04); }
+      .panel { background: var(--surface); border: 1.5px solid rgba(26,21,16,0.25); border-radius: 10px 12px 11px 13px; box-shadow: 1px 2px 0 rgba(26,21,16,0.04); overflow: hidden; transition: box-shadow 0.14s ease, border-color 0.14s ease; }
+      .panel:focus-within { border-color: var(--violet-border); box-shadow: 0 0 0 2px var(--violet-bg), 1px 2px 0 rgba(26,21,16,0.04); }
       .panel-hdr { height: 36px; padding: 0 0.875rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.45rem; font-family: var(--body); font-size: 0.68rem; font-weight: var(--w-label); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-mid); }
       .pip { width: 5px; height: 5px; border-radius: 50%; background: var(--violet); flex-shrink: 0; }
       #assert-panel .pip { background: var(--violet); }
       #query-panel .pip { background: var(--orange); }
       .panel-body { padding: 0.875rem; display: flex; flex-direction: column; gap: 0.6rem; }
       .triple { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.35rem; }
-      input, select { background: var(--surface-2); border: 1.5px solid rgba(46,33,28,0.18); border-radius: 8px; color: var(--text); font-family: var(--mono); font-size: 0.75rem; padding: 0.45rem 0.625rem; width: 100%; outline: none; transition: border-color 0.1s, background 0.1s; }
+      input, select { background: var(--surface-2); border: 1.5px solid rgba(26,21,16,0.18); border-radius: 8px; color: var(--text); font-family: var(--mono); font-size: 0.75rem; padding: 0.45rem 0.625rem; width: 100%; outline: none; transition: border-color 0.1s, background 0.1s; }
       input:focus, select:focus { border-color: var(--violet-border); background: var(--violet-bg); }
       input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--violet); outline-offset: 1px; }
       input::placeholder { color: var(--text-dim); }
@@ -343,7 +898,7 @@
       .btn-primary:hover { background: #8d6ffd; }
       .btn-primary:focus-visible { outline-color: color-mix(in srgb, #fff 35%, var(--violet)); }
       .btn-primary:active { opacity: 0.88; }
-      .btn-ghost { background: transparent; border: 1.5px solid rgba(46,33,28,0.18); color: var(--text-mid); }
+      .btn-ghost { background: transparent; border: 1.5px solid rgba(26,21,16,0.18); color: var(--text-mid); }
       .btn-ghost:hover { border-color: var(--text-mid); color: var(--text); }
       #clear-btn, #show-all-btn { border: 1.5px solid var(--border-hi); color: var(--text-mid); }
       #clear-btn:hover, #show-all-btn:hover { border-color: var(--text-mid); color: var(--text); background: var(--surface-2); }
@@ -352,7 +907,7 @@
       .clear-confirm { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.5rem; border: 1.5px solid var(--border-hi); border-radius: 8px; background: var(--surface-2); animation: fact-in 0.12s ease-out both; }
       .clear-confirm-label { font-family: var(--mono); font-size: 0.68rem; color: var(--text-mid); flex: 1; }
       .btn-confirm-yes { font-size: 0.7rem; padding: 0.25rem 0.55rem; background: var(--espresso); color: #fff; border: none; border-radius: 5px; }
-      .btn-confirm-yes:hover { background: #3d2e27; }
+      .btn-confirm-yes:hover { background: #2A1D12; }
       .btn-confirm-no { font-size: 0.7rem; padding: 0.25rem 0.55rem; background: transparent; color: var(--text-mid); border: 1px solid var(--border-hi); border-radius: 5px; }
       .btn-confirm-no:hover { border-color: var(--text-mid); color: var(--text); }
       .chips-label { font-family: var(--body); font-size: 0.6rem; font-weight: var(--w-label); letter-spacing: 0.08em; color: var(--text-dim); }
@@ -368,7 +923,7 @@
       .status.err { color: var(--red); }
       .qrow { display: flex; gap: 0.35rem; }
       .qrow input { flex: 1; }
-      .stream { display: flex; flex-direction: column; background: var(--surface); border: 1.5px solid rgba(46,33,28,0.25); border-radius: 11px 13px 12px 10px; box-shadow: 1px 2px 0 rgba(46,33,28,0.04); overflow: hidden; }
+      .stream { display: flex; flex-direction: column; background: var(--surface); border: 1.5px solid rgba(26,21,16,0.25); border-radius: 11px 13px 12px 10px; box-shadow: 1px 2px 0 rgba(26,21,16,0.04); overflow: hidden; }
       .stream-hdr { height: 36px; padding: 0 0.875rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
       .stream-hdr-left { display: flex; align-items: center; gap: 0.45rem; font-family: var(--body); font-size: 0.68rem; font-weight: var(--w-label); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-mid); }
       #stream-count { color: var(--text-dim); font-weight: 600; }
@@ -398,14 +953,14 @@
       .diff-badge.removed { color: var(--orange); border-color: var(--orange-border); background: var(--orange-bg); }
       .stream-body { flex: 1; overflow-y: auto; padding: 0.5rem; display: flex; flex-direction: column; min-height: 460px; }
       .stream-body::-webkit-scrollbar { width: 3px; }
-      .stream-body::-webkit-scrollbar-thumb { background: rgba(46,33,28,0.15); border-radius: 2px; }
+      .stream-body::-webkit-scrollbar-thumb { background: rgba(26,21,16,0.15); border-radius: 2px; }
       .stream-body::-webkit-scrollbar-track { background: transparent; }
       .empty { margin: auto; text-align: center; color: var(--text-dim); font-family: var(--hand); font-size: 0.88rem; line-height: 1.75; user-select: none; }
       .empty-glyph { font-size: 2rem; display: block; margin-bottom: 0.75rem; opacity: 0.3; letter-spacing: -0.05em; }
       .empty-ghost { display: flex; align-items: center; gap: 0.35rem; padding: 0.5rem 0.75rem; margin: 1rem auto 0.75rem; max-width: 340px; border: 1.5px dashed var(--border-hi); border-radius: 8px; opacity: 0.35; font-family: var(--mono); font-size: 0.72rem; color: var(--text-mid); pointer-events: none; user-select: none; }
       .empty-ghost .tag { font-size: 0.68rem; padding: 0.15rem 0.4rem; }
       .empty-ghost-label { font-family: var(--hand); font-size: 0.65rem; color: var(--text-dim); margin-right: 0.1rem; flex-shrink: 0; }
-      .fact-row { display: grid; grid-template-columns: auto auto auto auto 1fr auto auto; align-items: center; gap: 0.3rem; padding: 0.3rem 0.25rem; border-bottom: 1px solid rgba(46,33,28,0.07); font-family: var(--mono); font-size: 0.72rem; animation: fact-in 0.18s ease-out both; }
+      .fact-row { display: grid; grid-template-columns: auto auto auto auto 1fr auto auto; align-items: center; gap: 0.3rem; padding: 0.3rem 0.25rem; border-bottom: 1px solid rgba(26,21,16,0.07); font-family: var(--mono); font-size: 0.72rem; animation: fact-in 0.18s ease-out both; }
       .fact-row.invalidated { opacity: 0.35; }
       .fact-row:not(.invalidated):hover { background: rgba(124,92,252,0.04); }
       .btn-invalidate { background: transparent; border: none; color: var(--text-dim); font-size: 0.7rem; line-height: 1; padding: 0.1rem 0.3rem; border-radius: 3px; cursor: pointer; transition: color 0.1s, background 0.1s; }
@@ -424,7 +979,7 @@
       .fact-time { color: var(--text-dim); font-size: 0.6rem; white-space: nowrap; cursor: default; }
       .fact-timestamps { position: relative; margin-left: auto; display: flex; align-items: center; }
       .fact-ts-tooltip { display: none; }
-      #ts-tooltip { position: fixed; z-index: 9999; background: var(--surface); border: 1px solid var(--border-hi); border-radius: 6px; padding: 0.55rem 0.7rem; opacity: 0; pointer-events: none; transition: opacity 0.1s; min-width: 240px; box-shadow: 0 4px 20px rgba(46,33,28,0.12); }
+      #ts-tooltip { position: fixed; z-index: 9999; background: var(--surface); border: 1px solid var(--border-hi); border-radius: 6px; padding: 0.55rem 0.7rem; opacity: 0; pointer-events: none; transition: opacity 0.1s; min-width: 240px; box-shadow: 0 4px 20px rgba(26,21,16,0.12); }
       #ts-tooltip.visible { opacity: 1; }
       .ts-row { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.07rem 0; }
       .ts-row-divider { margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid var(--border); }
@@ -457,7 +1012,29 @@
       .loading-fill { height: 100%; background: var(--violet); border-radius: 1px; animation: track 1.4s ease-in-out infinite alternate; }
       @keyframes track { from { width: 8%; margin-left: 0; } to { width: 55%; margin-left: 45%; } }
       .loading-label { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); letter-spacing: 0.04em; }
-      footer { position: relative; z-index: 1; border-top: 1px solid var(--border); padding: 1rem 2.5rem; background: rgba(46,33,28,0.04); }
+
+      /* ── Section intro prose ── */
+      .section-intro {
+        font-family: var(--body);
+        font-size: 0.92rem;
+        color: var(--text-mid);
+        line-height: 1.72;
+        max-width: 780px;
+        margin: 0 auto 1.5rem;
+        text-align: center;
+      }
+
+      /* ── Engine features strip ── */
+      .features-strip { position: relative; z-index: 1; max-width: 1280px; width: 100%; margin: 0 auto; padding: 0 2.5rem 2.5rem; }
+      .features-strip-inner { max-width: 900px; margin: 0 auto; }
+      .features-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 1.5rem; }
+      .feature-item { border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.15rem; background: var(--surface); }
+      .feature-item-label { font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.08em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 0.35rem; }
+      .feature-item-title { font-family: var(--body); font-weight: var(--w-heading); font-size: 0.9rem; margin-bottom: 0.35rem; color: var(--text); }
+      .feature-item-desc { font-family: var(--body); font-size: 0.815rem; color: var(--text-mid); line-height: 1.62; }
+
+      /* ── Footer ── */
+      footer { position: relative; z-index: 1; border-top: 1px solid var(--border); padding: 1rem 2.5rem; background: rgba(26,21,16,0.04); }
       .footer-inner { max-width: 1280px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; font-family: var(--body); font-weight: var(--w-body); font-size: 0.80rem; color: var(--text-dim); }
       .footer-left { display: flex; align-items: center; gap: 0.5rem; }
       .footer-licence { color: var(--text-mid); }
@@ -467,6 +1044,103 @@
       .footer-right a { color: var(--text-dim); text-decoration: none; transition: color 0.12s; font-size: 0.82rem; }
       .footer-right a:hover { color: var(--text-mid); }
       .version-badge { font-family: var(--mono); font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.35rem; border-radius: 3px; background: var(--lime-bg); border: 1px solid var(--lime-border); color: var(--lime); }
+
+      /* ── Footer CTA ── */
+      .footer-cta {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        background: #2A1D12;
+        border-top: 1px solid rgba(255,255,255,0.05);
+        padding: 5rem 2.5rem 5.5rem;
+        text-align: center;
+        overflow: hidden;
+      }
+      .footer-cta::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse 65% 55% at 50% 0%, rgba(124,92,252,0.18), transparent);
+        pointer-events: none;
+      }
+      .footer-cta-inner {
+        max-width: 620px;
+        margin: 0 auto;
+        position: relative;
+      }
+      .footer-cta-eyebrow {
+        font-family: var(--mono);
+        font-size: 0.65rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(124,92,252,0.8);
+        display: block;
+        margin-bottom: 1rem;
+      }
+      .footer-cta-headline {
+        font-family: var(--body);
+        font-size: clamp(1.7rem, 3.8vw, 2.6rem);
+        font-weight: var(--w-heading);
+        color: #fff;
+        letter-spacing: -0.025em;
+        line-height: 1.18;
+        margin-bottom: 1.1rem;
+      }
+      .footer-cta-sub {
+        font-family: var(--body);
+        font-size: 0.97rem;
+        color: rgba(255,255,255,0.50);
+        line-height: 1.72;
+        margin-bottom: 2.5rem;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .footer-cta-chips {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.65rem;
+        margin-bottom: 2.5rem;
+      }
+      .install-chip {
+        font-family: var(--mono);
+        font-size: 0.78rem;
+        font-weight: 500;
+        padding: 0.48rem 1.1rem;
+        border-radius: 8px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
+        color: rgba(255,255,255,0.78);
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.2s, color 0.15s;
+        user-select: all;
+      }
+      .install-chip:hover {
+        background: rgba(255,255,255,0.10);
+        border-color: rgba(124,92,252,0.5);
+        color: rgba(255,255,255,0.95);
+      }
+      .footer-cta-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.72rem 2rem;
+        background: var(--violet);
+        color: #fff;
+        border-radius: 8px;
+        font-family: var(--body);
+        font-size: 0.92rem;
+        font-weight: var(--w-label);
+        text-decoration: none;
+        transition: background 0.15s, transform 0.18s;
+        border: none;
+      }
+      .footer-cta-btn:hover {
+        background: #8d6ffd;
+        transform: translateY(-2px);
+      }
 
       @media (max-width: 840px) {
         .playground { grid-template-columns: 1fr; padding: 1.5rem 1.25rem; gap: 1.25rem; }
@@ -480,16 +1154,31 @@
         .qrow button { width: 100%; }
         .header-nav { display: none; }
         .diff-row { grid-template-columns: 1fr; }
-        .hero { padding: 2rem 1.25rem 1.5rem; }
-        .hero-inner { grid-template-columns: 1fr; gap: 0; }
+        .hero-inner { grid-template-columns: 1fr; min-height: auto; }
+        .hero-text { padding: 2.5rem 1.25rem 2rem; }
         .hero-visual { display: none; }
         .explain { padding: 2rem 1.25rem; }
         .why { padding: 1.5rem 1.25rem; }
         .use-cases { padding: 1.5rem 1.25rem; }
         .playground-section-hdr { padding: 1.5rem 1.25rem 0; }
+        .bento-grid { grid-template-columns: 1fr 1fr; }
+        .bento-tile--wide { grid-column: 1 / -1; }
+        .stats-inner { grid-template-columns: 1fr; gap: 2.5rem; }
+        .mac-window-wrap { margin: 1rem 1.25rem; width: calc(100% - 2.5rem); }
       }
-      @media (max-width: 700px) { .use-case-grid { grid-template-columns: 1fr; } .footer-inner { flex-direction: column; align-items: flex-start; } }
-      @media (max-width: 640px) { .explain-grid { grid-template-columns: 1fr; } .hero-cta { flex-direction: column; gap: 0.5rem; } .hero-cta .hero-btn { text-align: center; justify-content: center; } }
+      @media (max-width: 700px) {
+        .use-case-grid { grid-template-columns: 1fr; }
+        .features-grid { grid-template-columns: 1fr; }
+        .footer-inner { flex-direction: column; align-items: flex-start; }
+        .bento-grid { grid-template-columns: 1fr; }
+        .bento-tile--wide { grid-column: 1; }
+      }
+      @media (max-width: 640px) {
+        .explain-grid { grid-template-columns: 1fr; }
+        .hero-cta { flex-direction: column; gap: 0.5rem; }
+        .hero-cta .hero-btn { text-align: center; justify-content: center; }
+        .footer-cta-chips { flex-direction: column; align-items: center; }
+      }
       @media (max-width: 480px) {
         .hero-install { flex-direction: column; align-items: stretch; }
         .hero-install .install-sep { text-align: center; }
@@ -512,7 +1201,7 @@
       <div class="loading-label">initialising wasm engine…</div>
     </div>
 
-    <!-- Header with INLINE SVG logo — no external file, no img tag -->
+    <!-- Header with INLINE SVG logo -->
     <header>
       <div class="logo">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
@@ -527,7 +1216,7 @@
           <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5"/>
           <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
           <circle cx="136" cy="82" r="5" fill="#7C5CFC"/>
-          <!-- Wordmark — Quicksand 700, Kron white + roe copper, no gap -->
+          <!-- Wordmark -->
           <text x="168" y="75"
             font-family="'Quicksand',system-ui,sans-serif"
             font-size="52" font-weight="700" letter-spacing="-1"
@@ -547,12 +1236,18 @@
       </nav>
     </header>
 
-    <!-- Hero -->
+    <!-- Hero — DARK FULL-WIDTH -->
     <section class="hero">
       <div class="hero-inner">
         <div class="hero-text">
-          <h1>Bi-<span class="temporal-accent">temporal</span> graph.<br> <span class="lime">In your browser.</span></h1>
-          <p class="hero-explain">Track not just what's true — but when it became true, and when you recorded it. Query any point in time.</p>
+          <a href="https://github.com/kronroe/kronroe/releases"
+             target="_blank" rel="noopener"
+             class="announce-pill">
+            <span class="announce-dot"></span>
+            v0.1.2 · pip install kronroe · now live →
+          </a>
+          <h1>Bi-<span class="temporal-accent temporal-shiny">temporal</span> graph.<br> <span class="lime">In your browser.</span></h1>
+          <p class="hero-explain">Track not just what's true — but when it became true, and when you recorded it. Bi-temporal facts are a first-class engine primitive in Kronroe, not an application concern you bolt on later. Query any point in time, or compare two snapshots to see exactly what changed.</p>
           <p class="sub">// Pure Rust → WebAssembly. No server. No network. No schema.</p>
           <div class="hero-install">
             <code class="install-cmd" title="Click to copy">pip install kronroe</code>
@@ -565,58 +1260,104 @@
           </div>
         </div>
         <div class="hero-visual" aria-hidden="true">
-          <div class="hero-graph-card">
-            <svg class="hero-graph-svg" xmlns="http://www.w3.org/2000/svg" viewBox="10 25 180 105">
-              <line x1="44" y1="100" x2="156" y2="100" stroke="#7C5CFC" stroke-width="5" stroke-linecap="round" opacity="0.35"/>
-              <line x1="44" y1="100" x2="100" y2="48" stroke="#7C5CFC" stroke-width="4" stroke-linecap="round" opacity="0.3"/>
-              <line x1="156" y1="100" x2="100" y2="48" stroke="#5A8A00" stroke-width="4" stroke-linecap="round" opacity="0.3"/>
-              <circle cx="44" cy="100" r="16" fill="#7C5CFC"/>
-              <circle cx="156" cy="100" r="16" fill="#5A8A00"/>
-              <circle cx="100" cy="48" r="16" fill="#C04800"/>
-            </svg>
-            <div class="hero-sample-facts">
-              <div class="hero-sample-row">
-                <span class="tag tag-s">alice</span><span class="sep">&middot;</span>
-                <span class="tag tag-p">works_at</span><span class="sep">&rarr;</span>
-                <span class="tag tag-o">@Acme</span>
-                <span class="hero-sample-time">2023-06 → now</span>
-              </div>
-              <div class="hero-sample-row muted">
-                <span class="tag tag-s">alice</span><span class="sep">&middot;</span>
-                <span class="tag tag-p">works_at</span><span class="sep">&rarr;</span>
-                <span class="tag tag-o">@Initech</span>
-                <span class="hero-sample-invalid">ended</span>
-              </div>
-              <div class="hero-sample-row">
-                <span class="tag tag-s">alice</span><span class="sep">&middot;</span>
-                <span class="tag tag-p">lives_in</span><span class="sep">&rarr;</span>
-                <span class="tag tag-o">London</span>
-                <span class="hero-sample-time">2019-03 → now</span>
-              </div>
-            </div>
-          </div>
+          <!-- 3D force-directed knowledge graph — rendered by hero-graph.ts -->
+          <canvas id="hero-3d-graph" aria-label="Animated 3D knowledge graph showing bi-temporal facts"></canvas>
         </div>
       </div>
     </section>
 
+    <!-- Trust marquee — platforms & integrations -->
+    <div class="trust-strip" aria-hidden="true">
+      <div class="trust-track">
+        <span class="trust-item"><span class="trust-dot"></span>Rust · crates.io</span>
+        <span class="trust-item"><span class="trust-dot"></span>Python · PyPI</span>
+        <span class="trust-item"><span class="trust-dot"></span>iOS · Swift Package</span>
+        <span class="trust-item"><span class="trust-dot"></span>Android · Kotlin JNI</span>
+        <span class="trust-item"><span class="trust-dot"></span>WebAssembly · in-browser</span>
+        <span class="trust-item"><span class="trust-dot"></span>MCP stdio server</span>
+        <span class="trust-item"><span class="trust-dot"></span>Claude Desktop</span>
+        <span class="trust-item"><span class="trust-dot"></span>Cursor</span>
+        <span class="trust-item"><span class="trust-dot"></span>Cline</span>
+        <span class="trust-item"><span class="trust-dot"></span>redb ACID storage</span>
+        <span class="trust-item"><span class="trust-dot"></span>tantivy BM25</span>
+        <span class="trust-item"><span class="trust-dot"></span>zero C dependencies</span>
+        <span class="trust-item"><span class="trust-dot"></span>AGPL-3.0 + commercial</span>
+        <!-- exact duplicate for seamless infinite loop -->
+        <span class="trust-item"><span class="trust-dot"></span>Rust · crates.io</span>
+        <span class="trust-item"><span class="trust-dot"></span>Python · PyPI</span>
+        <span class="trust-item"><span class="trust-dot"></span>iOS · Swift Package</span>
+        <span class="trust-item"><span class="trust-dot"></span>Android · Kotlin JNI</span>
+        <span class="trust-item"><span class="trust-dot"></span>WebAssembly · in-browser</span>
+        <span class="trust-item"><span class="trust-dot"></span>MCP stdio server</span>
+        <span class="trust-item"><span class="trust-dot"></span>Claude Desktop</span>
+        <span class="trust-item"><span class="trust-dot"></span>Cursor</span>
+        <span class="trust-item"><span class="trust-dot"></span>Cline</span>
+        <span class="trust-item"><span class="trust-dot"></span>redb ACID storage</span>
+        <span class="trust-item"><span class="trust-dot"></span>tantivy BM25</span>
+        <span class="trust-item"><span class="trust-dot"></span>zero C dependencies</span>
+        <span class="trust-item"><span class="trust-dot"></span>AGPL-3.0 + commercial</span>
+      </div>
+    </div>
+
     <!-- Explain -->
     <section class="explain" id="explain" aria-labelledby="heading-explain">
       <div class="explain-inner">
-        <h2 class="section-title" id="heading-explain">What does <span class="temporal-accent">bi-temporal</span> mean?</h2>
-        <p class="section-sub">Every fact in Kronroe carries four timestamps — not just "created_at"</p>
+        <h2 class="section-title reveal-on-scroll" id="heading-explain">What does <span class="temporal-accent">bi-temporal</span> mean?</h2>
+        <p class="section-sub reveal-on-scroll">Every fact carries four timestamps: valid_from, valid_to, recorded_at, and expired_at. The valid-time axis tracks when something was true in the world; the transaction axis tracks when you learned it.</p>
         <div class="explain-grid">
-          <div class="explain-card">
+          <div class="explain-card reveal-on-scroll">
             <div class="explain-card-label">Normal database</div>
             <div class="explain-card-body">
               <code>alice.employer = "Acme"</code>
-              <p>You know what's true now. You don't know what was true last month. If it changes, the old value is gone.</p>
+              <p>You know what's true now. You don't know what was true last month. If it changes, the old value is gone. Tracking history requires separate audit tables or application-layer hacks — none of which give you consistent point-in-time queries.</p>
             </div>
           </div>
-          <div class="explain-card explain-card-highlight">
+          <div class="explain-card explain-card-highlight reveal-on-scroll">
             <div class="explain-card-label">Kronroe</div>
             <div class="explain-card-body">
               <code>alice works_at Acme<br><span class="ts-inline">valid: 2023-06 → 2024-01</span><br><span class="ts-inline">recorded: 2024-03-14</span></code>
-              <p>You know what's true, when it was true, and when you learned it. Nothing is ever deleted — history is preserved.</p>
+              <p>You know what's true, when it was true, and when you learned it. Nothing is ever deleted — history is preserved. Correct a fact and the original remains in the record, timestamped when the correction was made. Query as of any past moment.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bi-temporal lifecycle steps -->
+        <div class="temporal-steps" aria-label="Bi-temporal lifecycle example">
+          <p class="temporal-steps-label reveal-on-scroll">how it works in practice →</p>
+
+          <div class="temporal-step reveal-on-scroll">
+            <div class="step-badge">1</div>
+            <div class="step-body">
+              <div class="step-verb">Assert</div>
+              <code class="step-code">graph.assert_fact("alice", "works_at", "Acme", valid_from="2023-06")</code>
+              <p class="step-note">Stored with <span class="ts">valid_from=2023-06</span> and <span class="ts">recorded_at=now</span>. Nothing is overwritten — this is the first entry in a living record.</p>
+            </div>
+          </div>
+
+          <div class="temporal-step reveal-on-scroll">
+            <div class="step-badge">2</div>
+            <div class="step-body">
+              <div class="step-verb">Correct</div>
+              <code class="step-code">graph.correct_fact(fact_id, "TechCorp")</code>
+              <p class="step-note">The old fact is <em>expired</em>, not deleted — its <span class="ts">expired_at</span> is stamped. A new fact is recorded with <span class="ts">recorded_at=now</span>. Full audit trail preserved.</p>
+            </div>
+          </div>
+
+          <div class="temporal-step reveal-on-scroll">
+            <div class="step-badge">3</div>
+            <div class="step-body">
+              <div class="step-verb">Query as-of</div>
+              <code class="step-code">graph.facts_at("alice", at="2024-01-01")</code>
+              <p class="step-note">Returns <span class="ts">"Acme"</span> — the truth as it was on that date, regardless of when you run the query. History is exact and immutable.</p>
+            </div>
+          </div>
+
+          <div class="temporal-step reveal-on-scroll">
+            <div class="step-badge">4</div>
+            <div class="step-body">
+              <div class="step-verb">Query now</div>
+              <code class="step-code">graph.current_facts("alice")</code>
+              <p class="step-note">Returns <span class="ts">"TechCorp"</span> — the current state. No history was lost. Both snapshots are always available, queryable at any point in time.</p>
             </div>
           </div>
         </div>
@@ -626,30 +1367,109 @@
     <!-- Why -->
     <section class="why" id="why" aria-labelledby="heading-why">
       <div class="why-inner">
-        <h2 class="section-title" id="heading-why">Why Kronroe?</h2>
-        <p class="section-sub">The only embedded, mobile-ready temporal graph engine</p>
-        <div class="comparison-table-wrap">
-          <table class="comparison-table">
-            <caption class="sr-only">Feature comparison: Kronroe vs Graphiti/Zep vs mcp-memory-service</caption>
-            <thead>
-              <tr>
-                <th scope="col"></th>
-                <th scope="col" class="col-kronroe">Kronroe</th>
-                <th scope="col">Graphiti / Zep</th>
-                <th scope="col">mcp-memory-service</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><th scope="row">Requires server</th><td class="col-kronroe">No — single file</td><td>Yes — Neo4j</td><td>No</td></tr>
-              <tr><th scope="row">Temporal model</th><td class="col-kronroe">Bi-temporal</td><td>Bi-temporal (via Neo4j)</td><td>None</td></tr>
-              <tr><th scope="row">Mobile / edge</th><td class="col-kronroe">iOS, Android, WASM</td><td>No</td><td>No</td></tr>
-              <tr><th scope="row">LLM required</th><td class="col-kronroe">No</td><td>Yes</td><td>No (uses embeddings)</td></tr>
-              <tr><th scope="row">Contradiction detection</th><td class="col-kronroe">Engine-native</td><td>LLM-based</td><td>No</td></tr>
-              <tr><th scope="row">Confidence / uncertainty</th><td class="col-kronroe">Engine-native</td><td>No</td><td>No</td></tr>
-              <tr><th scope="row">Full-text search</th><td class="col-kronroe">BM25 + fuzzy</td><td>Via Neo4j</td><td>No</td></tr>
-              <tr><th scope="row">Vector search</th><td class="col-kronroe">Cosine + temporal</td><td>Via Neo4j</td><td>Yes — embeddings</td></tr>
-            </tbody>
-          </table>
+        <h2 class="section-title reveal-on-scroll" id="heading-why">Why Kronroe?</h2>
+        <p class="section-sub reveal-on-scroll">The only embedded, mobile-ready temporal graph engine</p>
+        <p class="section-intro reveal-on-scroll">Every existing embedded graph database treats time as your problem. Kronroe redesigns the engine for temporal knowledge evolution — the same leap DuckDB made for analytical workloads. Bi-temporal storage means every write captures both real-world time and recording time. Corrections are non-destructive: the full audit trail is always available. Pure Rust. Zero C dependencies.</p>
+
+        <!-- Bento Grid replaces comparison table -->
+        <div class="bento-grid">
+          <div class="bento-tile bento-tile--wide bento-tile--violet reveal-on-scroll">
+            <div class="bento-eyebrow">Core engine</div>
+            <h3 class="bento-title">Bi-temporal by design — every fact, four timestamps</h3>
+            <p class="bento-body">valid_from, valid_to, recorded_at, expired_at. Query any point in real-world time or transaction time. Corrections are non-destructive: the full audit trail is always available, timestamped when each change was recorded.</p>
+            <div class="bento-timeline">
+              <div class="bento-timeline-row">
+                <span class="bento-timeline-label">valid time</span>
+                <div class="bento-timeline-bar"></div>
+              </div>
+              <div class="bento-timeline-row">
+                <span class="bento-timeline-label">tx time</span>
+                <div class="bento-timeline-bar bento-timeline-bar--tx"></div>
+              </div>
+            </div>
+            <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--partial">Graphiti: bi-temporal via Neo4j</span>
+              <span class="bento-vs-item bento-vs--no">mcp-memory: no temporal model</span>
+            </div>
+          </div>
+
+          <div class="bento-tile bento-tile--orange reveal-on-scroll">
+            <div class="bento-eyebrow">Deployment</div>
+            <h3 class="bento-title">Zero server required</h3>
+            <p class="bento-body">Single .kronroe file. No Neo4j, no Docker, no network. Runs embedded inside your process or in-browser via WebAssembly.</p>
+            <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--no">Graphiti: requires Neo4j</span>
+              <span class="bento-vs-item bento-vs--ok">mcp-memory: no server ✓</span>
+            </div>
+          </div>
+
+          <div class="bento-tile bento-tile--rose reveal-on-scroll">
+            <div class="bento-eyebrow">Platforms</div>
+            <h3 class="bento-title">iOS · Android · WASM</h3>
+            <p class="bento-body">The Rust engine compiles to native on every platform. Under 6 MB. No C dependencies. Privacy-first — all data stays on-device.</p>
+            <div class="bento-platform-badges">
+              <span class="bento-badge">Swift</span>
+              <span class="bento-badge">Kotlin</span>
+              <span class="bento-badge">Python</span>
+              <span class="bento-badge">WASM</span>
+              <span class="bento-badge">Rust</span>
+            </div>
+            <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--no">Graphiti: desktop only</span>
+              <span class="bento-vs-item bento-vs--no">mcp-memory: desktop only</span>
+            </div>
+          </div>
+
+          <div class="bento-tile reveal-on-scroll">
+            <div class="bento-eyebrow">Cost</div>
+            <h3 class="bento-title">No LLM required</h3>
+            <p class="bento-body">Structural and temporal reasoning is engine-native. Zero tokens spent storing or retrieving graph facts.</p>
+            <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--no">Graphiti: LLM required</span>
+              <span class="bento-vs-item bento-vs--ok">mcp-memory: no LLM ✓</span>
+            </div>
+          </div>
+
+          <div class="bento-tile bento-tile--lime reveal-on-scroll">
+            <div class="bento-eyebrow">Integrity</div>
+            <h3 class="bento-title">Engine-native contradiction detection</h3>
+            <p class="bento-body">Allen's interval algebra detects conflicting facts at write time. Register singleton predicates, get immediate structural feedback. No LLM required.</p>
+            <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--partial">Graphiti: LLM-based</span>
+              <span class="bento-vs-item bento-vs--no">mcp-memory: none</span>
+            </div>
+          </div>
+
+          <div class="bento-tile reveal-on-scroll">
+            <div class="bento-eyebrow">Retrieval</div>
+            <h3 class="bento-title">BM25 + vector + hybrid search</h3>
+            <p class="bento-body">Tantivy BM25 full-text fused with cosine vector via RRF. Intent-gated two-stage temporal reranker. Bi-temporal filtering excludes invalidated facts.</p>
+            <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--partial">Graphiti: via Neo4j</span>
+              <span class="bento-vs-item bento-vs--partial">mcp-memory: embeddings only</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats strip -->
+    <section class="stats-strip" aria-label="Key statistics">
+      <div class="stats-inner">
+        <div class="stat-item reveal-on-scroll" data-target="100">
+          <span class="stat-value"><span class="stat-count">0</span>%</span>
+          <span class="stat-label">client-side</span>
+          <span class="stat-sublabel">zero network calls</span>
+        </div>
+        <div class="stat-item reveal-on-scroll" data-target="6">
+          <span class="stat-value">&lt;<span class="stat-count">0</span> MB</span>
+          <span class="stat-label">native library size</span>
+          <span class="stat-sublabel">iOS · Android · WASM</span>
+        </div>
+        <div class="stat-item reveal-on-scroll">
+          <span class="stat-value">4</span>
+          <span class="stat-label">timestamps per fact</span>
+          <span class="stat-sublabel">valid + transaction time</span>
         </div>
       </div>
     </section>
@@ -657,9 +1477,10 @@
     <!-- Use cases -->
     <section class="use-cases" id="use-cases" aria-labelledby="heading-use-cases">
       <div class="use-cases-inner">
-        <h2 class="section-title" id="heading-use-cases">Built for</h2>
+        <h2 class="section-title reveal-on-scroll" id="heading-use-cases">Built for</h2>
+        <p class="section-intro reveal-on-scroll">Kronroe is designed for use cases where history is not optional — from AI agents that need to remember how their understanding evolved, to mobile apps that work fully offline, to developer tools that persist structured context across sessions.</p>
         <div class="use-case-grid">
-          <div class="use-case-card">
+          <div class="use-case-card reveal-on-scroll">
             <div class="use-case-icon">
               <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="22" cy="22" r="20" stroke="#7C5CFC" stroke-width="2"/>
@@ -671,9 +1492,9 @@
               </svg>
             </div>
             <h3>AI agent memory</h3>
-            <p>Give your agents persistent memory that tracks how knowledge evolves. No server, no LLM calls for storage — just assert facts and query any point in time.</p>
+            <p>Give your agents persistent memory that tracks how knowledge evolves over time. No server required, no LLM calls to store or retrieve facts — just assert structured facts and query any point in time. Hybrid BM25 and vector recall surfaces the most relevant memories with confidence scores. A token-budget context assembler formats results directly for LLM prompts.</p>
           </div>
-          <div class="use-case-card">
+          <div class="use-case-card reveal-on-scroll">
             <div class="use-case-icon">
               <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="12" y="2" width="20" height="40" rx="4" stroke="#C04800" stroke-width="2"/>
@@ -683,9 +1504,9 @@
               </svg>
             </div>
             <h3>Mobile and edge apps</h3>
-            <p>Full relationship graph on iOS and Android with zero network latency. Compiles to a native library under 6 MB. Privacy-first — data never leaves the device.</p>
+            <p>Full property graph on iOS and Android with zero network latency. The Rust engine compiles to a native library under 6 MB — a Swift Package for iOS and a JNI library for Android with a Kotlin wrapper. Privacy-first: all graph data stays on-device, no network required.</p>
           </div>
-          <div class="use-case-card">
+          <div class="use-case-card reveal-on-scroll">
             <div class="use-case-icon">
               <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="2" y="8" width="40" height="28" rx="4" stroke="#5A8A00" stroke-width="2"/>
@@ -697,7 +1518,37 @@
               </svg>
             </div>
             <h3>MCP tool memory</h3>
-            <p>Drop-in memory for Claude Desktop, Cursor, and any MCP client. Eight tools out of the box — remember, recall, assert, correct, invalidate, and more.</p>
+            <p>Drop-in persistent memory for Claude Desktop, Cursor, and any MCP-compatible client. Eight tools ship out of the box: remember, recall, recall_scored, assemble_context, facts_about, assert_fact, correct_fact, and invalidate_fact. Install in seconds via <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">npx kronroe-mcp</code> or <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">pip install kronroe-mcp</code>. Facts persist across sessions in a local .kronroe file.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Engine features -->
+    <section class="features-strip" aria-labelledby="heading-features">
+      <div class="features-strip-inner">
+        <h2 class="section-title reveal-on-scroll" id="heading-features">Under the hood</h2>
+        <p class="section-sub reveal-on-scroll">Pure Rust. ACID storage. Zero dependencies on C, network, or LLM.</p>
+        <div class="features-grid">
+          <div class="feature-item reveal-on-scroll">
+            <div class="feature-item-label">Retrieval</div>
+            <div class="feature-item-title">BM25 + vector + hybrid search</div>
+            <p class="feature-item-desc">Full-text search via tantivy with BM25 ranking and fuzzy matching. Flat cosine vector search with bi-temporal filtering — invalidated facts are excluded from current queries but remain available for historical point-in-time lookups. Hybrid mode fuses both channels with Reciprocal Rank Fusion and a two-stage intent-gated temporal reranker.</p>
+          </div>
+          <div class="feature-item reveal-on-scroll">
+            <div class="feature-item-label">Integrity</div>
+            <div class="feature-item-title">Contradiction detection</div>
+            <p class="feature-item-desc">Register predicates as singletons and Kronroe detects conflicting facts at write time using Allen's interval algebra — no LLM required. Confidence scores decay automatically by predicate age and source authority weight, giving you effective confidence at query time without any manual bookkeeping.</p>
+          </div>
+          <div class="feature-item reveal-on-scroll">
+            <div class="feature-item-label">Storage</div>
+            <div class="feature-item-title">ACID, no C dependencies</div>
+            <p class="feature-item-desc">Backed by redb — a pure Rust B-tree copy-on-write key-value store with full ACID guarantees. File-backed or fully in-memory. Every fact is identified by a ULID for lexicographically sortable, monotonic insertion order. No C dependencies, no external processes, no separate database server to manage.</p>
+          </div>
+          <div class="feature-item reveal-on-scroll">
+            <div class="feature-item-label">Platforms</div>
+            <div class="feature-item-title">Rust, Python, iOS, Android, WASM</div>
+            <p class="feature-item-desc">One engine, every platform. Use the core Rust crate directly, the PyO3 Python bindings, a Swift Package on iOS, a JNI library on Android with a Kotlin wrapper, or the WebAssembly build in-browser. All targets share the same bi-temporal engine and ACID storage model.</p>
           </div>
         </div>
       </div>
@@ -706,131 +1557,160 @@
     <!-- Playground -->
     <section class="playground-section" id="playground" aria-labelledby="heading-playground">
       <div class="playground-section-hdr">
-        <h2 class="section-title" id="heading-playground">Try it live</h2>
-        <p class="section-sub">Pure Rust compiled to WebAssembly. Every fact runs in your browser — nothing is sent to a server.</p>
+        <h2 class="section-title reveal-on-scroll" id="heading-playground">Try it live</h2>
+        <p class="section-sub reveal-on-scroll">Pure Rust compiled to WebAssembly — the same bi-temporal graph engine that runs on iOS, Android, and native Rust. Every fact is stored and queried entirely inside your browser. Nothing is sent to a server.</p>
       </div>
-      <main class="playground" id="main-content">
-        <div class="hero-guide" style="grid-column:1/-1;">
-          <div class="hero-guide-label">QUICK START</div>
-          <div class="hero-guide-copy">1) Click a TRY chip. 2) Press Assert. 3) Enter that subject in Find and press Find.</div>
-          <div class="hero-guide-keys">Shortcuts: Ctrl/Cmd+K focus Find · Ctrl/Cmd+Enter submit panel</div>
+
+      <!-- macOS window chrome wraps the playground -->
+      <div class="mac-window-wrap">
+        <div class="mac-titlebar">
+          <div class="mac-dots">
+            <span class="mac-dot mac-dot-red"></span>
+            <span class="mac-dot mac-dot-yellow"></span>
+            <span class="mac-dot mac-dot-green"></span>
+          </div>
+          <span class="mac-title">kronroe.playground — live wasm · in-browser · no server</span>
         </div>
-        <div class="controls">
-          <div class="panel" id="assert-panel">
-            <div class="panel-hdr"><div class="pip"></div>Assert fact</div>
-            <div class="panel-body">
-              <div class="triple">
-                <input id="subject"   placeholder="subject"   aria-label="Subject entity" />
-                <input id="predicate" placeholder="predicate" aria-label="Predicate" />
-                <input id="object"    placeholder="value"     aria-label="Object value" />
+        <main class="playground" id="main-content">
+          <div class="hero-guide" style="grid-column:1/-1;">
+            <div class="hero-guide-label">QUICK START</div>
+            <div class="hero-guide-copy">1) Click a TRY chip. 2) Press Assert. 3) Enter that subject in Find and press Find.</div>
+            <div class="hero-guide-keys">Shortcuts: Ctrl/Cmd+K focus Find · Ctrl/Cmd+Enter submit panel</div>
+          </div>
+          <div class="controls">
+            <div class="panel" id="assert-panel">
+              <div class="panel-hdr"><div class="pip"></div>Assert fact</div>
+              <div class="panel-body">
+                <div class="triple">
+                  <input id="subject"   placeholder="subject"   aria-label="Subject entity" />
+                  <input id="predicate" placeholder="predicate" aria-label="Predicate" />
+                  <input id="object"    placeholder="value"     aria-label="Object value" />
+                </div>
+                <div class="type-at-row">
+                  <select id="obj-type" title="Object value type" aria-label="Value type">
+                    <option value="Text">Text</option>
+                    <option value="Number">Number</option>
+                    <option value="Boolean">Boolean</option>
+                    <option value="Entity">Entity →</option>
+                  </select>
+                  <span class="at-hint" title="Bi-temporal tip: set valid_from to record when this was true in the real world.">valid from</span>
+                  <input type="datetime-local" id="assert-at" title="valid_from — optional." aria-label="Valid from (optional)" />
+                </div>
+                <div class="btn-row">
+                  <button class="btn-primary" id="assert-btn">Assert →</button>
+                  <button class="btn-ghost"   id="clear-btn" title="Remove all facts from this in-browser graph">Clear graph</button>
+                </div>
+                <div class="clear-confirm" id="clear-confirm" hidden>
+                  <span class="clear-confirm-label">Clear all facts?</span>
+                  <button class="btn-confirm-yes" id="clear-confirm-yes">Yes, clear</button>
+                  <button class="btn-confirm-no"  id="clear-confirm-no">Cancel</button>
+                </div>
+                <div class="chips-label">TRY</div>
+                <div class="chips" id="examples"></div>
+                <button class="chip chip-demo" id="time-demo-btn" title="Runs a bi-temporal scenario: assert in the past, retract now, then compare point-in-time query results.">Time-travel demo</button>
+                <div class="status" id="assert-status" role="status" aria-live="polite"></div>
               </div>
-              <div class="type-at-row">
-                <select id="obj-type" title="Object value type" aria-label="Value type">
-                  <option value="Text">Text</option>
-                  <option value="Number">Number</option>
-                  <option value="Boolean">Boolean</option>
-                  <option value="Entity">Entity →</option>
-                </select>
-                <span class="at-hint" title="Bi-temporal tip: set valid_from to record when this was true in the real world.">valid from</span>
-                <input type="datetime-local" id="assert-at" title="valid_from — optional." aria-label="Valid from (optional)" />
+            </div>
+            <div class="panel" id="query-panel">
+              <div class="panel-hdr"><div class="pip"></div>Find entity</div>
+              <div class="panel-body">
+                <div class="qrow">
+                  <input id="query-entity" placeholder="entity (e.g. alice)" aria-label="Entity to search" />
+                  <button class="btn-primary" id="query-btn">Find →</button>
+                </div>
+                <div class="qrow">
+                  <input id="query-pred" placeholder="predicate (optional)" aria-label="Predicate filter (optional)" />
+                  <button class="btn-ghost" id="show-all-btn">Show all</button>
+                </div>
+                <div class="qrow">
+                  <span class="at-hint">at&nbsp;time</span>
+                  <input type="datetime-local" id="query-at" title="point in time — leave blank for current facts" aria-label="Query at point in time (optional)" />
+                </div>
+                <div class="status" id="query-status" role="status" aria-live="polite"></div>
               </div>
-              <div class="btn-row">
-                <button class="btn-primary" id="assert-btn">Assert →</button>
-                <button class="btn-ghost"   id="clear-btn" title="Remove all facts from this in-browser graph">Clear graph</button>
-              </div>
-              <div class="clear-confirm" id="clear-confirm" hidden>
-                <span class="clear-confirm-label">Clear all facts?</span>
-                <button class="btn-confirm-yes" id="clear-confirm-yes">Yes, clear</button>
-                <button class="btn-confirm-no"  id="clear-confirm-no">Cancel</button>
-              </div>
-              <div class="chips-label">TRY</div>
-              <div class="chips" id="examples"></div>
-              <button class="chip chip-demo" id="time-demo-btn" title="Runs a bi-temporal scenario: assert in the past, retract now, then compare point-in-time query results.">Time-travel demo</button>
-              <div class="status" id="assert-status" role="status" aria-live="polite"></div>
             </div>
           </div>
-          <div class="panel" id="query-panel">
-            <div class="panel-hdr"><div class="pip"></div>Find entity</div>
-            <div class="panel-body">
-              <div class="qrow">
-                <input id="query-entity" placeholder="entity (e.g. alice)" aria-label="Entity to search" />
-                <button class="btn-primary" id="query-btn">Find →</button>
+          <div class="stream">
+            <div class="stream-hdr">
+              <div class="stream-hdr-left">
+                <div class="pip"></div>Fact stream
+                <span id="stream-count">0 facts</span>
               </div>
-              <div class="qrow">
-                <input id="query-pred" placeholder="predicate (optional)" aria-label="Predicate filter (optional)" />
-                <button class="btn-ghost" id="show-all-btn">Show all</button>
+              <div class="stream-hdr-right">
+                <button class="btn-export" id="export-btn" title="Download visible facts as JSON" disabled>↓ JSON</button>
+                <span id="stream-mode">ALL</span>
               </div>
-              <div class="qrow">
-                <span class="at-hint">at&nbsp;time</span>
-                <input type="datetime-local" id="query-at" title="point in time — leave blank for current facts" aria-label="Query at point in time (optional)" />
-              </div>
-              <div class="status" id="query-status" role="status" aria-live="polite"></div>
             </div>
-          </div>
-        </div>
-        <div class="stream">
-          <div class="stream-hdr">
-            <div class="stream-hdr-left">
-              <div class="pip"></div>Fact stream
-              <span id="stream-count">0 facts</span>
-            </div>
-            <div class="stream-hdr-right">
-              <button class="btn-export" id="export-btn" title="Download visible facts as JSON" disabled>↓ JSON</button>
-              <span id="stream-mode">ALL</span>
-            </div>
-          </div>
-          <div class="stream-visuals">
-            <div class="viz-block">
-              <div class="viz-label">TEMPORAL RAIL</div>
-              <div class="temporal-rail">
-                <div class="rail-track" id="rail-valid-track" title="valid_from events"></div>
-                <div class="rail-track" id="rail-recorded-track" title="recorded/retracted events"></div>
-                <div class="rail-controls">
-                  <input type="range" id="rail-scrubber" min="0" max="0" step="1" value="0" disabled aria-label="Time scrubber" />
-                  <div class="rail-meta">
-                    <span id="rail-time-label">No temporal points yet.</span>
-                    <span id="rail-count-label">0 visible</span>
+            <div class="stream-visuals">
+              <div class="viz-block">
+                <div class="viz-label">TEMPORAL RAIL</div>
+                <div class="temporal-rail">
+                  <div class="rail-track" id="rail-valid-track" title="valid_from events"></div>
+                  <div class="rail-track" id="rail-recorded-track" title="recorded/retracted events"></div>
+                  <div class="rail-controls">
+                    <input type="range" id="rail-scrubber" min="0" max="0" step="1" value="0" disabled aria-label="Time scrubber" />
+                    <div class="rail-meta">
+                      <span id="rail-time-label">No temporal points yet.</span>
+                      <span id="rail-count-label">0 visible</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            <div class="viz-block">
-              <div class="viz-label">TIME DIFF A/B</div>
-              <div class="diff-row">
-                <input type="datetime-local" id="diff-a" title="Timestamp A" aria-label="Diff timestamp A" />
-                <input type="datetime-local" id="diff-b" title="Timestamp B" aria-label="Diff timestamp B" />
-                <button class="btn-ghost" id="diff-compare-btn">Compare</button>
-              </div>
-              <div class="diff-summary" id="diff-summary">Pick two points in time to compare state changes.</div>
-            </div>
-          </div>
-          <div class="stream-body" id="stream-body">
-            <div class="empty">
-              <span class="empty-glyph">◈</span>
-              No facts yet.<br>Click a <strong>TRY</strong> chip or run the <strong>Time-travel demo</strong> to begin.
-              <div class="empty-ghost">
-                <span class="empty-ghost-label">e.g.</span>
-                <span class="tag tag-s">alice</span><span class="sep">&middot;</span>
-                <span class="tag tag-p">works_at</span><span class="sep">&rarr;</span>
-                <span class="tag tag-o">@Acme</span>
-                <span class="fact-time" style="margin-left:auto;font-size:0.65rem">12:34:05</span>
+              <div class="viz-block">
+                <div class="viz-label">TIME DIFF A/B</div>
+                <div class="diff-row">
+                  <input type="datetime-local" id="diff-a" title="Timestamp A" aria-label="Diff timestamp A" />
+                  <input type="datetime-local" id="diff-b" title="Timestamp B" aria-label="Diff timestamp B" />
+                  <button class="btn-ghost" id="diff-compare-btn">Compare</button>
+                </div>
+                <div class="diff-summary" id="diff-summary">Pick two points in time to compare state changes.</div>
               </div>
             </div>
-          </div>
-          <div class="entity-cards" id="entity-cards">
-            <div class="entity-cards-hdr">
-              <span class="viz-label entity-cards-title">ENTITY STORIES</span>
-              <div class="entity-sort" role="group" aria-label="Sort entity stories">
-                <button class="entity-sort-btn active" id="entity-sort-recent" aria-pressed="true">Recent</button>
-                <button class="entity-sort-btn" id="entity-sort-alpha" aria-pressed="false">A-Z</button>
+            <div class="stream-body" id="stream-body">
+              <div class="empty">
+                <span class="empty-glyph">◈</span>
+                No facts yet.<br>Click a <strong>TRY</strong> chip or run the <strong>Time-travel demo</strong> to begin.
+                <div class="empty-ghost">
+                  <span class="empty-ghost-label">e.g.</span>
+                  <span class="tag tag-s">alice</span><span class="sep">&middot;</span>
+                  <span class="tag tag-p">works_at</span><span class="sep">&rarr;</span>
+                  <span class="tag tag-o">@Acme</span>
+                  <span class="fact-time" style="margin-left:auto;font-size:0.65rem">12:34:05</span>
+                </div>
               </div>
             </div>
-            <div class="entity-cards-body" id="entity-cards-body">
-              <div class="status">Entity story cards appear here after facts are loaded.</div>
+            <div class="entity-cards" id="entity-cards">
+              <div class="entity-cards-hdr">
+                <span class="viz-label entity-cards-title">ENTITY STORIES</span>
+                <div class="entity-sort" role="group" aria-label="Sort entity stories">
+                  <button class="entity-sort-btn active" id="entity-sort-recent" aria-pressed="true">Recent</button>
+                  <button class="entity-sort-btn" id="entity-sort-alpha" aria-pressed="false">A-Z</button>
+                </div>
+              </div>
+              <div class="entity-cards-body" id="entity-cards-body">
+                <div class="status">Entity story cards appear here after facts are loaded.</div>
+              </div>
             </div>
           </div>
+        </main>
+      </div>
+    </section>
+
+    <!-- Footer CTA -->
+    <section class="footer-cta" aria-labelledby="heading-footer-cta">
+      <div class="footer-cta-inner">
+        <span class="footer-cta-eyebrow">Get started in seconds</span>
+        <h2 class="footer-cta-headline reveal-on-scroll" id="heading-footer-cta">Start tracking time,<br>not just facts.</h2>
+        <p class="footer-cta-sub reveal-on-scroll">Drop-in agent memory. Full property graph. Zero server. Ships on iOS, Android, Python, Rust, and browser WASM.</p>
+        <div class="footer-cta-chips reveal-on-scroll">
+          <code class="install-chip">pip install kronroe</code>
+          <code class="install-chip">cargo add kronroe</code>
+          <code class="install-chip">npx kronroe-mcp</code>
         </div>
-      </main>
+        <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer" class="footer-cta-btn reveal-on-scroll">
+          View on GitHub →
+        </a>
+      </div>
     </section>
 
     <footer>
@@ -845,10 +1725,12 @@
           <a href="https://crates.io/crates/kronroe" target="_blank" rel="noopener noreferrer">crates.io</a>
           <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href="https://github.com/kronroe/kronroe#readme" target="_blank" rel="noopener noreferrer">Docs</a>
+          <a href="https://www.linkedin.com/company/kronroe" target="_blank" rel="noopener">LinkedIn</a>
         </div>
       </div>
     </footer>
 
   <div id="ts-tooltip"></div>
+
   </body>
 </html>

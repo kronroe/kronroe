@@ -44,3 +44,16 @@ site/public/pkg/
 # Local tool state / caches
 .firebase/
 .serena/
+.codex/
+
+# Top-level build artifacts
+/dist/
+
+# Python shim build artifacts
+python/kronroe-mcp/build/
+python/kronroe-mcp/dist/
+python/kronroe-mcp/src/kronroe_mcp.egg-info/
+
+# Scratch logo/design working directories
+/logo2/
+/word mark/

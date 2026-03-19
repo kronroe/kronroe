@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <title>Kronroe Logo — iOS App Icon</title>
-  <desc>Graph triangle mark in iOS superellipse shape.</desc>
+  <title>Kronroe — iOS App Icon</title>
+  <desc>Graph triangle in iOS superellipse. Equal nodes r=40.</desc>
   <rect x="56" y="56" width="400" height="400" rx="80" fill="#1E1640"/>
   <line x1="160" y1="330" x2="352" y2="330" stroke="#7C5CFC" stroke-width="12" stroke-linecap="round" opacity="0.4"/>
   <line x1="160" y1="330" x2="256" y2="200" stroke="#7C5CFC" stroke-width="10" stroke-linecap="round" opacity="0.35"/>
   <line x1="352" y1="330" x2="256" y2="200" stroke="#5A8A00" stroke-width="10" stroke-linecap="round" opacity="0.3"/>
-  <circle cx="160" cy="330" r="42" fill="#7C5CFC"/>
-  <circle cx="352" cy="330" r="42" fill="#5A8A00"/>
-  <circle cx="256" cy="196" r="35" fill="#C04800"/>
+  <circle cx="160" cy="330" r="40" fill="#7C5CFC"/>
+  <circle cx="352" cy="330" r="40" fill="#5A8A00"/>
+  <circle cx="256" cy="196" r="40" fill="#C04800"/>
 </svg>
