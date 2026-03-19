@@ -762,7 +762,7 @@ impl AgentMemory {
         let key_facts: Vec<Fact> = if let Some(subject) = subject {
             let mut subject_facts = Vec::new();
             let mut seen_fact_ids = HashSet::new();
-            let mut fetch_limit = limit.max(1).min(DEFAULT_MAX_SCORED_ROWS);
+            let mut fetch_limit = limit.clamp(1, DEFAULT_MAX_SCORED_ROWS);
 
             loop {
                 let scored =
