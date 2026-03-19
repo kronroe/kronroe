@@ -23,7 +23,7 @@ before starting work to avoid duplication.
 
 | Area | Label |
 |------|-------|
-| Full-text index (tantivy) — `crates/core` | `phase-0` |
+| Full-text index — `crates/core` | `phase-0` |
 | Python bindings (PyO3) — new `crates/python/` | `python`, `phase-0` |
 | MCP server — new `crates/mcp-server/` | `mcp`, `phase-0` |
 | iOS XCFramework — new `crates/ios/` | `ios`, `phase-0` |

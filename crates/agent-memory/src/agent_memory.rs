@@ -92,7 +92,7 @@ pub enum RecallScore {
     TextOnly {
         /// Ordinal rank in the result set (0-indexed).
         rank: usize,
-        /// Tantivy BM25 relevance score. Higher = stronger lexical match.
+        /// Kronroe BM25 relevance score. Higher = stronger lexical match.
         /// Comparable within a single query but not across queries.
         bm25_score: f32,
         /// Fact-level confidence \[0.0, 1.0\] from the stored fact.
