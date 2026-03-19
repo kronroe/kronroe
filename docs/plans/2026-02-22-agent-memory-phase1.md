@@ -6,7 +6,9 @@
 
 **Architecture:** `AgentMemory` in `crates/agent-memory` wraps `TemporalGraph` from `crates/core`. The core already has hybrid RRF type scaffolding (`HybridParams`, `HybridFusionStrategy`, `TemporalAdjustment`) behind `#[cfg(feature = "hybrid-experimental")]`; we promote those types to `pub`, extract ranked retrieval helpers, implement weighted RRF fusion in a new `hybrid.rs` module, then wire the `AgentMemory` methods on top. Idempotency uses a new `IDEMPOTENCY` redb table (key → FactId) in the same write transaction as fact assertion.
 
-**Tech Stack:** Rust stable, redb 3.1, tantivy (feature: fulltext), flat cosine vector index (feature: vector), PyO3/maturin — **no C++ required**.
+**Tech Stack:** Rust stable, redb 3.1, Kronroe lexical engine (feature: fulltext), flat cosine vector index (feature: vector), PyO3/maturin — **no C++ required**.
+
+**Historical note:** This phase plan captured the original Tantivy-backed implementation. Detailed task instructions below that mention Tantivy are retained as historical context.
 
 ---
 

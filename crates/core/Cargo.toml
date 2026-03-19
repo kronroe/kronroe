@@ -18,7 +18,7 @@ crate-type = ["rlib", "staticlib"]
 
 [features]
 default = ["fulltext"]
-fulltext = ["dep:tantivy"]
+fulltext = []
 vector = []
 hybrid-experimental = []
 contradiction = []
@@ -26,7 +26,6 @@ uncertainty = []
 
 [dependencies]
 redb = { workspace = true }
-tantivy = { workspace = true, optional = true, default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
@@ -35,3 +34,4 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+tantivy = { version = "0.25", default-features = false }

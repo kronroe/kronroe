@@ -17,7 +17,7 @@ Kronroe is a Rust-native temporal property graph engine with Python bindings. It
 | LLM required | No — engine-native operations | Yes — entity extraction | No |
 | Contradiction detection | Engine-native (Allen's interval algebra) | LLM-based | No |
 | Confidence/uncertainty | Engine-native decay model | No | No |
-| Full-text search | BM25 + fuzzy (tantivy) | Via Neo4j | No |
+| Full-text search | BM25 + fuzzy (Kronroe lexical engine) | Via Neo4j | No |
 | Vector search | Cosine similarity + temporal filtering | Via Neo4j | No |
 | Licence | AGPL-3.0 + Commercial | Apache-2.0 | MIT |
 
