@@ -548,18 +548,10 @@ impl AgentMemory {
                 fact.expired_at
                     .map(|expired| expired >= since)
                     .unwrap_or(false)
-                    || fact
-                        .valid_to
-                        .map(|valid_to| valid_to >= since)
-                        .unwrap_or(false)
             })
             .cloned()
             .collect();
-        invalidated_facts.sort_by_key(|fact| {
-            fact.expired_at
-                .or(fact.valid_to)
-                .unwrap_or(fact.recorded_at)
-        });
+        invalidated_facts.sort_by_key(|fact| fact.expired_at.unwrap_or(fact.recorded_at));
 
         let mut corrections = Vec::new();
         let mut confidence_shifts = Vec::new();
@@ -767,12 +759,41 @@ impl AgentMemory {
             ));
         }
 
-        let mut scored = self.recall_scored_with_options(&opts)?;
-        if let Some(subject) = subject {
-            scored.retain(|(fact, _)| fact.subject == subject);
-        }
+        let key_facts: Vec<Fact> = if let Some(subject) = subject {
+            let mut subject_facts = Vec::new();
+            let mut seen_fact_ids = HashSet::new();
+            let mut fetch_limit = limit.max(1).min(DEFAULT_MAX_SCORED_ROWS);
 
-        let key_facts: Vec<Fact> = scored.into_iter().map(|(fact, _)| fact).collect();
+            loop {
+                let scored =
+                    self.recall_scored_with_options(&opts.clone().with_limit(fetch_limit))?;
+                if scored.is_empty() {
+                    break;
+                }
+
+                for (fact, _) in &scored {
+                    if fact.subject == subject && seen_fact_ids.insert(fact.id.0.clone()) {
+                        subject_facts.push(fact.clone());
+                    }
+                }
+
+                if subject_facts.len() >= limit {
+                    subject_facts.truncate(limit);
+                    break;
+                }
+                if scored.len() < fetch_limit || fetch_limit >= DEFAULT_MAX_SCORED_ROWS {
+                    break;
+                }
+                fetch_limit = (fetch_limit.saturating_mul(2)).min(DEFAULT_MAX_SCORED_ROWS);
+            }
+
+            subject_facts
+        } else {
+            self.recall_scored_with_options(&opts)?
+                .into_iter()
+                .map(|(fact, _)| fact)
+                .collect()
+        };
         let low_confidence_count = key_facts
             .iter()
             .filter(|fact| fact.confidence < 0.7)
@@ -1772,6 +1793,30 @@ mod tests {
         assert!(report.low_confidence_count >= 1);
         assert!(report.stale_high_impact_count >= 1);
         assert!(!report.recommended_next_checks.is_empty());
+    }
+
+    #[test]
+    fn recall_for_task_subject_scope_fetches_beyond_initial_limit() {
+        let (mem, _tmp) = open_temp_memory();
+        for i in 0..20 {
+            mem.assert_with_confidence(
+                &format!("bob-{i}"),
+                "project_note",
+                "alice project urgent",
+                0.95,
+            )
+            .unwrap();
+        }
+        mem.assert_with_confidence("alice", "project_note", "project", 0.9)
+            .unwrap();
+
+        let report = mem
+            .recall_for_task("project", Some("alice"), None, Some(30), 1, None)
+            .unwrap();
+
+        assert_eq!(report.subject.as_deref(), Some("alice"));
+        assert_eq!(report.key_facts.len(), 1);
+        assert_eq!(report.key_facts[0].subject, "alice");
     }
 
     #[test]

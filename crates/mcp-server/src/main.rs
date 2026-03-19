@@ -1314,6 +1314,7 @@ fn recall_for_task_agent_brief(report: &RecallForTaskReport) -> JsonValue {
     } else {
         "attention_needed"
     };
+    let subject = report.subject.as_deref();
 
     let mut ranked_actions: Vec<(f32, JsonValue)> = Vec::new();
     if report.key_facts.is_empty() {
@@ -1335,7 +1336,7 @@ fn recall_for_task_agent_brief(report: &RecallForTaskReport) -> JsonValue {
         }));
     }
 
-    if report.low_confidence_count > 0 {
+    if report.low_confidence_count > 0 && subject.is_some() {
         ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
             id: "verify_low_confidence_facts",
             priority: "high",
@@ -1343,7 +1344,7 @@ fn recall_for_task_agent_brief(report: &RecallForTaskReport) -> JsonValue {
             rationale: "Low-confidence facts can derail task execution.".to_string(),
             suggested_tool: "memory_health",
             suggested_arguments: json!({
-                "entity": report.subject.clone(),
+                "entity": subject,
                 "low_confidence_threshold": 0.7,
                 "stale_after_days": report.horizon_days
             }),
@@ -1353,7 +1354,7 @@ fn recall_for_task_agent_brief(report: &RecallForTaskReport) -> JsonValue {
         }));
     }
 
-    if report.stale_high_impact_count > 0 {
+    if report.stale_high_impact_count > 0 && subject.is_some() {
         ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
             id: "refresh_stale_high_impact_facts",
             priority: "medium",
@@ -1361,7 +1362,7 @@ fn recall_for_task_agent_brief(report: &RecallForTaskReport) -> JsonValue {
             rationale: "Stale high-impact facts often drive incorrect decisions.".to_string(),
             suggested_tool: "what_changed",
             suggested_arguments: json!({
-                "entity": report.subject.clone(),
+                "entity": subject,
                 "since": (report.generated_at - chrono::Duration::days(report.horizon_days)).to_rfc3339()
             }),
             workflow_impact: "freshness_hygiene",
@@ -1370,7 +1371,7 @@ fn recall_for_task_agent_brief(report: &RecallForTaskReport) -> JsonValue {
         }));
     }
 
-    if report.contradiction_count > 0 {
+    if report.contradiction_count > 0 && subject.is_some() {
         ranked_actions.push(make_ranked_agent_action(AgentActionSpec {
             id: "resolve_contradictions_first",
             priority: "high",
@@ -1378,7 +1379,7 @@ fn recall_for_task_agent_brief(report: &RecallForTaskReport) -> JsonValue {
             rationale: "Contradictions indicate mutually inconsistent memory state.".to_string(),
             suggested_tool: "memory_health",
             suggested_arguments: json!({
-                "entity": report.subject.clone()
+                "entity": subject
             }),
             workflow_impact: "critical_identity",
             risk_if_skipped: "high",
@@ -1651,11 +1652,9 @@ fn memory_health_agent_brief(report: &MemoryHealthReport) -> JsonValue {
             action: format!("Resolve {} contradiction(s).", report.contradiction_count),
             rationale: "Contradictions can cause agents to choose mutually inconsistent plans."
                 .to_string(),
-            suggested_tool: "what_changed",
+            suggested_tool: "facts_about",
             suggested_arguments: json!({
                 "entity": report.entity.clone(),
-                "since": report.generated_at.to_rfc3339(),
-                "predicate": report.predicate_filter.clone()
             }),
             workflow_impact: "critical_identity",
             risk_if_skipped: "high",
@@ -2551,6 +2550,77 @@ mod tests {
                 .get("recommended_action_id")
                 .and_then(JsonValue::as_str),
             Some("verify_low_confidence")
+        );
+    }
+
+    #[test]
+    fn recall_for_task_agent_brief_without_subject_avoids_null_entity_actions() {
+        let brief = recall_for_task_agent_brief(&RecallForTaskReport {
+            task: "prepare renewal call".to_string(),
+            subject: None,
+            generated_at: Utc::now(),
+            horizon_days: 90,
+            query_used: "prepare renewal call".to_string(),
+            key_facts: vec![Fact::new("alice", "project", "Renewal Q2", Utc::now())],
+            low_confidence_count: 1,
+            stale_high_impact_count: 1,
+            contradiction_count: 0,
+            watchouts: vec!["1 key fact is low confidence".to_string()],
+            recommended_next_checks: vec!["Verify confidence".to_string()],
+        });
+
+        let actions = brief
+            .get("next_actions")
+            .and_then(JsonValue::as_array)
+            .expect("next_actions array expected");
+        assert!(
+            actions.iter().all(|action| {
+                action
+                    .get("suggested_arguments")
+                    .and_then(|args| args.get("entity"))
+                    .map(|entity| !entity.is_null())
+                    .unwrap_or(true)
+            }),
+            "subjectless task briefs should not emit null entity tool arguments"
+        );
+    }
+
+    #[test]
+    fn memory_health_agent_brief_contradictions_point_to_entity_facts() {
+        let brief = memory_health_agent_brief(&MemoryHealthReport {
+            entity: "alice".to_string(),
+            generated_at: Utc::now(),
+            predicate_filter: None,
+            total_fact_count: 2,
+            active_fact_count: 2,
+            low_confidence_facts: Vec::new(),
+            stale_high_impact_facts: Vec::new(),
+            contradiction_count: 1,
+            recommended_actions: vec!["Resolve contradiction".to_string()],
+        });
+
+        let actions = brief
+            .get("next_actions")
+            .and_then(JsonValue::as_array)
+            .expect("next_actions array expected");
+        let contradiction_action = actions
+            .iter()
+            .find(|action| {
+                action.get("id").and_then(JsonValue::as_str) == Some("resolve_contradictions")
+            })
+            .expect("resolve_contradictions action");
+        assert_eq!(
+            contradiction_action
+                .get("suggested_tool")
+                .and_then(JsonValue::as_str),
+            Some("facts_about")
+        );
+        assert_eq!(
+            contradiction_action
+                .get("suggested_arguments")
+                .and_then(|args| args.get("entity"))
+                .and_then(JsonValue::as_str),
+            Some("alice")
         );
     }
 
