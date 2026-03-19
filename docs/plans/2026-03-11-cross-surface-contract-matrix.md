@@ -20,7 +20,7 @@ agent-facing surfaces:
    - non-empty
    - finite
    - representable as `f32` (no overflow to `inf`).
-3. `recall_scored` response includes score metadata with confidence fields.
+3. `recall_scored` response includes score metadata with `score.type` (`text`, `hybrid`, or `unsupported`) plus confidence fields.
 4. `effective` confidence mode errors when uncertainty support is unavailable.
 
 ## Coverage Matrix

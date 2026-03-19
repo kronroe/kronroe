@@ -115,7 +115,7 @@ fn recall_score_payload(score: &RecallScore) -> JsonValue {
             effective_confidence,
             ..
         } => json!({
-            "kind": "hybrid",
+            "type": "hybrid",
             "rrf_score": rrf_score,
             "text_contrib": text_contrib,
             "vector_contrib": vector_contrib,
@@ -129,14 +129,14 @@ fn recall_score_payload(score: &RecallScore) -> JsonValue {
             effective_confidence,
             ..
         } => json!({
-            "kind": "text_only",
+            "type": "text",
             "rank": rank,
             "bm25_score": bm25_score,
             "confidence": confidence,
             "effective_confidence": effective_confidence,
         }),
         _ => json!({
-            "kind": "unsupported",
+            "type": "unsupported",
             "warning": "RecallScore variant not yet supported in wasm bindings",
         }),
     }
@@ -731,7 +731,8 @@ mod tests {
         assert!(!rows.is_empty());
 
         let score = &rows[0]["score"];
-        assert_eq!(score["kind"], "hybrid");
+        assert_eq!(score["type"], "hybrid");
+        assert!(score.get("kind").is_none());
         assert!(score["confidence"].as_f64().unwrap() >= 0.5);
     }
 
