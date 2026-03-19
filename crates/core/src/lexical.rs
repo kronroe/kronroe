@@ -255,15 +255,6 @@ fn is_edit_distance_le_one(left: &str, right: &str) -> bool {
 mod tests {
     use super::*;
 
-    #[cfg(feature = "fulltext")]
-    use tantivy::collector::TopDocs;
-    #[cfg(feature = "fulltext")]
-    use tantivy::query::{BooleanQuery, FuzzyTermQuery, Occur, QueryParser};
-    #[cfg(feature = "fulltext")]
-    use tantivy::schema::{Field, Schema, Value as TantivyValueTrait, STORED, STRING, TEXT};
-    #[cfg(feature = "fulltext")]
-    use tantivy::{doc, Index, Term};
-
     fn doc_with(id: &str, content: &str) -> LexicalDocument {
         LexicalDocument::new(FactId(id.to_string()), content.to_string())
     }
@@ -290,98 +281,47 @@ mod tests {
         assert_eq!(ids, vec!["a", "b"]);
     }
 
-    #[cfg(feature = "fulltext")]
-    fn tantivy_shadow_search_scored(
-        docs: &[LexicalDocument],
-        query: &str,
-        limit: usize,
-    ) -> Vec<(FactId, f32)> {
-        if docs.is_empty() || limit == 0 || query.trim().is_empty() {
-            return Vec::new();
-        }
-
-        let mut schema_builder = Schema::builder();
-        let id_field = schema_builder.add_text_field("id", STRING | STORED);
-        let content_field = schema_builder.add_text_field("content", TEXT);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        let mut writer = index.writer(50_000_000).unwrap();
-
-        for doc_row in docs {
-            writer
-                .add_document(doc!(
-                    id_field => doc_row.id.0.clone(),
-                    content_field => doc_row.content.clone(),
-                ))
-                .unwrap();
-        }
-        writer.commit().unwrap();
-
-        let reader = index.reader().unwrap();
-        let searcher = reader.searcher();
-        let parser = QueryParser::for_index(&index, vec![content_field]);
-        let parsed = parser.parse_query(query).unwrap();
-        let mut top_docs = searcher
-            .search(&parsed, &TopDocs::with_limit(limit))
-            .unwrap();
-
-        if top_docs.is_empty() {
-            let fuzzy = tantivy_fuzzy_query(query, content_field);
-            top_docs = searcher
-                .search(&fuzzy, &TopDocs::with_limit(limit))
-                .unwrap();
-        }
-
-        let mut hits = Vec::new();
-        for (score, addr) in top_docs {
-            let retrieved = searcher
-                .doc::<tantivy::schema::TantivyDocument>(addr)
-                .unwrap();
-            if let Some(id_val) = retrieved.get_first(id_field).and_then(|v| v.as_str()) {
-                hits.push((FactId(id_val.to_string()), score));
-            }
-        }
-        hits
-    }
-
-    #[cfg(feature = "fulltext")]
-    fn tantivy_fuzzy_query(query: &str, content_field: Field) -> BooleanQuery {
-        let terms: Vec<(Occur, Box<dyn tantivy::query::Query>)> = query
-            .split_whitespace()
-            .filter(|token| !token.is_empty())
-            .map(|token| {
-                let term = Term::from_field_text(content_field, token);
-                (
-                    Occur::Should,
-                    Box::new(FuzzyTermQuery::new(term, 1, true)) as Box<dyn tantivy::query::Query>,
-                )
-            })
-            .collect();
-        BooleanQuery::new(terms)
-    }
-
     #[test]
-    #[cfg(feature = "fulltext")]
-    fn lexical_engine_matches_tantivy_for_documented_queries() {
+    fn documented_queries_return_expected_results() {
         let docs = vec![
             doc_with("fact-a", "alice works_at Acme ally works at"),
             doc_with("fact-b", "bob works_at Acme Industries"),
             doc_with("fact-c", "carol lives_in London"),
         ];
 
-        for query in ["Acme", "alice works at", "ally", "alcie"] {
-            let lexical_ids: Vec<String> = search_scored(&docs, query, 10)
-                .into_iter()
-                .map(|(id, _)| id.0)
-                .collect();
-            let tantivy_ids: Vec<String> = tantivy_shadow_search_scored(&docs, query, 10)
-                .into_iter()
-                .map(|(id, _)| id.0)
-                .collect();
-            assert_eq!(
-                lexical_ids, tantivy_ids,
-                "lexical engine should preserve Tantivy result IDs for query {query:?}"
-            );
-        }
+        let acme_ids: Vec<String> = search_scored(&docs, "Acme", 10)
+            .into_iter()
+            .map(|(id, _)| id.0)
+            .collect();
+        assert_eq!(acme_ids, vec!["fact-b".to_string(), "fact-a".to_string()]);
+
+        let multi_term_ids: Vec<String> = search_scored(&docs, "alice works at", 10)
+            .into_iter()
+            .map(|(id, _)| id.0)
+            .collect();
+        assert_eq!(
+            multi_term_ids,
+            vec!["fact-a".to_string(), "fact-b".to_string()]
+        );
+
+        let alias_ids: Vec<String> = search_scored(&docs, "ally", 10)
+            .into_iter()
+            .map(|(id, _)| id.0)
+            .collect();
+        assert_eq!(alias_ids, vec!["fact-a".to_string()]);
+
+        let typo_ids: Vec<String> = search_scored(&docs, "alcie", 10)
+            .into_iter()
+            .map(|(id, _)| id.0)
+            .collect();
+        assert_eq!(typo_ids, vec!["fact-a".to_string()]);
+    }
+
+    #[test]
+    fn empty_query_and_zero_limit_return_empty_results() {
+        let docs = vec![doc_with("fact-a", "alice works_at Acme ally works at")];
+        assert!(search_scored(&docs, "   ", 10).is_empty());
+        assert!(search_scored(&docs, "Acme", 0).is_empty());
+        assert!(search_scored(&[], "Acme", 10).is_empty());
     }
 }

@@ -34,4 +34,3 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-tantivy = { version = "0.25", default-features = false }
