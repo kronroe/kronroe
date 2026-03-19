@@ -164,7 +164,7 @@ kronroe-ios            ← C FFI staticlib + cbindgen header + Swift Package
 kronroe-android        ← JNI cdylib + Kotlin wrapper
         ↓
    kronroe (core)      ← TemporalGraph, bi-temporal storage, redb 3.1,
-                          tantivy full-text (feature: fulltext),
+                          Kronroe lexical full-text (feature: fulltext),
                           flat cosine vector index (feature: vector)
 ```
 
@@ -177,9 +177,9 @@ Future crates will layer on top.
 - Compiles to `wasm32-unknown-unknown` via `wasm-pack build --target web`
 - Uses `redb::backends::InMemoryBackend` — no file I/O in browser
 - `getrandom` with `wasm_js` feature provides `Crypto.getRandomValues` for ULID generation
-- tantivy does **not** compile to WASM (rayon dep, `std::time::Instant` panic) — the `wasm`
-  crate builds with `--no-default-features` to exclude tantivy; full-text search in core is
-  already gated with `#[cfg(feature = "fulltext")]`
+- The `wasm` crate builds with `--no-default-features`, so browser builds exclude the optional
+  full-text engine while keeping the rest of core available; full-text search in core remains
+  gated with `#[cfg(feature = "fulltext")]`
 - The `vector` feature **does** compile to WASM — flat cosine has no platform restrictions
 - Generated `pkg/` directory is gitignored; rebuilt each `wasm-pack build`
 
@@ -203,7 +203,7 @@ Future crates will layer on top.
 - Two-layer architecture: Layer 1 is a pure Rust `KronroeGraphHandle` (testable without JVM/NDK),
   Layer 2 is thin JNI bridge functions using `extern "system"` calling convention
 - Only external dependency: `jni` crate (JNI type definitions — `JNIEnv`, `JString`, `jlong`, etc.)
-- `default-features = false` on core dep — excludes tantivy (same as iOS)
+- `default-features = false` on core dep — excludes the optional full-text engine (same as iOS)
 - Handle-as-jlong pattern: `Box::into_raw(Box::new(handle)) as jlong` for Kotlin↔Rust lifecycle
 - Thread-local `LAST_ERROR` for error messages (same pattern as iOS)
 - Kotlin wrapper at `crates/android/kotlin/com/kronroe/KronroeGraph.kt` — mirrors Swift `KronroeGraph`
@@ -234,7 +234,7 @@ Future crates will layer on top.
 - **Wraps `AgentMemory`** (not raw `TemporalGraph`) — inherits scored recall, context assembly,
   contradiction/uncertainty auto-registration, and all Phase 1 agent features
 - Tools (8):
-  - `remember` (stores free-text as facts via tantivy parse)
+  - `remember` (stores free-text as facts via Kronroe parsing)
   - `recall` (full-text search with optional confidence filtering, hybrid mode, temporal intent)
   - `recall_scored` (recall with per-result signal breakdown: RRF/BM25 scores, confidence, effective confidence)
   - `assemble_context` (LLM-ready text assembly with token budget)
@@ -346,7 +346,7 @@ Snapshot as of 2026-03-09. See GitHub milestones/issues for source of truth.
 |---|-----------|--------|-----|
 | 0.1 | Scaffold + bi-temporal data model | ✅ Done | — |
 | 0.2 | iOS compilation spike | ✅ Done locally (aarch64-apple-ios + aarch64-apple-ios-sim compile) | Rebekah (local) |
-| 0.3 | Full-text index (tantivy) | ✅ Done | — |
+| 0.3 | Full-text index (Kronroe lexical engine) | ✅ Done | — |
 | 0.4 | Python bindings (PyO3) | ✅ Done | — |
 | 0.5 | MCP server | ✅ Done — stdio server, 5 tools (remember/recall/facts_about/assert_fact/correct_fact), pip wrapper | — |
 | 0.6 | iOS XCFramework | ✅ Done locally (aarch64-apple-ios + Swift package scaffold, commit cc4287e) | Rebekah (local) |

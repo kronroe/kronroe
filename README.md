@@ -49,7 +49,7 @@ Pure Rust. No C dependencies in the core engine.
 | Layer | Crate | Notes |
 |---|---|---|
 | Key-value storage | [`redb`](https://github.com/cberner/redb) | Pure Rust ACID B-tree CoW |
-| Full-text search | [`tantivy`](https://github.com/quickwit-oss/tantivy) | BM25 + fuzzy matching (`feature: fulltext`) |
+| Full-text search | Kronroe lexical engine | BM25 + fuzzy matching (`feature: fulltext`) |
 | Vector search | `crates/core/src/vector.rs` | Flat cosine similarity + temporal filtering (`feature: vector`) |
 | Python bindings | `crates/python` | `PyO3` bindings for core + agent memory |
 | MCP server | `crates/mcp-server` | stdio transport, 8 tools |

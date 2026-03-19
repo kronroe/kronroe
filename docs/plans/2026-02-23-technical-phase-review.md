@@ -32,7 +32,7 @@
 - ACID persistence via `redb`.
 
 ### Retrieval capabilities
-- Full-text retrieval via `tantivy` behind `fulltext` feature.
+- Full-text retrieval via the Kronroe lexical engine behind `fulltext`.
 - Vector retrieval support behind `vector` feature.
 - Vector persistence + reopen behavior covered by tests.
 

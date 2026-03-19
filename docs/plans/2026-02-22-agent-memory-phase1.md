@@ -6,7 +6,9 @@
 
 **Architecture:** `AgentMemory` in `crates/agent-memory` wraps `TemporalGraph` from `crates/core`. The core already has hybrid RRF type scaffolding (`HybridParams`, `HybridFusionStrategy`, `TemporalAdjustment`) behind `#[cfg(feature = "hybrid-experimental")]`; we promote those types to `pub`, extract ranked retrieval helpers, implement weighted RRF fusion in a new `hybrid.rs` module, then wire the `AgentMemory` methods on top. Idempotency uses a new `IDEMPOTENCY` redb table (key → FactId) in the same write transaction as fact assertion.
 
-**Tech Stack:** Rust stable, redb 3.1, tantivy (feature: fulltext), flat cosine vector index (feature: vector), PyO3/maturin — **no C++ required**.
+**Tech Stack:** Rust stable, redb 3.1, Kronroe lexical engine (feature: fulltext), flat cosine vector index (feature: vector), PyO3/maturin — **no C++ required**.
+
+**Historical note:** This phase plan captured the original full-text implementation. Detailed task instructions below are retained as historical context.
 
 ---
 
@@ -446,7 +448,7 @@ git commit -m "feat(core): add write_fact_full_in_txn and assert_fact_with_confi
 
 ## Task 4: Add `search_ranked` private fulltext helper
 
-**Context:** The existing `search()` method builds a tantivy in-memory index at query time and returns `Vec<Fact>` — scores are discarded via `for (_score, addr) in top_docs`. For RRF fusion we need `(FactId, rank)` pairs. We add a private `search_ranked()` that returns `Vec<(FactId, usize)>` where `usize` is 0-indexed rank (0 = best).
+**Context:** The existing `search()` method builds an in-memory full-text index at query time and returns `Vec<Fact>` — scores are discarded via `for (_score, addr) in top_docs`. For RRF fusion we need `(FactId, rank)` pairs. We add a private `search_ranked()` that returns `Vec<(FactId, usize)>` where `usize` is 0-indexed rank (0 = best).
 
 **Files:**
 - Modify: `crates/core/src/temporal_graph.rs`
@@ -485,15 +487,15 @@ Expected: compile error — `search_ranked` not found.
 
 **Step 3: Implement `search_ranked`**
 
-Study `search()` first — find it in `crates/core/src/temporal_graph.rs` (around line 521). It calls `scan_prefix("", |_| true)` to collect all facts into tantivy, then `searcher.search(&query, &TopDocs::with_limit(limit))`. Add this private method directly after `search()`:
+Study `search()` first — find it in `crates/core/src/temporal_graph.rs` (around line 521). It calls `scan_prefix("", |_| true)` to collect all facts into an in-memory full-text index, then `searcher.search(&query, &TopDocs::with_limit(limit))`. Add this private method directly after `search()`:
 
 ```rust
 #[cfg(feature = "hybrid-experimental")]
 fn search_ranked(&self, query: &str, limit: usize) -> Result<Vec<(FactId, usize)>> {
-    use tantivy::collector::TopDocs;
-    use tantivy::query::QueryParser;
-    use tantivy::schema::{Schema, TEXT, STORED};
-    use tantivy::{doc, Index, TantivyDocument};
+    use legacy_fulltext::collector::TopDocs;
+    use legacy_fulltext::query::QueryParser;
+    use legacy_fulltext::schema::{Schema, TEXT, STORED};
+    use legacy_fulltext::{doc, Index, SearchDocument};
 
     // Build in-memory index (same approach as search())
     let mut schema_builder = Schema::builder();
@@ -534,7 +536,7 @@ fn search_ranked(&self, query: &str, limit: usize) -> Result<Vec<(FactId, usize)
     let top_docs = searcher.search(&parsed, &TopDocs::with_limit(limit))?;
     let mut results = Vec::with_capacity(top_docs.len());
     for (rank, (_score, addr)) in top_docs.iter().enumerate() {
-        let doc: TantivyDocument = searcher.doc(*addr)?;
+        let doc: SearchDocument = searcher.doc(*addr)?;
         if let Some(id_val) = doc.get_first(id_field) {
             if let Some(id_str) = id_val.as_str() {
                 results.push((FactId(id_str.to_owned()), rank));
@@ -545,7 +547,7 @@ fn search_ranked(&self, query: &str, limit: usize) -> Result<Vec<(FactId, usize)
 }
 ```
 
-**Important:** Look at the existing `search()` function to copy its exact tantivy import style — the version of tantivy in `Cargo.toml` determines what's available. Match the existing imports exactly.
+**Important:** Look at the existing `search()` function to copy its exact full-text import style — the version in `Cargo.toml` determines what's available. Match the existing imports exactly.
 
 **Step 4: Run test**
 
@@ -1895,7 +1897,7 @@ Check: https://github.com/rebekahcole/kronroe/actions (or your org URL)
 **Issue: `fact_by_id` compile error in `recall()`**
 - The method may be named differently. Run: `grep -n "pub fn fact_by_id\|pub fn get_fact" crates/core/src/temporal_graph.rs`
 
-**Issue: `tantivy` import path changed**
+**Issue: full-text import path changed**
 - Copy exact import style from the existing `search()` function — don't write imports from memory.
 
 **Issue: clippy `dead_code` on `HybridParams` fields after Task 1**

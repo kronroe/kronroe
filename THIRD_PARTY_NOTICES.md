@@ -8,7 +8,6 @@ third-party components and their licenses for attribution/compliance.
 | Component | Upstream | License |
 |---|---|---|
 | redb | https://github.com/cberner/redb | MIT OR Apache-2.0 |
-| tantivy | https://github.com/quickwit-oss/tantivy | MIT |
 | hnsw_rs (planned/optional) | https://github.com/jean-pierreBoth/hnswlib-rs | MIT OR Apache-2.0 |
 | instant-distance (researched) | https://github.com/InstantDomain/instant-distance | MIT OR Apache-2.0 |
 | hnsw (rust-cv, researched) | https://github.com/rust-cv/hnsw | MIT |
