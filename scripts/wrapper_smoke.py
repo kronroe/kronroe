@@ -4,12 +4,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
 from typing import BinaryIO
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _write_message(stdin: BinaryIO, payload: dict) -> None:
@@ -40,39 +43,154 @@ def _read_message(stdout: BinaryIO) -> dict:
     return json.loads(body.decode("utf-8"))
 
 
-def _wrapper_command(wrapper: str) -> list[str]:
+def _wrapper_command(wrapper: str, tmp: Path) -> list[str]:
     if wrapper == "npm":
-        return ["node", "packages/kronroe-mcp/bin/kronroe-mcp.js"]
+        return [str(tmp / "npm-wrapper" / "node_modules" / ".bin" / "kronroe-mcp")]
     if wrapper == "python":
-        return [sys.executable, "-m", "kronroe_mcp.cli"]
+        scripts_dir = "Scripts" if os.name == "nt" else "bin"
+        return [str(tmp / "python-wrapper-venv" / scripts_dir / "kronroe-mcp")]
     raise ValueError(f"unsupported wrapper: {wrapper}")
 
 
-def _wrapper_env(wrapper: str, binary: Path, tmp: Path) -> dict[str, str]:
-    env = os.environ.copy()
-    env["KRONROE_MCP_BIN"] = str(binary)
-    env["KRONROE_MCP_DB_PATH"] = str(tmp / "wrapper-smoke.kronroe")
-
-    if wrapper == "python":
-        existing_path = env.get("PYTHONPATH", "")
-        env["PYTHONPATH"] = (
-            "python/kronroe-mcp/src"
-            if not existing_path
-            else f"python/kronroe-mcp/src{os.pathsep}{existing_path}"
+def _run_checked(cmd: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
+    try:
+        subprocess.run(
+            cmd,
+            check=True,
+            cwd=str(cwd) if cwd is not None else None,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.strip()
+        stdout = exc.stdout.strip()
+        detail = stderr or stdout or str(exc)
+        raise RuntimeError(f"command failed: {' '.join(cmd)}: {detail}") from exc
 
+
+def _installer_env(tmp: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    home = tmp / "installer-home"
+    env["HOME"] = str(home)
+    env["PIP_CACHE_DIR"] = str(tmp / "pip-cache")
+    env["npm_config_cache"] = str(tmp / "npm-cache")
+    home.mkdir(parents=True, exist_ok=True)
     return env
+
+
+def _find_build_python() -> str:
+    candidates = [os.environ.get("WRAPPER_SMOKE_BUILD_PYTHON"), sys.executable, "python3.11", "python3"]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            result = subprocess.run(
+                [candidate, "-c", "import setuptools"],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            continue
+        if result.returncode == 0:
+            return candidate
+    raise RuntimeError("could not find a Python interpreter with setuptools available")
+
+
+def _prepare_npm_wrapper(tmp: Path) -> None:
+    install_dir = tmp / "npm-wrapper"
+    install_dir.mkdir(parents=True, exist_ok=True)
+    env = _installer_env(tmp)
+    _run_checked(
+        [
+            "npm",
+            "pack",
+            str(REPO_ROOT / "packages" / "kronroe-mcp"),
+            "--pack-destination",
+            str(tmp),
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+    )
+    tarballs = sorted(tmp.glob("kronroe-mcp-*.tgz"))
+    if not tarballs:
+        raise RuntimeError("npm pack did not produce a kronroe-mcp tarball")
+    _run_checked(
+        ["npm", "install", "--no-package-lock", "--no-save", str(tarballs[-1])],
+        cwd=install_dir,
+        env=env,
+    )
+
+
+def _prepare_python_wrapper(tmp: Path) -> None:
+    venv_dir = tmp / "python-wrapper-venv"
+    scripts_dir = venv_dir / ("Scripts" if os.name == "nt" else "bin")
+    env = _installer_env(tmp)
+    build_python = _find_build_python()
+    _run_checked([sys.executable, "-m", "venv", str(venv_dir)], env=env)
+    venv_python = scripts_dir / ("python.exe" if os.name == "nt" else "python")
+    wheel_dir = tmp / "python-wrapper-dist"
+    build_src = tmp / "python-wrapper-src"
+    wheel_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(REPO_ROOT / "python" / "kronroe-mcp", build_src)
+    _run_checked(
+        [
+            build_python,
+            "-m",
+            "pip",
+            "wheel",
+            "--no-deps",
+            "--no-build-isolation",
+            str(build_src),
+            "--wheel-dir",
+            str(wheel_dir),
+        ],
+        cwd=build_src,
+        env=env,
+    )
+    wheels = sorted(wheel_dir.glob("kronroe_mcp-*.whl"))
+    if not wheels:
+        raise RuntimeError("pip wheel did not produce a kronroe-mcp wheel")
+    _run_checked(
+        [
+            str(venv_python),
+            "-m",
+            "pip",
+            "install",
+            "--no-deps",
+            str(wheels[-1]),
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+    )
+
+
+def _prepare_wrapper_install(wrapper: str, tmp: Path) -> None:
+    if wrapper == "npm":
+        _prepare_npm_wrapper(tmp)
+        return
+    if wrapper == "python":
+        _prepare_python_wrapper(tmp)
+        return
+    raise ValueError(f"unsupported wrapper: {wrapper}")
 
 
 def _run_smoke(wrapper: str, binary: Path) -> None:
     with tempfile.TemporaryDirectory(prefix=f"kronroe-{wrapper}-wrapper-smoke-") as tmpdir:
         tmp = Path(tmpdir)
+        _prepare_wrapper_install(wrapper, tmp)
+        env = os.environ.copy()
+        env["KRONROE_MCP_BIN"] = str(binary)
+        env["KRONROE_MCP_DB_PATH"] = str(tmp / "wrapper-smoke.kronroe")
         proc = subprocess.Popen(
-            _wrapper_command(wrapper),
+            _wrapper_command(wrapper, tmp),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env=_wrapper_env(wrapper, binary, tmp),
+            env=env,
+            cwd=REPO_ROOT,
         )
         try:
             if proc.stdin is None or proc.stdout is None:

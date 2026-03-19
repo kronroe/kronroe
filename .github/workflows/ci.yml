@@ -90,6 +90,7 @@ jobs:
               - 'python/kronroe-mcp/**'
               - 'scripts/wrapper_smoke.py'
               - 'scripts/hybrid_stage3_gate.py'
+              - '.github/workflows/ci.yml'
             site:
               - 'crates/core/**'
               - 'crates/agent-memory/**'
