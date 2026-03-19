@@ -27,6 +27,8 @@
 //! let facts_then = db.facts_at("alice", "works_at", past).unwrap();
 //! ```
 
+#[cfg(feature = "fulltext")]
+mod lexical;
 #[cfg(feature = "vector")]
 mod vector;
 
@@ -57,14 +59,6 @@ use std::cmp::Ordering;
     all(feature = "hybrid-experimental", feature = "vector")
 ))]
 use std::collections::HashMap;
-#[cfg(feature = "fulltext")]
-use tantivy::collector::TopDocs;
-#[cfg(feature = "fulltext")]
-use tantivy::query::{BooleanQuery, FuzzyTermQuery, Occur, QueryParser};
-#[cfg(feature = "fulltext")]
-use tantivy::schema::{Field, Schema, Value as TantivyValueTrait, STORED, STRING, TEXT};
-#[cfg(feature = "fulltext")]
-use tantivy::{doc, Index, Term};
 use ulid::Ulid;
 
 // ---------------------------------------------------------------------------
@@ -121,19 +115,6 @@ impl From<redb::CommitError> for KronroeError {
         KronroeError::Storage(e.to_string())
     }
 }
-#[cfg(feature = "fulltext")]
-impl From<tantivy::TantivyError> for KronroeError {
-    fn from(e: tantivy::TantivyError) -> Self {
-        KronroeError::Search(e.to_string())
-    }
-}
-#[cfg(feature = "fulltext")]
-impl From<tantivy::query::QueryParserError> for KronroeError {
-    fn from(e: tantivy::query::QueryParserError) -> Self {
-        KronroeError::Search(e.to_string())
-    }
-}
-
 pub type Result<T> = std::result::Result<T, KronroeError>;
 
 // ---------------------------------------------------------------------------
@@ -806,7 +787,7 @@ impl TemporalGraph {
             .map(|scored| scored.into_iter().map(|(fact, _)| fact).collect())
     }
 
-    /// Full-text search returning facts with tantivy BM25 relevance scores.
+    /// Full-text search returning facts with Kronroe BM25 relevance scores.
     ///
     /// Each result is a `(Fact, f32)` pair where the `f32` is the BM25 score
     /// from the full-text engine. Higher scores indicate stronger lexical
@@ -833,31 +814,27 @@ impl TemporalGraph {
             }
 
             let aliases_by_subject = self.alias_map(&facts);
-            let (index, id_field, content_field) =
-                Self::build_search_index(&facts, &aliases_by_subject)?;
-            let reader = index.reader()?;
-            let searcher = reader.searcher();
-
-            let parser = QueryParser::for_index(&index, vec![content_field]);
-            let parsed = parser.parse_query(query)?;
-            let mut top_docs = searcher.search(&parsed, &TopDocs::with_limit(limit))?;
-
-            // Fuzzy fallback for typo-heavy short queries (e.g. "alcie").
-            if top_docs.is_empty() {
-                let fuzzy = Self::build_fuzzy_query(query, content_field);
-                top_docs = searcher.search(&fuzzy, &TopDocs::with_limit(limit))?;
-            }
+            let docs: Vec<lexical::LexicalDocument> = facts
+                .iter()
+                .map(|fact| {
+                    lexical::LexicalDocument::new(
+                        fact.id.clone(),
+                        Self::search_document_content(
+                            fact,
+                            aliases_by_subject.get(fact.subject.as_str()),
+                        ),
+                    )
+                })
+                .collect();
+            let top_docs = lexical::search_scored(&docs, query, limit);
 
             let facts_by_id: HashMap<String, Fact> =
                 facts.into_iter().map(|f| (f.id.0.clone(), f)).collect();
             let mut results = Vec::new();
 
-            for (score, addr) in top_docs {
-                let retrieved = searcher.doc::<tantivy::schema::TantivyDocument>(addr)?;
-                if let Some(id_val) = retrieved.get_first(id_field).and_then(|v| v.as_str()) {
-                    if let Some(fact) = facts_by_id.get(id_val) {
-                        results.push((fact.clone(), score));
-                    }
+            for (fact_id, score) in top_docs {
+                if let Some(fact) = facts_by_id.get(&fact_id.0) {
+                    results.push((fact.clone(), score));
                 }
             }
 
@@ -1356,26 +1333,26 @@ impl TemporalGraph {
 
     #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
     fn search_ranked(&self, query: &str, limit: usize) -> Result<Vec<(FactId, usize)>> {
-        if query.trim().is_empty() || limit == 0 {
+        #[cfg(not(feature = "fulltext"))]
+        {
+            let _ = (query, limit);
             return Ok(Vec::new());
         }
 
-        let facts = match self.search(query, limit) {
-            Ok(facts) => facts,
-            // Keep hybrid usable in builds without fulltext.
-            Err(KronroeError::Search(msg))
-                if msg == "fulltext feature is disabled for this build" =>
-            {
-                Vec::new()
+        #[cfg(feature = "fulltext")]
+        {
+            if query.trim().is_empty() || limit == 0 {
+                return Ok(Vec::new());
             }
-            Err(e) => return Err(e),
-        };
 
-        Ok(facts
-            .into_iter()
-            .enumerate()
-            .map(|(rank, fact)| (fact.id, rank))
-            .collect())
+            let facts = self.search(query, limit)?;
+
+            Ok(facts
+                .into_iter()
+                .enumerate()
+                .map(|(rank, fact)| (fact.id, rank))
+                .collect())
+        }
     }
 
     #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
@@ -1559,56 +1536,19 @@ impl TemporalGraph {
     }
 
     #[cfg(feature = "fulltext")]
-    fn build_search_index(
-        facts: &[Fact],
-        aliases_by_subject: &HashMap<String, Vec<String>>,
-    ) -> Result<(Index, Field, Field)> {
-        let mut schema_builder = Schema::builder();
-        let id_field = schema_builder.add_text_field("id", STRING | STORED);
-        let content_field = schema_builder.add_text_field("content", TEXT);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        let mut writer = index.writer(50_000_000)?;
-
-        for fact in facts {
-            let mut content_parts = vec![fact.subject.as_str(), &fact.predicate];
-            if let Some(aliases) = aliases_by_subject.get(fact.subject.as_str()) {
-                for alias in aliases {
-                    content_parts.push(alias.as_str());
-                }
+    fn search_document_content(fact: &Fact, aliases: Option<&Vec<String>>) -> String {
+        let mut content_parts = vec![fact.subject.as_str(), fact.predicate.as_str()];
+        if let Some(aliases) = aliases {
+            for alias in aliases {
+                content_parts.push(alias.as_str());
             }
-            if let Value::Text(v) | Value::Entity(v) = &fact.object {
-                content_parts.push(v.as_str());
-            }
-
-            // Allow "works at" style matching against snake_case predicates.
-            let normalized_predicate = fact.predicate.replace('_', " ");
-            let content = format!("{} {}", content_parts.join(" "), normalized_predicate);
-
-            writer.add_document(doc!(
-                id_field => fact.id.0.clone(),
-                content_field => content,
-            ))?;
+        }
+        if let Value::Text(v) | Value::Entity(v) = &fact.object {
+            content_parts.push(v.as_str());
         }
 
-        writer.commit()?;
-        Ok((index, id_field, content_field))
-    }
-
-    #[cfg(feature = "fulltext")]
-    fn build_fuzzy_query(query: &str, content_field: Field) -> BooleanQuery {
-        let terms: Vec<(Occur, Box<dyn tantivy::query::Query>)> = query
-            .split_whitespace()
-            .filter(|token| !token.is_empty())
-            .map(|token| {
-                let term = Term::from_field_text(content_field, token);
-                (
-                    Occur::Should,
-                    Box::new(FuzzyTermQuery::new(term, 1, true)) as Box<dyn tantivy::query::Query>,
-                )
-            })
-            .collect();
-        BooleanQuery::new(terms)
+        let normalized_predicate = fact.predicate.replace('_', " ");
+        format!("{} {}", content_parts.join(" "), normalized_predicate)
     }
 
     // -----------------------------------------------------------------------
@@ -2177,6 +2117,34 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(
+        feature = "hybrid-experimental",
+        feature = "vector",
+        feature = "fulltext"
+    ))]
+    fn search_ranked_matches_search_scored_order() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let now = Utc::now();
+
+        db.assert_fact("alice", "works_at", "Acme Corp", now)
+            .unwrap();
+        db.assert_fact("bob", "works_at", "Acme Industries", now)
+            .unwrap();
+        db.assert_fact("carol", "works_at", "BetaCorp", now)
+            .unwrap();
+
+        let ranked = db.search_ranked("Acme", 10).unwrap();
+        let scored = db.search_scored("Acme", 10).unwrap();
+
+        let ranked_ids: Vec<String> = ranked.into_iter().map(|(id, _)| id.0).collect();
+        let scored_ids: Vec<String> = scored.into_iter().map(|(fact, _)| fact.id.0).collect();
+        assert_eq!(
+            ranked_ids, scored_ids,
+            "hybrid lexical ranking input should match search_scored ordering"
+        );
+    }
+
+    #[test]
     fn half_open_interval_boundary_at_valid_from() {
         // Fact valid at [valid_from, valid_to). Query exactly at valid_from
         // should include the fact.
@@ -2270,6 +2238,51 @@ mod tests {
 
     #[test]
     #[cfg(feature = "fulltext")]
+    fn search_supports_alias_matching() {
+        let (db, _tmp) = open_temp_db();
+        let now = Utc::now();
+
+        db.assert_fact("alice", "works_at", "Acme", now).unwrap();
+        db.assert_fact("alice", "has_alias", "ally", now).unwrap();
+
+        let results = db.search("ally", 10).unwrap();
+        assert!(
+            results
+                .iter()
+                .any(|f| f.subject == "alice" && f.predicate == "works_at"),
+            "alias search should surface the aliased fact"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "fulltext")]
+    fn search_orders_exact_ties_by_fact_id() {
+        let db = TemporalGraph::open_in_memory().unwrap();
+        let now = Utc::now();
+
+        let first = db.assert_fact("alice", "tag", "rust", now).unwrap();
+        let second = db.assert_fact("bob", "tag", "rust", now).unwrap();
+
+        let scored = db.search_scored("rust", 10).unwrap();
+        assert!(
+            scored.len() >= 2,
+            "expected both rust facts in the result set"
+        );
+
+        let first_two_ids = [scored[0].0.id.0.clone(), scored[1].0.id.0.clone()];
+        let expected = if first.0 <= second.0 {
+            [first.0, second.0]
+        } else {
+            [second.0, first.0]
+        };
+        assert_eq!(
+            first_two_ids, expected,
+            "equal-score ties should be ordered by FactId"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "fulltext")]
     fn search_and_search_scored_same_ordering() {
         let (db, _tmp) = open_temp_db();
         let now = Utc::now();
@@ -2301,7 +2314,7 @@ mod tests {
             );
         }
 
-        // Scores should be in descending order (tantivy BM25 ranking).
+        // Scores should be in descending order (Kronroe BM25 ranking).
         for w in scored.windows(2) {
             assert!(
                 w[0].1 >= w[1].1,
