@@ -2,7 +2,11 @@
 
 Date: 2026-03-14  
 Owner: Product + Platform  
-Status: Research brief and implementation proposal
+Status: Historical research note; portions of this proposal shipped later in PR #110 and PR #111.
+
+Note:
+- This document is preserved as product research context.
+- Treat completed items below as historical roadmap checkpoints rather than current open work.
 
 ## 1) Purpose
 
@@ -189,8 +193,14 @@ Why this matters:
 
 ### Phase 1 (1-2 weeks): Highest daily utility, low risk
 
-1. Add `what_changed` (MCP + AgentMemory wrapper first)
-2. Add `memory_health` summary endpoint
+Status update:
+- `what_changed` and `memory_health` shipped later through the Wave 1 implementation in PR #110.
+- Wrapper and validation hardening referenced by this track shipped later in PR #111.
+
+1. Add `what_changed` (MCP + AgentMemory wrapper first)  
+   Completed later in PR #110.
+2. Add `memory_health` summary endpoint  
+   Completed later in PR #110.
 3. Improve `assemble_context` mode with `action_brief` output format:
    - `what_matters_now`
    - `what_might_be_wrong`
@@ -244,9 +254,12 @@ Track these before/after each phase:
 ### Immediate (this week)
 
 1. Define exact MCP schemas for:
-   - `what_changed`
-   - `memory_health`
-2. Add contract tests for new response shape and edge cases.
+   - `what_changed`  
+     Completed later in PR #110.
+   - `memory_health`  
+     Completed later in PR #110.
+2. Add contract tests for new response shape and edge cases.  
+   Completed later in PR #110.
 3. Add a small "real-life task" eval set:
    - meeting prep
    - care update handoff
@@ -254,8 +267,10 @@ Track these before/after each phase:
 
 ### Next (next 2 weeks)
 
-1. Implement `what_changed` in AgentMemory + MCP.
-2. Implement `memory_health` from existing contradiction/uncertainty paths.
+1. Implement `what_changed` in AgentMemory + MCP.  
+   Completed later in PR #110.
+2. Implement `memory_health` from existing contradiction/uncertainty paths.  
+   Completed later in PR #110.
 3. Add `assemble_context` mode: `action_brief`.
 
 ### After that
