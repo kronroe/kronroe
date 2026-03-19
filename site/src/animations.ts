@@ -85,3 +85,23 @@ document.documentElement.classList.add('animations-ready');
 
   document.querySelectorAll<HTMLElement>('.stat-item[data-target]').forEach((el) => io.observe(el));
 })();
+
+// ── Tracing beam — scroll-following glow on lifecycle steps ──────────────────
+(function () {
+  const container = document.querySelector<HTMLElement>('.temporal-steps');
+  const fill = document.getElementById('tracing-beam-fill');
+  if (!container || !fill) return;
+
+  function update() {
+    const rect = container!.getBoundingClientRect();
+    const viewH = window.innerHeight;
+    // How far into the section the viewport midpoint has scrolled
+    const scrollInto = viewH * 0.6 - rect.top;
+    const totalH = rect.height;
+    const pct = Math.max(0, Math.min(100, (scrollInto / totalH) * 100));
+    fill!.style.height = `${pct}%`;
+  }
+
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();

@@ -293,6 +293,39 @@
 
       .hero h1 { font-family: var(--body); font-size: clamp(1.8rem, 3.8vw, 2.9rem); font-weight: var(--w-heading); letter-spacing: -0.02em; line-height: 1.22; margin-bottom: 1.4rem; color: var(--text); }
       .hero h1 .lime { font-family: var(--hand); font-weight: 400; color: var(--violet); font-size: 0.85em; }
+
+      /* ── Flip Words — rotating subtitle ── */
+      .flip-words {
+        display: inline-block;
+        position: relative;
+        height: 1.35em;
+        vertical-align: bottom;
+        overflow: hidden;
+      }
+      .flip-word {
+        display: block;
+        position: absolute;
+        left: 0;
+        top: 0;
+        opacity: 0;
+        transform: translateY(40%);
+        animation: flip-word-cycle 12s ease-in-out infinite;
+      }
+      /* First word also takes up layout space (sets width) */
+      .flip-word:first-child {
+        position: relative;
+      }
+      .flip-word:nth-child(1) { animation-delay: 0s; }
+      .flip-word:nth-child(2) { animation-delay: 3s; }
+      .flip-word:nth-child(3) { animation-delay: 6s; }
+      .flip-word:nth-child(4) { animation-delay: 9s; }
+      @keyframes flip-word-cycle {
+        0%   { opacity: 0; transform: translateY(40%); }
+        5%   { opacity: 1; transform: translateY(0); }
+        20%  { opacity: 1; transform: translateY(0); }
+        25%  { opacity: 0; transform: translateY(-40%); }
+        100% { opacity: 0; transform: translateY(-40%); }
+      }
       .temporal-accent { color: var(--violet); text-decoration: underline; text-decoration-color: var(--violet); text-underline-offset: 3px; text-decoration-thickness: 2px; }
       .temporal-shiny {
         position: relative;
@@ -404,6 +437,21 @@
         margin-bottom: 1.25rem;
       }
       .hero .sub { font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); line-height: 1.65; letter-spacing: 0.01em; max-width: 480px; }
+      /* Hero highlight — glowing underline on key phrases */
+      .hero-hl {
+        position: relative;
+        color: var(--text-mid);
+        white-space: nowrap;
+      }
+      .hero-hl::after {
+        content: '';
+        position: absolute;
+        left: 0; right: 0; bottom: -1px;
+        height: 2px;
+        background: linear-gradient(90deg, var(--violet), var(--orchid));
+        border-radius: 1px;
+        opacity: 0.55;
+      }
       .hero-install { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem; }
       .install-cmd { font-family: var(--mono); font-size: 0.78rem; font-weight: 500; padding: 0.35rem 0.75rem; border-radius: 6px; background: var(--espresso); color: rgba(255,255,255,0.9); cursor: pointer; transition: background 0.15s; user-select: all; }
       .install-cmd:hover { background: #2A1D12; }
@@ -517,7 +565,7 @@
         align-items: start;
         position: relative;
       }
-      /* Vertical connector between steps */
+      /* Vertical connector between steps — base track */
       .temporal-step:not(:last-child)::after {
         content: '';
         position: absolute;
@@ -525,7 +573,28 @@
         top: 2.25rem;
         width: 2px;
         height: calc(100% + 0.65rem);
-        background: linear-gradient(to bottom, var(--violet-border), transparent);
+        background: rgba(124,92,252,0.12);
+      }
+      /* Tracing beam — glowing line that follows scroll */
+      .tracing-beam {
+        position: absolute;
+        left: 1.05rem;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        pointer-events: none;
+        z-index: 2;
+      }
+      .tracing-beam-fill {
+        position: absolute;
+        top: 1.125rem;
+        left: 0;
+        width: 100%;
+        height: 0%;
+        background: linear-gradient(to bottom, var(--violet), var(--orchid));
+        border-radius: 1px;
+        box-shadow: 0 0 8px rgba(124,92,252,0.5), 0 0 16px rgba(124,92,252,0.2);
+        transition: height 0.15s ease-out;
       }
       .step-badge {
         width: 2.25rem;
@@ -1055,10 +1124,50 @@
       .features-strip { position: relative; z-index: 1; max-width: 1280px; width: 100%; margin: 0 auto; padding: 0 2.5rem 2.5rem; }
       .features-strip-inner { max-width: 900px; margin: 0 auto; }
       .features-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 1.5rem; }
-      .feature-item { border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.15rem; background: var(--surface); }
-      .feature-item-label { font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.08em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 0.35rem; }
-      .feature-item-title { font-family: var(--body); font-weight: var(--w-heading); font-size: 0.9rem; margin-bottom: 0.35rem; color: var(--text); }
-      .feature-item-desc { font-family: var(--body); font-size: 0.815rem; color: var(--text-mid); line-height: 1.62; }
+      .feature-item {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        overflow: hidden;
+        transition: border-color 0.2s;
+      }
+      .feature-item:hover { border-color: var(--border-hi); }
+      .feature-item summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 1.1rem 1.15rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+      .feature-item summary::-webkit-details-marker { display: none; }
+      .feature-item summary::after {
+        content: '';
+        display: block;
+        width: 0; height: 0;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid var(--text-dim);
+        margin-top: 0.4rem;
+        align-self: flex-start;
+        transition: transform 0.2s;
+      }
+      .feature-item[open] summary::after {
+        transform: rotate(180deg);
+      }
+      .feature-item[open] { border-color: var(--violet-border); }
+      .feature-item-label { font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.08em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 0.1rem; }
+      .feature-item-title { font-family: var(--body); font-weight: var(--w-heading); font-size: 0.9rem; color: var(--text); }
+      .feature-item-desc {
+        font-family: var(--body);
+        font-size: 0.815rem;
+        color: var(--text-mid);
+        line-height: 1.62;
+        padding: 0 1.15rem 1.1rem;
+        border-top: 1px solid var(--border);
+        margin-top: 0;
+        padding-top: 0.85rem;
+      }
 
       /* ── Footer ── */
       footer { position: relative; z-index: 1; border-top: 1px solid var(--border); padding: 1rem 2.5rem; background: rgba(26,21,16,0.04); }
@@ -1086,9 +1195,19 @@
       .footer-cta::before {
         content: '';
         position: absolute;
-        inset: 0;
-        background: radial-gradient(ellipse 65% 55% at 50% 0%, rgba(124,92,252,0.18), transparent);
+        inset: -50%;
+        background:
+          radial-gradient(ellipse 40% 40% at 30% 20%, rgba(124,92,252,0.22), transparent 70%),
+          radial-gradient(ellipse 35% 35% at 70% 60%, rgba(180,92,252,0.16), transparent 70%),
+          radial-gradient(ellipse 30% 30% at 50% 80%, rgba(192,72,0,0.12), transparent 70%);
+        animation: cta-mesh-drift 12s ease-in-out infinite alternate;
         pointer-events: none;
+      }
+      @keyframes cta-mesh-drift {
+        0%   { transform: translate(0, 0) scale(1); }
+        33%  { transform: translate(5%, -3%) scale(1.05); }
+        66%  { transform: translate(-3%, 4%) scale(0.98); }
+        100% { transform: translate(2%, -2%) scale(1.03); }
       }
       .footer-cta-inner {
         max-width: 620px;
@@ -1273,9 +1392,16 @@
             <span class="announce-dot"></span>
             v0.1.2 · pip install kronroe · now live →
           </a>
-          <h1>Bi-<span class="temporal-accent temporal-shiny">temporal</span> graph.<br> <span class="lime">In your browser.</span></h1>
+          <h1>Bi-<span class="temporal-accent temporal-shiny">temporal</span> graph.<br>
+            <span class="flip-words" aria-label="In your browser. On your iPhone. In your AI agent. Zero server required.">
+              <span class="flip-word lime">In your browser.</span>
+              <span class="flip-word lime">On your iPhone.</span>
+              <span class="flip-word lime">In your AI agent.</span>
+              <span class="flip-word lime">Zero server required.</span>
+            </span>
+          </h1>
           <p class="hero-explain">Track not just what's true — but when it became true, and when you recorded it. Bi-temporal facts are a first-class engine primitive in Kronroe, not an application concern you bolt on later. Query any point in time, or compare two snapshots to see exactly what changed.</p>
-          <p class="sub">// Pure Rust → WebAssembly. No server. No network. No schema.</p>
+          <p class="sub">// Pure Rust → WebAssembly. <span class="hero-hl">No server</span>. <span class="hero-hl">No network</span>. <span class="hero-hl">No schema</span>.</p>
           <div class="hero-install">
             <code class="install-cmd" title="Click to copy">pip install kronroe</code>
             <span class="install-sep">or</span>
@@ -1350,6 +1476,7 @@
 
         <!-- Bi-temporal lifecycle steps -->
         <div class="temporal-steps" aria-label="Bi-temporal lifecycle example">
+          <div class="tracing-beam" aria-hidden="true"><div class="tracing-beam-fill" id="tracing-beam-fill"></div></div>
           <p class="temporal-steps-label reveal-on-scroll">how it works in practice →</p>
 
           <div class="temporal-step reveal-on-scroll">
@@ -1557,26 +1684,34 @@
         <h2 class="section-title reveal-on-scroll" id="heading-features">Under the hood</h2>
         <p class="section-sub reveal-on-scroll">Pure Rust. ACID storage. Zero dependencies on C, network, or LLM.</p>
         <div class="features-grid">
-          <div class="feature-item reveal-on-scroll">
-            <div class="feature-item-label">Retrieval</div>
-            <div class="feature-item-title">BM25 + vector + hybrid search</div>
+          <details class="feature-item reveal-on-scroll">
+            <summary>
+              <div class="feature-item-label">Retrieval</div>
+              <div class="feature-item-title">BM25 + vector + hybrid search</div>
+            </summary>
             <p class="feature-item-desc">Full-text search via tantivy with BM25 ranking and fuzzy matching. Flat cosine vector search with bi-temporal filtering — invalidated facts are excluded from current queries but remain available for historical point-in-time lookups. Hybrid mode fuses both channels with Reciprocal Rank Fusion and a two-stage intent-gated temporal reranker.</p>
-          </div>
-          <div class="feature-item reveal-on-scroll">
-            <div class="feature-item-label">Integrity</div>
-            <div class="feature-item-title">Contradiction detection</div>
+          </details>
+          <details class="feature-item reveal-on-scroll">
+            <summary>
+              <div class="feature-item-label">Integrity</div>
+              <div class="feature-item-title">Contradiction detection</div>
+            </summary>
             <p class="feature-item-desc">Register predicates as singletons and Kronroe detects conflicting facts at write time using Allen's interval algebra — no LLM required. Confidence scores decay automatically by predicate age and source authority weight, giving you effective confidence at query time without any manual bookkeeping.</p>
-          </div>
-          <div class="feature-item reveal-on-scroll">
-            <div class="feature-item-label">Storage</div>
-            <div class="feature-item-title">ACID, no C dependencies</div>
+          </details>
+          <details class="feature-item reveal-on-scroll">
+            <summary>
+              <div class="feature-item-label">Storage</div>
+              <div class="feature-item-title">ACID, no C dependencies</div>
+            </summary>
             <p class="feature-item-desc">Backed by redb — a pure Rust B-tree copy-on-write key-value store with full ACID guarantees. File-backed or fully in-memory. Every fact is identified by a ULID for lexicographically sortable, monotonic insertion order. No C dependencies, no external processes, no separate database server to manage.</p>
-          </div>
-          <div class="feature-item reveal-on-scroll">
-            <div class="feature-item-label">Platforms</div>
-            <div class="feature-item-title">Rust, Python, iOS, Android, WASM</div>
+          </details>
+          <details class="feature-item reveal-on-scroll">
+            <summary>
+              <div class="feature-item-label">Platforms</div>
+              <div class="feature-item-title">Rust, Python, iOS, Android, WASM</div>
+            </summary>
             <p class="feature-item-desc">One engine, every platform. Use the core Rust crate directly, the PyO3 Python bindings, a Swift Package on iOS, a JNI library on Android with a Kotlin wrapper, or the WebAssembly build in-browser. All targets share the same bi-temporal engine and ACID storage model.</p>
-          </div>
+          </details>
         </div>
       </div>
     </section>
