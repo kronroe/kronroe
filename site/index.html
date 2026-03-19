@@ -115,7 +115,7 @@
         --orange-bg:      rgba(192, 72, 0, 0.08);
         --orange-border:  rgba(192, 72, 0, 0.20);
         --text:     #2A1D12;
-        --text-mid: rgba(26, 21, 16, 0.52);
+        --text-mid: rgba(26, 21, 16, 0.65);
         --text-dim: rgba(26, 21, 16, 0.36);
         --green: #2E7D4F;
         --red:   #C53030;
@@ -161,7 +161,7 @@
       body::before {
         content: "";
         position: fixed; inset: 0;
-        background-image: radial-gradient(circle, rgba(26, 21, 16, 0.07) 1px, transparent 1px);
+        background-image: radial-gradient(circle, rgba(124, 92, 252, 0.08) 1px, transparent 1px);
         background-size: 34px 34px;
         pointer-events: none; z-index: 0;
       }
@@ -255,13 +255,16 @@
         justify-content: center;
       }
 
-      /* Right panel — full-bleed dark, no card wrapper */
+      /* Right panel — contained dark island with rounded corners */
       .hero-visual {
-        background: #2A1D12;
-        border-left: 1px solid rgba(255, 255, 255, 0.05);
+        background: var(--espresso);
         display: flex;
         flex-direction: column;
         position: relative;
+        border-radius: 1.5rem;
+        margin: 1.5rem 2rem 1.5rem 0;
+        overflow: hidden;
+        box-shadow: 0 4px 32px rgba(26, 21, 16, 0.18);
       }
 
       .hero-graph-card {
@@ -275,7 +278,7 @@
       }
 
       .hero h1 { font-family: var(--body); font-size: clamp(1.8rem, 3.8vw, 2.9rem); font-weight: var(--w-heading); letter-spacing: -0.02em; line-height: 1.22; margin-bottom: 1.4rem; color: var(--text); }
-      .hero h1 .lime { font-family: var(--hand); font-weight: 400; color: var(--violet); }
+      .hero h1 .lime { font-family: var(--hand); font-weight: 400; color: var(--violet); font-size: 0.85em; }
       .temporal-accent { color: var(--violet); text-decoration: underline; text-decoration-color: var(--violet); text-underline-offset: 3px; text-decoration-thickness: 2px; }
       .temporal-shiny {
         position: relative;
@@ -1227,7 +1230,7 @@
             fill="#E87D4A">roe</text>
         </svg>
       </div>
-      <div class="badge">WASM</div>
+      <div class="badge" role="status" aria-label="WebAssembly build active">WASM</div>
       <nav class="header-nav">
         <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
         <a href="https://github.com/kronroe/kronroe#readme" target="_blank" rel="noopener noreferrer">Docs</a>
@@ -1261,7 +1264,7 @@
         </div>
         <div class="hero-visual" aria-hidden="true">
           <!-- 3D force-directed knowledge graph — rendered by hero-graph.ts -->
-          <canvas id="hero-3d-graph" aria-label="Animated 3D knowledge graph showing bi-temporal facts"></canvas>
+          <canvas id="hero-3d-graph" aria-label="Animated 3D knowledge graph showing bi-temporal facts">Animated knowledge graph showing entities alice, bob, and carol with bi-temporal relationships like works_at, lives_in, and knows — edges labelled with valid-time ranges.</canvas>
         </div>
       </div>
     </section>
@@ -1650,8 +1653,8 @@
                   <div class="rail-controls">
                     <input type="range" id="rail-scrubber" min="0" max="0" step="1" value="0" disabled aria-label="Time scrubber" />
                     <div class="rail-meta">
-                      <span id="rail-time-label">No temporal points yet.</span>
-                      <span id="rail-count-label">0 visible</span>
+                      <span id="rail-time-label" aria-live="polite">No temporal points yet.</span>
+                      <span id="rail-count-label" aria-live="polite">0 visible</span>
                     </div>
                   </div>
                 </div>
