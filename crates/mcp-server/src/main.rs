@@ -895,7 +895,7 @@ fn recall_score_to_json(score: &RecallScore) -> JsonValue {
             })
         }
         _ => json!({
-            "type": "unknown",
+            "type": "unsupported",
         }),
     }
 }
