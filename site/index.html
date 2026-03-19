@@ -381,6 +381,16 @@
         flex: 1;
         display: block;
         min-height: 380px;
+        /* Edge-dissolve: nodes melt into espresso background instead of hard-clipping.
+           Wider fade zones (15%) ensure nodes dissolve before overflow:hidden clips them. */
+        -webkit-mask-image:
+          linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%),
+          linear-gradient(to bottom, transparent 0%, black 10%, black 88%, transparent 100%);
+        -webkit-mask-composite: destination-in;
+        mask-image:
+          linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%),
+          linear-gradient(to bottom, transparent 0%, black 10%, black 88%, transparent 100%);
+        mask-composite: intersect;
       }
 
       .hero-explain {
