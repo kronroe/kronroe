@@ -71,6 +71,24 @@ def run_agent_memory_checks(db_path: Path) -> None:
         "scored fact should satisfy min_confidence",
     )
 
+    # Task-focused decision report
+    task_report = mem.recall_for_task(
+        "prepare account update",
+        subject="bob",
+        horizon_days=90,
+        limit=8,
+    )
+    require(isinstance(task_report, dict), "recall_for_task should return a dict")
+    require(task_report.get("subject") == "bob", "task report should keep subject context")
+    require(
+        isinstance(task_report.get("key_facts"), list),
+        "task report should include key_facts list",
+    )
+    require(
+        isinstance(task_report.get("recommended_next_checks"), list),
+        "task report should include recommended_next_checks list",
+    )
+
     # Context assembly
     context = mem.assemble_context("Acme", 200)
     require(isinstance(context, str) and context, "assemble_context should return non-empty text")
@@ -83,6 +101,17 @@ def run_agent_memory_checks(db_path: Path) -> None:
     require(
         any(f["predicate"] == "works_at" and f["object"] == "NewCo" for f in bob_facts),
         "correct_fact should produce replacement value",
+    )
+
+    change_report = mem.what_changed("bob", since=task_report["generated_at"], predicate="works_at")
+    require(isinstance(change_report, dict), "what_changed should return a dict")
+    require(
+        isinstance(change_report.get("corrections"), list),
+        "what_changed should include corrections list",
+    )
+    require(
+        isinstance(change_report.get("confidence_shifts"), list),
+        "what_changed should include confidence_shifts list",
     )
 
     # Invalidation path
@@ -98,6 +127,23 @@ def run_agent_memory_checks(db_path: Path) -> None:
     require(
         len(active_charlie_hits) == 0,
         "invalidated charlie fact should not appear as active in recall",
+    )
+
+    # Memory health path
+    mem.assert_with_confidence("dana", "nickname", "D", 0.4)
+    health_report = mem.memory_health("dana", low_confidence_threshold=0.7, stale_after_days=90)
+    require(isinstance(health_report, dict), "memory_health should return a dict")
+    require(
+        health_report.get("entity") == "dana",
+        "memory_health should preserve entity context",
+    )
+    require(
+        isinstance(health_report.get("low_confidence_facts"), list),
+        "memory_health should include low_confidence_facts list",
+    )
+    require(
+        isinstance(health_report.get("recommended_actions"), list),
+        "memory_health should include recommended_actions list",
     )
 
 

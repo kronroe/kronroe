@@ -1,5 +1,8 @@
-use ::chrono::Utc;
-use kronroe_agent_memory::{AgentMemory, RecallOptions, RecallScore};
+use ::chrono::{DateTime, Utc};
+use kronroe_agent_memory::{
+    AgentMemory, ConfidenceShift, FactCorrection, MemoryHealthReport, RecallForTaskReport,
+    RecallOptions, RecallScore, WhatChangedReport,
+};
 use kronroe_core::{Fact, TemporalGraph, Value};
 #[cfg(feature = "hybrid")]
 use kronroe_core::{TemporalIntent, TemporalOperator};
@@ -58,7 +61,7 @@ struct RecallScoredArgs {
     min_confidence: Option<f64>,
     confidence_filter_mode: Option<String>,
     max_scored_rows: Option<usize>,
-    use_hybrid: Option<bool>,
+    use_hybrid: bool,
     temporal_intent: Option<String>,
     temporal_operator: Option<String>,
 }
@@ -71,7 +74,7 @@ impl Default for RecallScoredArgs {
             min_confidence: None,
             confidence_filter_mode: None,
             max_scored_rows: None,
-            use_hybrid: None,
+            use_hybrid: false,
             temporal_intent: None,
             temporal_operator: None,
         }
@@ -113,7 +116,7 @@ fn parse_recall_scored_args_from_options(
     }
     if let Some(value) = options.get_item("use_hybrid")? {
         if !value.is_none() {
-            args.use_hybrid = Some(value.extract::<bool>()?);
+            args.use_hybrid = value.extract::<bool>()?;
         }
     }
     if let Some(value) = options.get_item("temporal_intent")? {
@@ -202,6 +205,113 @@ fn recall_score_to_dict(py: Python<'_>, score: &RecallScore) -> PyResult<Py<PyDi
         }
     }
     Ok(d.unbind())
+}
+
+fn recall_for_task_report_to_dict<'py>(
+    py: Python<'py>,
+    report: &RecallForTaskReport,
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("task", report.task.clone())?;
+    d.set_item("subject", report.subject.clone())?;
+    d.set_item("generated_at", report.generated_at.to_rfc3339())?;
+    d.set_item("horizon_days", report.horizon_days)?;
+    d.set_item("query_used", report.query_used.clone())?;
+
+    let mut key_facts = Vec::with_capacity(report.key_facts.len());
+    for fact in &report.key_facts {
+        key_facts.push(fact_to_dict(py, fact)?.unbind());
+    }
+    d.set_item("key_facts", key_facts)?;
+    d.set_item("low_confidence_count", report.low_confidence_count)?;
+    d.set_item("stale_high_impact_count", report.stale_high_impact_count)?;
+    d.set_item("contradiction_count", report.contradiction_count)?;
+    d.set_item("watchouts", report.watchouts.clone())?;
+    d.set_item(
+        "recommended_next_checks",
+        report.recommended_next_checks.clone(),
+    )?;
+    Ok(d)
+}
+
+fn fact_correction_to_dict(py: Python<'_>, correction: &FactCorrection) -> PyResult<Py<PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("old_fact", fact_to_dict(py, &correction.old_fact)?.unbind())?;
+    d.set_item("new_fact", fact_to_dict(py, &correction.new_fact)?.unbind())?;
+    Ok(d.unbind())
+}
+
+fn confidence_shift_to_dict(py: Python<'_>, shift: &ConfidenceShift) -> PyResult<Py<PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("from_fact_id", shift.from_fact_id.0.clone())?;
+    d.set_item("to_fact_id", shift.to_fact_id.0.clone())?;
+    d.set_item("from_confidence", shift.from_confidence)?;
+    d.set_item("to_confidence", shift.to_confidence)?;
+    Ok(d.unbind())
+}
+
+fn what_changed_report_to_dict<'py>(
+    py: Python<'py>,
+    report: &WhatChangedReport,
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("entity", report.entity.clone())?;
+    d.set_item("since", report.since.to_rfc3339())?;
+    d.set_item("predicate_filter", report.predicate_filter.clone())?;
+
+    let mut new_facts = Vec::with_capacity(report.new_facts.len());
+    for fact in &report.new_facts {
+        new_facts.push(fact_to_dict(py, fact)?.unbind());
+    }
+    d.set_item("new_facts", new_facts)?;
+
+    let mut invalidated_facts = Vec::with_capacity(report.invalidated_facts.len());
+    for fact in &report.invalidated_facts {
+        invalidated_facts.push(fact_to_dict(py, fact)?.unbind());
+    }
+    d.set_item("invalidated_facts", invalidated_facts)?;
+
+    let mut corrections = Vec::with_capacity(report.corrections.len());
+    for correction in &report.corrections {
+        corrections.push(fact_correction_to_dict(py, correction)?);
+    }
+    d.set_item("corrections", corrections)?;
+
+    let mut confidence_shifts = Vec::with_capacity(report.confidence_shifts.len());
+    for shift in &report.confidence_shifts {
+        confidence_shifts.push(confidence_shift_to_dict(py, shift)?);
+    }
+    d.set_item("confidence_shifts", confidence_shifts)?;
+
+    Ok(d)
+}
+
+fn memory_health_report_to_dict<'py>(
+    py: Python<'py>,
+    report: &MemoryHealthReport,
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("entity", report.entity.clone())?;
+    d.set_item("generated_at", report.generated_at.to_rfc3339())?;
+    d.set_item("predicate_filter", report.predicate_filter.clone())?;
+    d.set_item("total_fact_count", report.total_fact_count)?;
+    d.set_item("active_fact_count", report.active_fact_count)?;
+
+    let mut low_confidence_facts = Vec::with_capacity(report.low_confidence_facts.len());
+    for fact in &report.low_confidence_facts {
+        low_confidence_facts.push(fact_to_dict(py, fact)?.unbind());
+    }
+    d.set_item("low_confidence_facts", low_confidence_facts)?;
+
+    let mut stale_high_impact_facts = Vec::with_capacity(report.stale_high_impact_facts.len());
+    for fact in &report.stale_high_impact_facts {
+        stale_high_impact_facts.push(fact_to_dict(py, fact)?.unbind());
+    }
+    d.set_item("stale_high_impact_facts", stale_high_impact_facts)?;
+
+    d.set_item("contradiction_count", report.contradiction_count)?;
+    d.set_item("recommended_actions", report.recommended_actions.clone())?;
+    Ok(d)
 }
 
 #[cfg(feature = "hybrid")]
@@ -300,7 +410,7 @@ impl PyAgentMemory {
             ));
         }
         #[cfg(not(feature = "hybrid"))]
-        if args.use_hybrid == Some(true) {
+        if args.use_hybrid {
             return Err(PyRuntimeError::new_err(
                 "use_hybrid requires the 'hybrid' feature",
             ));
@@ -321,10 +431,10 @@ impl PyAgentMemory {
         #[cfg(feature = "hybrid")]
         {
             if has_embedding {
-                if args.use_hybrid.unwrap_or(true) {
+                if args.use_hybrid {
                     opts = opts.with_hybrid(true);
                 }
-            } else if args.use_hybrid == Some(true)
+            } else if args.use_hybrid
                 || args.temporal_intent.is_some()
                 || args.temporal_operator.is_some()
             {
@@ -377,10 +487,7 @@ impl PyAgentMemory {
         }
 
         #[cfg(not(feature = "hybrid"))]
-        if args.temporal_intent.is_some()
-            || args.temporal_operator.is_some()
-            || args.use_hybrid == Some(true)
-        {
+        if args.temporal_intent.is_some() || args.temporal_operator.is_some() || args.use_hybrid {
             return Err(PyRuntimeError::new_err(
                 "hybrid/temporal controls are unavailable without hybrid feature",
             ));
@@ -503,7 +610,7 @@ impl PyAgentMemory {
         facts_to_pylist(py, facts)
     }
 
-    #[pyo3(signature = (query, limit=10, query_embedding=None, min_confidence=None, confidence_filter_mode=None, max_scored_rows=None, use_hybrid=None, temporal_intent=None, temporal_operator=None))]
+    #[pyo3(signature = (query, limit=10, query_embedding=None, min_confidence=None, confidence_filter_mode=None, max_scored_rows=None, use_hybrid=false, temporal_intent=None, temporal_operator=None))]
     #[allow(clippy::too_many_arguments)]
     fn recall_scored(
         &self,
@@ -514,7 +621,7 @@ impl PyAgentMemory {
         min_confidence: Option<f64>,
         confidence_filter_mode: Option<String>,
         max_scored_rows: Option<usize>,
-        use_hybrid: Option<bool>,
+        use_hybrid: bool,
         temporal_intent: Option<String>,
         temporal_operator: Option<String>,
     ) -> PyResult<Vec<Py<PyDict>>> {
@@ -570,6 +677,126 @@ impl PyAgentMemory {
                 .assemble_context(&query_owned, query_embedding, max_tokens)
         })
         .map_err(to_py_err)
+    }
+
+    #[pyo3(signature = (entity, since, predicate=None))]
+    fn what_changed(
+        &self,
+        py: Python<'_>,
+        entity: &str,
+        since: &str,
+        predicate: Option<&str>,
+    ) -> PyResult<Py<PyDict>> {
+        let since = since
+            .parse::<DateTime<Utc>>()
+            .map_err(|_| PyValueError::new_err("since must be RFC3339"))?;
+        let entity = entity.to_owned();
+        let predicate = predicate.map(str::to_owned);
+        let report = py
+            .allow_threads(|| {
+                self.inner
+                    .what_changed(&entity, since, predicate.as_deref())
+            })
+            .map_err(to_py_err)?;
+        Ok(what_changed_report_to_dict(py, &report)?.unbind())
+    }
+
+    #[pyo3(signature = (entity, predicate=None, low_confidence_threshold=0.7, stale_after_days=90))]
+    fn memory_health(
+        &self,
+        py: Python<'_>,
+        entity: &str,
+        predicate: Option<&str>,
+        low_confidence_threshold: f64,
+        stale_after_days: i64,
+    ) -> PyResult<Py<PyDict>> {
+        if !low_confidence_threshold.is_finite() {
+            return Err(PyValueError::new_err(
+                "low_confidence_threshold must be finite",
+            ));
+        }
+        if !(0.0..=1.0).contains(&low_confidence_threshold) {
+            return Err(PyValueError::new_err(
+                "low_confidence_threshold must be between 0.0 and 1.0",
+            ));
+        }
+        if stale_after_days < 0 {
+            return Err(PyValueError::new_err("stale_after_days must be >= 0"));
+        }
+
+        let entity = entity.to_owned();
+        let predicate = predicate.map(str::to_owned);
+        let threshold = low_confidence_threshold as f32;
+        let report = py
+            .allow_threads(|| {
+                self.inner
+                    .memory_health(&entity, predicate.as_deref(), threshold, stale_after_days)
+            })
+            .map_err(to_py_err)?;
+        Ok(memory_health_report_to_dict(py, &report)?.unbind())
+    }
+
+    #[pyo3(signature = (task, subject=None, now=None, horizon_days=None, limit=8, query_embedding=None, use_hybrid=false))]
+    #[allow(clippy::too_many_arguments)]
+    fn recall_for_task(
+        &self,
+        py: Python<'_>,
+        task: &str,
+        subject: Option<&str>,
+        now: Option<&str>,
+        horizon_days: Option<i64>,
+        limit: usize,
+        query_embedding: Option<Vec<f64>>,
+        use_hybrid: bool,
+    ) -> PyResult<Py<PyDict>> {
+        if limit == 0 {
+            return Err(PyValueError::new_err("limit must be >= 1"));
+        }
+        if horizon_days.is_some_and(|days| days < 1) {
+            return Err(PyValueError::new_err("horizon_days must be >= 1"));
+        }
+
+        let now = now
+            .map(|value| {
+                value
+                    .parse::<DateTime<Utc>>()
+                    .map_err(|_| PyValueError::new_err("now must be RFC3339"))
+            })
+            .transpose()?;
+
+        let embedding = parse_query_embedding(query_embedding)?;
+        #[cfg(not(feature = "hybrid"))]
+        if embedding.is_some() || use_hybrid {
+            return Err(PyRuntimeError::new_err(
+                "query_embedding/use_hybrid require the hybrid feature",
+            ));
+        }
+
+        #[cfg(feature = "hybrid")]
+        let embedding_for_call = if use_hybrid {
+            embedding.as_deref()
+        } else {
+            None
+        };
+        #[cfg(not(feature = "hybrid"))]
+        let embedding_for_call: Option<&[f32]> = None;
+
+        let task = task.to_owned();
+        let subject = subject.map(str::to_owned);
+        let report = py
+            .allow_threads(|| {
+                self.inner.recall_for_task(
+                    &task,
+                    subject.as_deref(),
+                    now,
+                    horizon_days,
+                    limit,
+                    embedding_for_call,
+                )
+            })
+            .map_err(to_py_err)?;
+
+        Ok(recall_for_task_report_to_dict(py, &report)?.unbind())
     }
 
     #[pyo3(signature = (entity, predicate, at))]
@@ -637,6 +864,9 @@ mod tests {
         let _ = stringify!(super::PyAgentMemory::recall_scored);
         let _ = stringify!(super::PyAgentMemory::recall_scored_with_options);
         let _ = stringify!(super::PyAgentMemory::assemble_context);
+        let _ = stringify!(super::PyAgentMemory::what_changed);
+        let _ = stringify!(super::PyAgentMemory::memory_health);
+        let _ = stringify!(super::PyAgentMemory::recall_for_task);
         let _ = stringify!(super::PyAgentMemory::correct_fact);
         let _ = stringify!(super::PyAgentMemory::invalidate_fact);
     }
@@ -650,6 +880,7 @@ mod tests {
     #[cfg(not(feature = "extension-module"))]
     mod runtime {
         use super::super::{AgentMemory, PyAgentMemory};
+        use kronroe_agent_memory::AssertParams;
         use pyo3::prelude::PyAnyMethods;
         use pyo3::types::PyString;
         use pyo3::types::{PyDict, PyDictMethods};
@@ -734,7 +965,7 @@ mod tests {
                         Some(0.9),
                         Some("base".to_string()),
                         None,
-                        None,
+                        false,
                         None,
                         None,
                     )
@@ -775,7 +1006,7 @@ mod tests {
                         Some(0.1),
                         Some("base".to_string()),
                         None,
-                        None,
+                        false,
                         None,
                         None,
                     )
@@ -824,7 +1055,7 @@ mod tests {
                         Some(0.1),
                         Some("base".to_string()),
                         Some(128),
-                        None,
+                        false,
                         None,
                         None,
                     )
@@ -911,7 +1142,7 @@ mod tests {
                         Some(f64::NAN),
                         Some("base".to_string()),
                         None,
-                        None,
+                        false,
                         None,
                         None,
                     )
@@ -933,7 +1164,7 @@ mod tests {
                         None,
                         Some("base".to_string()),
                         None,
-                        None,
+                        false,
                         None,
                         None,
                     )
@@ -966,111 +1197,245 @@ mod tests {
             });
         }
 
+        #[test]
+        fn python_recall_for_task_returns_subject_scoped_report() {
+            with_memory(|py, memory| {
+                let stale = (::chrono::Utc::now() - ::chrono::Duration::days(180)).to_rfc3339();
+                let object = PyString::new(py, "Acme").into_any();
+                memory
+                    .assert_with_confidence(py, "alice", "works_at", &object, 0.6, None)
+                    .expect("assert_with_confidence");
+
+                let rows = memory.facts_about(py, "alice").expect("facts_about");
+                let row = rows[0].bind(py);
+                let fact_id = row
+                    .get_item("id")
+                    .expect("id key")
+                    .expect("id value")
+                    .extract::<String>()
+                    .expect("id string");
+                memory
+                    .invalidate_fact(py, &fact_id)
+                    .expect("invalidate old row");
+
+                let refreshed = PyString::new(py, "Acme").into_any();
+                memory
+                    .assert_with_confidence(py, "alice", "works_at", &refreshed, 0.6, None)
+                    .expect("assert refreshed");
+
+                let report_obj = memory
+                    .recall_for_task(
+                        py,
+                        "prepare renewal call",
+                        Some("alice"),
+                        Some(&stale),
+                        Some(90),
+                        10,
+                        None,
+                        false,
+                    )
+                    .expect("recall_for_task");
+                let report_any = report_obj.bind(py);
+                let report = report_any.downcast::<PyDict>().expect("report dict");
+
+                let subject = report
+                    .get_item("subject")
+                    .expect("subject key")
+                    .expect("subject value")
+                    .extract::<String>()
+                    .expect("subject string");
+                assert_eq!(subject, "alice");
+
+                let key_facts = report
+                    .get_item("key_facts")
+                    .expect("key_facts key")
+                    .expect("key_facts value")
+                    .extract::<Vec<pyo3::Py<PyDict>>>()
+                    .expect("key_facts list");
+                assert!(!key_facts.is_empty());
+            });
+        }
+
+        #[test]
+        fn python_what_changed_returns_corrections_and_confidence_shifts() {
+            with_memory(|py, memory| {
+                let original = PyString::new(py, "Acme").into_any();
+                memory
+                    .assert_fact(py, "alice", "works_at", &original)
+                    .expect("assert_fact");
+
+                let rows = memory.facts_about(py, "alice").expect("facts_about");
+                let row = rows[0].bind(py);
+                let fact_id = row
+                    .get_item("id")
+                    .expect("id key")
+                    .expect("id value")
+                    .extract::<String>()
+                    .expect("id string");
+
+                let since = ::chrono::Utc::now().to_rfc3339();
+                memory
+                    .invalidate_fact(py, &fact_id)
+                    .expect("invalidate_fact");
+
+                let replacement = PyString::new(py, "Beta Corp").into_any();
+                memory
+                    .assert_with_confidence(py, "alice", "works_at", &replacement, 0.6, None)
+                    .expect("assert_with_confidence");
+
+                let report_obj = memory
+                    .what_changed(py, "alice", &since, Some("works_at"))
+                    .expect("what_changed");
+                let report_any = report_obj.bind(py);
+                let report = report_any.downcast::<PyDict>().expect("report dict");
+
+                let new_facts = report
+                    .get_item("new_facts")
+                    .expect("new_facts key")
+                    .expect("new_facts value")
+                    .extract::<Vec<pyo3::Py<PyDict>>>()
+                    .expect("new_facts list");
+                let invalidated = report
+                    .get_item("invalidated_facts")
+                    .expect("invalidated key")
+                    .expect("invalidated value")
+                    .extract::<Vec<pyo3::Py<PyDict>>>()
+                    .expect("invalidated list");
+                let corrections = report
+                    .get_item("corrections")
+                    .expect("corrections key")
+                    .expect("corrections value")
+                    .extract::<Vec<pyo3::Py<PyDict>>>()
+                    .expect("corrections list");
+                let shifts = report
+                    .get_item("confidence_shifts")
+                    .expect("confidence_shifts key")
+                    .expect("confidence_shifts value")
+                    .extract::<Vec<pyo3::Py<PyDict>>>()
+                    .expect("confidence_shifts list");
+
+                assert_eq!(new_facts.len(), 1);
+                assert_eq!(invalidated.len(), 1);
+                assert_eq!(corrections.len(), 1);
+                assert_eq!(shifts.len(), 1);
+            });
+        }
+
+        #[test]
+        fn python_what_changed_rejects_invalid_since() {
+            with_memory(|py, memory| {
+                let err = memory
+                    .what_changed(py, "alice", "not-a-date", None)
+                    .expect_err("expected invalid since error");
+                assert!(err.to_string().contains("since must be RFC3339"));
+            });
+        }
+
+        #[test]
+        fn python_memory_health_reports_low_confidence_and_stale() {
+            with_memory(|py, memory| {
+                let old = ::chrono::Utc::now() - ::chrono::Duration::days(200);
+                memory
+                    .inner
+                    .assert_with_confidence_with_params(
+                        "alice",
+                        "nickname",
+                        "Bex",
+                        AssertParams { valid_from: old },
+                        0.4,
+                    )
+                    .expect("assert nickname");
+                memory
+                    .inner
+                    .assert_with_confidence_with_params(
+                        "alice",
+                        "email",
+                        "alice@example.com",
+                        AssertParams { valid_from: old },
+                        0.9,
+                    )
+                    .expect("assert email");
+
+                let report_obj = memory
+                    .memory_health(py, "alice", None, 0.7, 90)
+                    .expect("memory_health");
+                let report_any = report_obj.bind(py);
+                let report = report_any.downcast::<PyDict>().expect("report dict");
+
+                assert_eq!(
+                    report
+                        .get_item("total_fact_count")
+                        .expect("total_fact_count key")
+                        .expect("total_fact_count value")
+                        .extract::<usize>()
+                        .expect("total_fact_count int"),
+                    2
+                );
+
+                let low_confidence = report
+                    .get_item("low_confidence_facts")
+                    .expect("low_confidence_facts key")
+                    .expect("low_confidence_facts value")
+                    .extract::<Vec<pyo3::Py<PyDict>>>()
+                    .expect("low_confidence_facts list");
+                let stale = report
+                    .get_item("stale_high_impact_facts")
+                    .expect("stale_high_impact_facts key")
+                    .expect("stale_high_impact_facts value")
+                    .extract::<Vec<pyo3::Py<PyDict>>>()
+                    .expect("stale_high_impact_facts list");
+
+                assert_eq!(low_confidence.len(), 1);
+                assert_eq!(stale.len(), 1);
+            });
+        }
+
+        #[test]
+        fn python_memory_health_rejects_invalid_threshold() {
+            with_memory(|py, memory| {
+                let err = memory
+                    .memory_health(py, "alice", None, f64::NAN, 90)
+                    .expect_err("expected invalid threshold error");
+                assert!(err
+                    .to_string()
+                    .contains("low_confidence_threshold must be finite"));
+
+                let err = memory
+                    .memory_health(py, "alice", None, 1.5, 90)
+                    .expect_err("expected out-of-range threshold error");
+                assert!(err.to_string().contains("between 0.0 and 1.0"));
+            });
+        }
+
+        #[test]
+        fn python_recall_for_task_rejects_zero_horizon_days() {
+            with_memory(|py, memory| {
+                let err = memory
+                    .recall_for_task(
+                        py,
+                        "prepare renewal call",
+                        None,
+                        None,
+                        Some(0),
+                        8,
+                        None,
+                        false,
+                    )
+                    .expect_err("expected horizon validation error");
+                assert!(err.to_string().contains("horizon_days must be >= 1"));
+            });
+        }
+
         #[cfg(feature = "hybrid")]
         #[test]
         fn python_recall_scored_requires_embedding_for_hybrid_controls() {
             with_memory(|py, memory| {
                 let err = memory
-                    .recall_scored(
-                        py,
-                        "rust",
-                        10,
-                        None,
-                        None,
-                        None,
-                        None,
-                        Some(true),
-                        None,
-                        None,
-                    )
+                    .recall_scored(py, "rust", 10, None, None, None, None, true, None, None)
                     .expect_err("expected hybrid control validation error");
                 assert!(err
                     .to_string()
                     .contains("query_embedding is required for hybrid/temporal controls"));
-            });
-        }
-
-        #[cfg(feature = "hybrid")]
-        #[test]
-        fn python_recall_scored_embedding_defaults_to_hybrid() {
-            with_memory(|py, memory| {
-                let object = PyString::new(py, "rust hybrid default").into_any();
-                memory
-                    .assert_with_confidence(py, "hybrid-default", "memory", &object, 0.9, None)
-                    .expect("assert_with_confidence");
-
-                let rows = memory
-                    .recall_scored(
-                        py,
-                        "rust",
-                        10,
-                        Some(vec![1.0, 0.0, 0.0]),
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                    )
-                    .expect("recall_scored");
-                assert!(!rows.is_empty());
-
-                let row = rows[0].bind(py);
-                let score = row
-                    .get_item("score")
-                    .expect("score key")
-                    .expect("score value")
-                    .downcast_into::<PyDict>()
-                    .expect("score dict");
-                let score_type = score
-                    .get_item("type")
-                    .expect("type key")
-                    .expect("type value")
-                    .extract::<String>()
-                    .expect("type as string");
-                assert_eq!(score_type, "hybrid");
-            });
-        }
-
-        #[cfg(feature = "hybrid")]
-        #[test]
-        fn python_recall_scored_embedding_honors_use_hybrid_false() {
-            with_memory(|py, memory| {
-                let object = PyString::new(py, "rust hybrid override").into_any();
-                memory
-                    .assert_with_confidence(py, "hybrid-override", "memory", &object, 0.9, None)
-                    .expect("assert_with_confidence");
-
-                let rows = memory
-                    .recall_scored(
-                        py,
-                        "rust",
-                        10,
-                        Some(vec![1.0, 0.0, 0.0]),
-                        None,
-                        None,
-                        None,
-                        Some(false),
-                        None,
-                        None,
-                    )
-                    .expect("recall_scored");
-                assert!(!rows.is_empty());
-
-                let row = rows[0].bind(py);
-                let score = row
-                    .get_item("score")
-                    .expect("score key")
-                    .expect("score value")
-                    .downcast_into::<PyDict>()
-                    .expect("score dict");
-                let score_type = score
-                    .get_item("type")
-                    .expect("type key")
-                    .expect("type value")
-                    .extract::<String>()
-                    .expect("type as string");
-                assert_eq!(score_type, "text");
             });
         }
     }
