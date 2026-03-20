@@ -2,6 +2,10 @@
 
 iOS FFI bindings and Swift Package wrapper for Kronroe.
 
+The full XCFramework and Swift wrapper verification flow is treated as a local
+pre-merge check on macOS rather than a required PR job on GitHub Actions. The
+GitHub iOS workflow remains available on `main` pushes and via manual dispatch.
+
 ## What is included
 
 - Rust staticlib crate (`kronroe-ios`) exposing a C ABI

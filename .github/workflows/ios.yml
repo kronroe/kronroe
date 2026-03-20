@@ -1,11 +1,6 @@
 name: iOS Packaging
 
 on:
-  pull_request:
-    paths:
-      - "crates/core/**"
-      - "crates/ios/**"
-      - ".github/workflows/ios.yml"
   push:
     branches: [main]
     paths:
