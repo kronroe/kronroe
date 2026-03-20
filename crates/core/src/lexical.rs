@@ -257,7 +257,11 @@ mod tests {
 
     fn doc_with(id: &str, content: &str) -> LexicalDocument {
         LexicalDocument::new(
-            FactId::from_parts(1_742_355_200_000, 0, crate::fact_id::deterministic_entropy(id)),
+            FactId::from_parts(
+                1_742_355_200_000,
+                0,
+                crate::fact_id::deterministic_entropy(id),
+            ),
             content.to_string(),
         )
     }
@@ -302,10 +306,7 @@ mod tests {
             .into_iter()
             .map(|(id, _)| id)
             .collect();
-        assert_eq!(
-            multi_term_ids,
-            vec![docs[0].id.clone(), docs[1].id.clone()]
-        );
+        assert_eq!(multi_term_ids, vec![docs[0].id.clone(), docs[1].id.clone()]);
 
         let alias_ids: Vec<FactId> = search_scored(&docs, "ally", 10)
             .into_iter()

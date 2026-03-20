@@ -27,9 +27,9 @@
 //! let facts_then = db.facts_at("alice", "works_at", past).unwrap();
 //! ```
 
+mod fact_id;
 #[cfg(feature = "fulltext")]
 mod lexical;
-mod fact_id;
 #[cfg(feature = "vector")]
 mod vector;
 
@@ -444,7 +444,12 @@ impl TemporalGraph {
                 let stored: Option<u64> = meta.get("schema_version")?.map(|g| g.value());
                 match stored {
                     None => {
-                        let facts_exist = write_txn.open_table(FACTS)?.iter()?.next().transpose()?.is_some();
+                        let facts_exist = write_txn
+                            .open_table(FACTS)?
+                            .iter()?
+                            .next()
+                            .transpose()?
+                            .is_some();
                         let idempotency_exists = write_txn
                             .open_table(IDEMPOTENCY)?
                             .iter()?
@@ -638,8 +643,11 @@ impl TemporalGraph {
             rows
         };
 
-        let mut ordered_facts: Vec<(usize, &StoredFactRecord)> =
-            facts_rows.iter().enumerate().map(|(idx, (_key, fact))| (idx, fact)).collect();
+        let mut ordered_facts: Vec<(usize, &StoredFactRecord)> = facts_rows
+            .iter()
+            .enumerate()
+            .map(|(idx, (_key, fact))| (idx, fact))
+            .collect();
         ordered_facts.sort_by(|(left_idx, left), (right_idx, right)| {
             left.recorded_at
                 .cmp(&right.recorded_at)
@@ -652,10 +660,7 @@ impl TemporalGraph {
         let mut migrated_ids: Vec<FactId> = vec![FactId::default(); facts_rows.len()];
 
         for (idx, fact) in ordered_facts {
-            let mut timestamp_ms = fact
-                .recorded_at
-                .timestamp_millis()
-                .max(0) as u64;
+            let mut timestamp_ms = fact.recorded_at.timestamp_millis().max(0) as u64;
             if timestamp_ms < migration_last_ms {
                 timestamp_ms = migration_last_ms;
             }
@@ -894,8 +899,11 @@ impl TemporalGraph {
                     .get(idempotency_key)?
                     .map(|guard| guard.value().to_string());
                 if let Some(existing_id) = existing {
-                    return FactId::parse(&existing_id)
-                        .map_err(|e| KronroeError::Storage(format!("corrupt idempotency fact id `{existing_id}`: {e}")));
+                    return FactId::parse(&existing_id).map_err(|e| {
+                        KronroeError::Storage(format!(
+                            "corrupt idempotency fact id `{existing_id}`: {e}"
+                        ))
+                    });
                 }
             }
         }
@@ -910,8 +918,11 @@ impl TemporalGraph {
                 .get(idempotency_key)?
                 .map(|guard| guard.value().to_string());
             if let Some(existing_id) = existing {
-                return FactId::parse(&existing_id)
-                    .map_err(|e| KronroeError::Storage(format!("corrupt idempotency fact id `{existing_id}`: {e}")));
+                return FactId::parse(&existing_id).map_err(|e| {
+                    KronroeError::Storage(format!(
+                        "corrupt idempotency fact id `{existing_id}`: {e}"
+                    ))
+                });
             }
         }
 
@@ -1062,7 +1073,10 @@ impl TemporalGraph {
                 write_txn.commit()?;
                 Ok(())
             }
-            _ => Err(KronroeError::NotFound(format!("fact id {}", fact_id.as_str()))),
+            _ => Err(KronroeError::NotFound(format!(
+                "fact id {}",
+                fact_id.as_str()
+            ))),
         }
     }
 
@@ -1080,7 +1094,10 @@ impl TemporalGraph {
                 return Ok(fact);
             }
         }
-        Err(KronroeError::NotFound(format!("fact id {}", fact_id.as_str())))
+        Err(KronroeError::NotFound(format!(
+            "fact id {}",
+            fact_id.as_str()
+        )))
     }
 
     /// Correct a fact by id while preserving history.
@@ -1635,9 +1652,7 @@ impl TemporalGraph {
             entry.final_score += contrib;
         }
 
-        let mut fused: Vec<(FactId, HybridScoreBreakdown)> = by_id
-            .into_iter()
-            .collect();
+        let mut fused: Vec<(FactId, HybridScoreBreakdown)> = by_id.into_iter().collect();
 
         // Sort by RRF score descending, FactId ascending for deterministic ties.
         fused.sort_by(|(a_id, a), (b_id, b)| {
@@ -1883,7 +1898,10 @@ mod tests {
                 embedding_meta.insert("dim", first.len() as u64).unwrap();
             }
             for (fact_id, embedding) in embeddings {
-                let bytes: Vec<u8> = embedding.iter().flat_map(|value| value.to_le_bytes()).collect();
+                let bytes: Vec<u8> = embedding
+                    .iter()
+                    .flat_map(|value| value.to_le_bytes())
+                    .collect();
                 embeddings_table.insert(*fact_id, bytes.as_slice()).unwrap();
             }
         }
@@ -2915,7 +2933,8 @@ mod tests {
         // Regression: conflicting_fact_id must reference the actually-persisted
         // fact, not the temporary candidate used during detection.
         assert_eq!(
-            contradictions[0].conflicting_fact_id, fact_id.to_string(),
+            contradictions[0].conflicting_fact_id,
+            fact_id.to_string(),
             "conflicting_fact_id should match the stored fact's ID"
         );
 

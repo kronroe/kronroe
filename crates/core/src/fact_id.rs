@@ -171,7 +171,6 @@ impl FactId {
     pub fn sequence(&self) -> u16 {
         ((self.bytes[6] as u16) << 8) | self.bytes[7] as u16
     }
-
 }
 
 impl Default for FactId {
@@ -300,5 +299,4 @@ mod tests {
         assert_eq!(first.timestamp_ms(), second.timestamp_ms());
         assert!(first < second);
     }
-
 }

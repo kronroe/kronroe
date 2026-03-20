@@ -883,7 +883,11 @@ impl AgentMemory {
     }
 
     /// Correct an existing fact by id, preserving temporal history.
-    pub fn correct_fact(&self, fact_id: impl AsRef<str>, new_value: impl Into<Value>) -> Result<FactId> {
+    pub fn correct_fact(
+        &self,
+        fact_id: impl AsRef<str>,
+        new_value: impl Into<Value>,
+    ) -> Result<FactId> {
         self.graph.correct_fact(fact_id, new_value, Utc::now())
     }
 
