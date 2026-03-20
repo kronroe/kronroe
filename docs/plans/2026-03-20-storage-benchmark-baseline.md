@@ -38,6 +38,19 @@ Important caveat:
 - they are not cross-machine performance claims
 - the most important signal is operation mix, scan volume, and where time
   concentrates
+- the current harness mixes mostly `InMemory` workloads with one `OnDisk`
+  reopen workload, so direct wall-time comparisons across all sections should be
+  read carefully
+
+Backend mode summary:
+
+- `assert_heavy_ingestion`: `InMemory`
+- `correction_heavy_timeline_churn`: `InMemory`
+- `current_state_scan`: `InMemory`
+- `historical_point_in_time_scan`: `InMemory`
+- `idempotent_retries`: `InMemory`
+- `mixed_real_task_session`: `InMemory`
+- `embedding_reopen`: `OnDisk`
 
 ## Baseline Results
 
@@ -51,7 +64,7 @@ Important caveat:
 Interpretation:
 
 - straightforward append-style fact writes are relatively cheap
-- this path does not currently look like the main storage bottleneck
+- this in-memory path does not currently look like the main storage bottleneck
 
 ### Correction-heavy timeline churn
 
@@ -68,6 +81,8 @@ Interpretation:
   behavior, not write cost
 - this is a strong signal that the current persisted layout is not yet
   Kronroe-shaped for long correction chains
+- because this run is `InMemory`, the strongest takeaway here is iteration
+  pressure and scan shape, not disk persistence cost
 
 ### Current-state scan
 
@@ -82,6 +97,7 @@ Interpretation:
 
 - wide subject scans are already scan-cost sensitive
 - current-state reads are serviceable, but clearly tied to raw iteration volume
+  even before disk cost is introduced
 
 ### Historical point-in-time scan
 
@@ -99,6 +115,8 @@ Interpretation:
 - this strongly supports the research-plan hypothesis that historical workloads
   are where a Kronroe-native backend can materially outperform generic KV
   prefix scans
+- this conclusion is still valid even though the run is `InMemory`, because the
+  dominant cost is broad iteration volume
 
 ### Idempotent retries
 
@@ -138,7 +156,9 @@ Interpretation:
 - vector persistence is materially more expensive than plain fact writes, as
   expected
 - reopen and vector rebuild look acceptable at this scale
-- this is a meaningful baseline to keep as we change storage internals later
+- this is the only workload in the current baseline that includes `OnDisk`
+  reopen behavior, so it should not be compared naively to the in-memory-only
+  sections above
 
 ## Initial Conclusions
 

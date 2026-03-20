@@ -97,31 +97,6 @@ pub enum KronroeError {
     SchemaMismatch { found: u64, expected: u64 },
 }
 
-impl From<redb::DatabaseError> for KronroeError {
-    fn from(e: redb::DatabaseError) -> Self {
-        KronroeError::Storage(e.to_string())
-    }
-}
-impl From<redb::TransactionError> for KronroeError {
-    fn from(e: redb::TransactionError) -> Self {
-        KronroeError::Storage(e.to_string())
-    }
-}
-impl From<redb::TableError> for KronroeError {
-    fn from(e: redb::TableError) -> Self {
-        KronroeError::Storage(e.to_string())
-    }
-}
-impl From<redb::StorageError> for KronroeError {
-    fn from(e: redb::StorageError) -> Self {
-        KronroeError::Storage(e.to_string())
-    }
-}
-impl From<redb::CommitError> for KronroeError {
-    fn from(e: redb::CommitError) -> Self {
-        KronroeError::Storage(e.to_string())
-    }
-}
 pub type Result<T> = std::result::Result<T, KronroeError>;
 
 // ---------------------------------------------------------------------------

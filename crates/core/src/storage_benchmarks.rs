@@ -101,9 +101,16 @@ struct StorageBenchmarkReport {
     workloads: Vec<WorkloadReport>,
 }
 
+#[derive(Clone, Copy, Serialize)]
+enum BenchmarkBackendMode {
+    InMemory,
+    OnDisk,
+}
+
 #[derive(Serialize)]
 struct WorkloadReport {
     workload: String,
+    backend_mode: BenchmarkBackendMode,
     wall_duration_ms: u128,
     parameters: BTreeMap<String, usize>,
     notes: BTreeMap<String, String>,
@@ -161,6 +168,7 @@ fn summarize_operations(events: Vec<StorageEvent>) -> Vec<OperationSummary> {
 
 fn build_report(
     workload: &str,
+    backend_mode: BenchmarkBackendMode,
     started_at: Instant,
     observer: Arc<RecordingObserver>,
     parameters: BTreeMap<String, usize>,
@@ -169,6 +177,7 @@ fn build_report(
     let events = observer.events.lock().unwrap().clone();
     WorkloadReport {
         workload: workload.to_string(),
+        backend_mode,
         wall_duration_ms: started_at.elapsed().as_millis(),
         parameters,
         notes,
@@ -204,6 +213,7 @@ fn run_assert_heavy_ingestion(config: BenchmarkConfig) -> WorkloadReport {
 
     build_report(
         "assert_heavy_ingestion",
+        BenchmarkBackendMode::InMemory,
         started_at,
         observer,
         parameters,
@@ -250,6 +260,7 @@ fn run_correction_heavy_timeline_churn(config: BenchmarkConfig) -> WorkloadRepor
 
     build_report(
         "correction_heavy_timeline_churn",
+        BenchmarkBackendMode::InMemory,
         started_at,
         observer,
         parameters,
@@ -299,6 +310,7 @@ fn run_current_state_scan(config: BenchmarkConfig) -> WorkloadReport {
 
     build_report(
         "current_state_scan",
+        BenchmarkBackendMode::InMemory,
         started_at,
         observer,
         parameters,
@@ -339,6 +351,7 @@ fn run_historical_point_in_time_scan(config: BenchmarkConfig) -> WorkloadReport 
 
     build_report(
         "historical_point_in_time_scan",
+        BenchmarkBackendMode::InMemory,
         started_at,
         observer,
         parameters,
@@ -393,6 +406,7 @@ fn run_idempotent_retries(config: BenchmarkConfig) -> WorkloadReport {
 
     build_report(
         "idempotent_retries",
+        BenchmarkBackendMode::InMemory,
         started_at,
         observer,
         parameters,
@@ -447,6 +461,7 @@ fn run_embedding_reopen(config: BenchmarkConfig) -> WorkloadReport {
 
     WorkloadReport {
         workload: "embedding_reopen".into(),
+        backend_mode: BenchmarkBackendMode::OnDisk,
         wall_duration_ms: reopen_started_at.elapsed().as_millis(),
         parameters,
         notes,
@@ -488,6 +503,7 @@ fn run_mixed_session(_config: BenchmarkConfig) -> WorkloadReport {
 
     build_report(
         "mixed_real_task_session",
+        BenchmarkBackendMode::InMemory,
         started_at,
         observer,
         parameters,
