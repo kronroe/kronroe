@@ -8,21 +8,13 @@ OUT_DIR="${IOS_DIR}/swift"
 OUT_XCFRAMEWORK="${OUT_DIR}/KronroeFFI.xcframework"
 HEADER_DIR="${IOS_DIR}/include"
 
-# Size-optimized profile for mobile staticlibs.
-# Passed via --config so Cargo fingerprints include them (env var overrides
-# can be ignored by cached artifacts from rust-cache).
-MOBILE_PROFILE=(
-  --config 'profile.release.opt-level="z"'
-  --config 'profile.release.lto=true'
-  --config 'profile.release.codegen-units=1'
-  --config 'profile.release.panic="abort"'
-)
-# macOS linker dead-strip — only available via RUSTFLAGS.
-export RUSTFLAGS="-C link-arg=-Wl,-dead_strip ${RUSTFLAGS:-}"
+# Size profile (opt-level=z, lto, codegen-units=1) is set in the workspace
+# Cargo.toml [profile.release].  Only iOS/Android-specific flags go here.
+export RUSTFLAGS="-C panic=abort -C link-arg=-Wl,-dead_strip ${RUSTFLAGS:-}"
 
 echo "Building iOS static libraries..."
-cargo build --release --target aarch64-apple-ios -p kronroe-ios "${MOBILE_PROFILE[@]}"
-cargo build --release --target aarch64-apple-ios-sim -p kronroe-ios "${MOBILE_PROFILE[@]}"
+cargo build --release --target aarch64-apple-ios -p kronroe-ios
+cargo build --release --target aarch64-apple-ios-sim -p kronroe-ios
 
 DEVICE_LIB="${ROOT_DIR}/target/aarch64-apple-ios/release/libkronroe_ios.a"
 SIM_LIB="${ROOT_DIR}/target/aarch64-apple-ios-sim/release/libkronroe_ios.a"

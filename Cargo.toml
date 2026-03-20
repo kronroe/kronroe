@@ -41,3 +41,17 @@ jni = "0.21"
 
 # Testing
 tempfile = "3"
+
+# --- Release profile ---------------------------------------------------
+# Optimise for binary size across all crates.  Kronroe is a library /
+# embedded engine — hot paths are I/O-bound (redb), not CPU-bound, so
+# opt-level "z" is the right trade-off.  LTO + codegen-units=1 give the
+# linker maximum dead-code-elimination visibility.
+#
+# panic = "abort" is intentionally omitted here so the MCP binary server
+# and test harnesses retain unwind support.  The iOS and Android build
+# scripts add panic=abort via RUSTFLAGS for their staticlib/cdylib targets.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1

@@ -23,16 +23,9 @@ ABI_NAMES=(
   "x86"
 )
 
-# Size-optimized profile for mobile shared libs.
-# Passed via --config so Cargo fingerprints include them (env var overrides
-# can be ignored by cached artifacts from rust-cache).
-MOBILE_PROFILE=(
-  --config 'profile.release.opt-level="z"'
-  --config 'profile.release.lto=true'
-  --config 'profile.release.codegen-units=1'
-  --config 'profile.release.strip="symbols"'
-  --config 'profile.release.panic="abort"'
-)
+# Size profile (opt-level=z, lto, codegen-units=1) is set in the workspace
+# Cargo.toml [profile.release].  Only mobile-specific flags go here.
+export RUSTFLAGS="-C panic=abort ${RUSTFLAGS:-}"
 
 # Min Android API level (matches most apps' minSdk).
 MIN_API="${ANDROID_MIN_API:-24}"
@@ -45,7 +38,7 @@ for i in "${!TARGETS[@]}"; do
 
   echo "  Building ${target} (${abi})..."
   cargo ndk --target "${target}" --platform "${MIN_API}" \
-    build --release -p kronroe-android "${MOBILE_PROFILE[@]}"
+    build --release -p kronroe-android
 
   src="${ROOT_DIR}/target/${target}/release/libkronroe_android.so"
   dest="${BUILD_DIR}/${abi}"
