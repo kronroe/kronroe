@@ -135,7 +135,7 @@ fn parse_recall_scored_args_from_options(
 
 fn fact_to_dict<'py>(py: Python<'py>, fact: &Fact) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new(py);
-    d.set_item("id", fact.id.0.clone())?;
+    d.set_item("id", fact.id.as_str())?;
     d.set_item("subject", fact.subject.clone())?;
     d.set_item("predicate", fact.predicate.clone())?;
     match &fact.object {
@@ -243,8 +243,8 @@ fn fact_correction_to_dict(py: Python<'_>, correction: &FactCorrection) -> PyRes
 
 fn confidence_shift_to_dict(py: Python<'_>, shift: &ConfidenceShift) -> PyResult<Py<PyDict>> {
     let d = PyDict::new(py);
-    d.set_item("from_fact_id", shift.from_fact_id.0.clone())?;
-    d.set_item("to_fact_id", shift.to_fact_id.0.clone())?;
+    d.set_item("from_fact_id", shift.from_fact_id.as_str())?;
+    d.set_item("to_fact_id", shift.to_fact_id.as_str())?;
     d.set_item("from_confidence", shift.from_confidence)?;
     d.set_item("to_confidence", shift.to_confidence)?;
     Ok(d.unbind())
@@ -374,7 +374,7 @@ impl PyKronroeDb {
                     .assert_fact(&subject, &predicate, value, Utc::now())
             })
             .map_err(to_py_err)?;
-        Ok(id.0)
+        Ok(id.to_string())
     }
 
     fn search(&self, py: Python<'_>, query: &str, limit: usize) -> PyResult<Vec<Py<PyDict>>> {
@@ -532,7 +532,7 @@ impl PyAgentMemory {
         let id = py
             .allow_threads(|| self.inner.assert(&subject, &predicate, value))
             .map_err(to_py_err)?;
-        Ok(id.0)
+        Ok(id.to_string())
     }
 
     #[pyo3(signature = (subject, predicate, object, confidence, source=None))]
@@ -566,7 +566,7 @@ impl PyAgentMemory {
             })
             .map_err(to_py_err)?
         };
-        Ok(id.0)
+        Ok(id.to_string())
     }
 
     fn facts_about(&self, py: Python<'_>, entity: &str) -> PyResult<Vec<Py<PyDict>>> {
@@ -826,17 +826,15 @@ impl PyAgentMemory {
         new_value: &Bound<'_, PyAny>,
     ) -> PyResult<String> {
         let new_value = py_to_value(new_value)?;
-        let fact_id = kronroe_core::FactId(fact_id.to_string());
         let id = py
-            .allow_threads(|| self.inner.correct_fact(&fact_id, new_value))
+            .allow_threads(|| self.inner.correct_fact(fact_id, new_value))
             .map_err(to_py_err)?;
-        Ok(id.0)
+        Ok(id.to_string())
     }
 
     #[pyo3(signature = (fact_id))]
     fn invalidate_fact(&self, py: Python<'_>, fact_id: &str) -> PyResult<()> {
-        let fact_id = kronroe_core::FactId(fact_id.to_string());
-        py.allow_threads(|| self.inner.invalidate_fact(&fact_id))
+        py.allow_threads(|| self.inner.invalidate_fact(fact_id))
             .map_err(to_py_err)?;
         Ok(())
     }

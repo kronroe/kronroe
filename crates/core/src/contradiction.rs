@@ -188,12 +188,12 @@ pub(crate) fn suggest_resolution(a: &Fact, b: &Fact) -> SuggestedResolution {
     // If confidence differs significantly, suggest invalidating the weaker fact.
     if conf_delta >= 0.3 {
         let weaker = if a.confidence < b.confidence {
-            &a.id.0
+            a.id.as_str()
         } else {
-            &b.id.0
+            b.id.as_str()
         };
         return SuggestedResolution::InvalidateOlderFact {
-            fact_id: weaker.clone(),
+            fact_id: weaker.to_string(),
         };
     }
 
@@ -202,12 +202,12 @@ pub(crate) fn suggest_resolution(a: &Fact, b: &Fact) -> SuggestedResolution {
     if time_gap > 3600 {
         // > 1 hour apart
         let older = if a.recorded_at < b.recorded_at {
-            &a.id.0
+            a.id.as_str()
         } else {
-            &b.id.0
+            b.id.as_str()
         };
         return SuggestedResolution::CloseOlderFact {
-            fact_id: older.clone(),
+            fact_id: older.to_string(),
         };
     }
 
@@ -238,8 +238,8 @@ pub(crate) fn detect_pairwise(a: &Fact, b: &Fact) -> Option<Contradiction> {
     let suggested_resolution = suggest_resolution(a, b);
 
     Some(Contradiction {
-        existing_fact_id: a.id.0.clone(),
-        conflicting_fact_id: b.id.0.clone(),
+        existing_fact_id: a.id.to_string(),
+        conflicting_fact_id: b.id.to_string(),
         subject: a.subject.clone(),
         predicate: a.predicate.clone(),
         overlap_start,
@@ -339,7 +339,7 @@ mod tests {
         confidence: f32,
     ) -> Fact {
         Fact {
-            id: FactId(ulid::Ulid::new().to_string()),
+            id: FactId::new(),
             subject: subject.to_string(),
             predicate: predicate.to_string(),
             object: Value::Text(object.to_string()),
@@ -527,7 +527,7 @@ mod tests {
         b.recorded_at = Utc::now();
         let res = suggest_resolution(&a, &b);
         assert!(
-            matches!(res, SuggestedResolution::CloseOlderFact { ref fact_id } if *fact_id == a.id.0),
+            matches!(res, SuggestedResolution::CloseOlderFact { ref fact_id } if *fact_id == a.id.to_string()),
             "should suggest closing the older fact, got {:?}",
             res,
         );
