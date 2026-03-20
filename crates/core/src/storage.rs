@@ -13,6 +13,9 @@ use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
+/// On native targets, returns `Instant::now()` for real elapsed-time tracking.
+/// On WASM, `Instant` has no clock source and panics, so we return `()` and
+/// the `record` method uses `Duration::ZERO`.
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_now() -> Instant {
     Instant::now()
@@ -214,7 +217,6 @@ impl KronroeStorage {
             observer,
         })
     }
-
     #[cfg(not(target_arch = "wasm32"))]
     fn record(
         &self,

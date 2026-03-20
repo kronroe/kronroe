@@ -301,6 +301,7 @@
         position: absolute;
         left: 0;
         top: 0;
+        white-space: nowrap;
         opacity: 0;
         transform: translateY(40%);
         animation: flip-word-cycle 12s ease-in-out infinite;
@@ -559,17 +560,16 @@
       .explain-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; position: relative; }
       /* Glowing vertical divider between the two comparison cards */
       .explain-grid::before {
-        content: 'vs';
+        content: '\21C4';
         position: absolute;
         left: 50%; top: 50%;
         transform: translate(-50%, -50%);
-        width: 28px; height: 28px;
+        width: 32px; height: 32px;
         border-radius: 50%;
         background: var(--bg);
         border: 1.5px solid var(--violet-border);
         color: var(--violet);
-        font-family: var(--hand);
-        font-size: 0.7rem;
+        font-size: 0.95rem;
         display: flex; align-items: center; justify-content: center;
         z-index: 2;
       }
@@ -665,7 +665,7 @@
         color: var(--violet);
         flex-shrink: 0;
         position: relative;
-        z-index: 1;
+        z-index: 3;
         transition: background 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s;
       }
       .step-badge.beam-active {
