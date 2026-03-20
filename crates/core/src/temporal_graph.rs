@@ -31,6 +31,8 @@ mod fact_id;
 #[cfg(feature = "fulltext")]
 mod lexical;
 mod storage;
+#[cfg(any(test, feature = "storage-append-log"))]
+mod storage_append_log;
 #[cfg(test)]
 mod storage_benchmarks;
 mod storage_observability;
@@ -298,6 +300,20 @@ impl TemporalGraph {
     /// persistence is not needed. Data is lost when the instance is dropped.
     pub fn open_in_memory() -> Result<Self> {
         let storage = KronroeStorage::open_in_memory()?;
+        Self::init(storage)
+    }
+
+    #[cfg(any(test, feature = "storage-append-log"))]
+    #[allow(dead_code)]
+    pub(crate) fn open_append_log(path: &str) -> Result<Self> {
+        let storage = KronroeStorage::open_append_log(path)?;
+        Self::init(storage)
+    }
+
+    #[cfg(any(test, feature = "storage-append-log"))]
+    #[allow(dead_code)]
+    pub(crate) fn open_append_log_in_memory() -> Result<Self> {
+        let storage = KronroeStorage::open_append_log_in_memory()?;
         Self::init(storage)
     }
 
@@ -2650,5 +2666,62 @@ mod tests {
             }
             Ok(_) => panic!("expected reopen to fail with corrupted predicate registry"),
         }
+    }
+
+    #[test]
+    fn append_log_backend_supports_basic_graph_flow() {
+        let db = TemporalGraph::open_append_log_in_memory().unwrap();
+        let now = Utc::now();
+
+        let id = db.assert_fact("alice", "works_at", "Acme", now).unwrap();
+        let current = db.current_facts("alice", "works_at").unwrap();
+
+        assert_eq!(current.len(), 1);
+        assert_eq!(current[0].id, id);
+    }
+
+    #[test]
+    fn append_log_backend_supports_idempotent_reopen_flow() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        let now = Utc::now();
+
+        {
+            let db = TemporalGraph::open_append_log(&path).unwrap();
+            let id = db
+                .assert_fact_idempotent("evt-append", "alice", "works_at", "Acme", now)
+                .unwrap();
+            assert_eq!(db.fact_by_id(&id).unwrap().subject, "alice");
+        }
+
+        let reopened = TemporalGraph::open_append_log(&path).unwrap();
+        let reused = reopened
+            .assert_fact_idempotent("evt-append", "alice", "works_at", "Acme", now)
+            .unwrap();
+        assert_eq!(reopened.fact_by_id(&reused).unwrap().subject, "alice");
+        assert_eq!(
+            reopened.current_facts("alice", "works_at").unwrap().len(),
+            1,
+            "replayed append-log idempotency should prevent duplicate facts"
+        );
+    }
+
+    #[cfg(feature = "vector")]
+    #[test]
+    fn append_log_backend_rejects_embedding_writes() {
+        let db = TemporalGraph::open_append_log_in_memory().unwrap();
+        let error = db
+            .assert_fact_with_embedding(
+                "alice",
+                "interest",
+                "Rust",
+                Utc::now(),
+                vec![1.0, 0.0, 0.0],
+            )
+            .unwrap_err();
+        assert!(matches!(error, KronroeError::Storage(_)));
+        assert!(error
+            .to_string()
+            .contains("experimental append-log backend"));
     }
 }
