@@ -23,6 +23,7 @@ vector = []
 hybrid-experimental = []
 contradiction = []
 uncertainty = []
+storage-append-log = []
 
 [dependencies]
 redb = { workspace = true }
