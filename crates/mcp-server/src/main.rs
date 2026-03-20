@@ -494,9 +494,7 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
                 .and_then(JsonValue::as_str)
                 .context("fact_id is required")?;
             let new_value = json_to_value(args.get("new_value").context("new_value is required")?)?;
-            let new_fact = state
-                .memory
-                .correct_fact(fact_id, new_value)?;
+            let new_fact = state.memory.correct_fact(fact_id, new_value)?;
             Ok(json!({
                 "content": [{ "type": "text", "text": format!("corrected fact {fact_id} -> {}", new_fact.as_str()) }],
                 "structuredContent": { "new_fact_id": new_fact.as_str() }
@@ -556,12 +554,12 @@ fn call_tool_remember(state: &mut AppState, args: &JsonValue) -> Result<JsonValu
     }
 
     let note_id = if let Some(key) = idempotency_key {
-            state
-                .memory
-                .remember_idempotent(key, text, episode_id)
-                .context("failed to remember note")?
+        state
+            .memory
+            .remember_idempotent(key, text, episode_id)
+            .context("failed to remember note")?
             .to_string()
-        } else if query_embedding.is_some() {
+    } else if query_embedding.is_some() {
         #[cfg(feature = "hybrid")]
         {
             let embedding = query_embedding
