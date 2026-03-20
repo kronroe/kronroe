@@ -932,6 +932,36 @@
       .stat-item {
         text-align: center;
       }
+      .stat-ring-wrap {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.35rem;
+      }
+      .stat-ring-wrap .stat-value {
+        margin-bottom: 0;
+      }
+      .stat-ring {
+        position: absolute;
+        inset: -10px;
+        width: calc(100% + 20px);
+        height: calc(100% + 20px);
+      }
+      .stat-ring-bg {
+        fill: none;
+        stroke: rgba(255,255,255,0.08);
+        stroke-width: 3;
+      }
+      .stat-ring-fill {
+        fill: none;
+        stroke: var(--violet);
+        stroke-width: 3;
+        stroke-linecap: round;
+        transform: rotate(-90deg);
+        transform-origin: 50% 50%;
+        transition: stroke-dashoffset 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+      }
       .stat-value {
         font-family: var(--mono);
         font-size: clamp(2.2rem, 5vw, 3.6rem);
@@ -1782,7 +1812,14 @@
     <section class="stats-strip" aria-label="Key statistics">
       <div class="stats-inner">
         <div class="stat-item reveal-on-scroll" data-target="100">
-          <span class="stat-value"><span class="stat-count">0</span>%</span>
+          <div class="stat-ring-wrap">
+            <svg class="stat-ring" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="stat-ring-bg" cx="60" cy="60" r="54"/>
+              <circle class="stat-ring-fill" cx="60" cy="60" r="54"
+                      stroke-dasharray="339.292" stroke-dashoffset="339.292"/>
+            </svg>
+            <span class="stat-value"><span class="stat-count">0</span>%</span>
+          </div>
           <span class="stat-label">client-side</span>
           <span class="stat-sublabel">zero network calls</span>
         </div>

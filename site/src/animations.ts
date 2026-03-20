@@ -56,13 +56,27 @@ document.documentElement.classList.add('animations-ready');
 
 // ── NumberTicker for stats ────────────────────────────────────────────────────
 (function () {
-  function animateCount(el: HTMLElement, target: number, duration: number) {
+  const DURATION = 1400;
+
+  function animateCount(
+    el: HTMLElement,
+    target: number,
+    ringFill: SVGCircleElement | null,
+    ringCircumference: number,
+  ) {
     const start = performance.now();
     function step(now: number) {
       const elapsed = now - start;
-      const progress = Math.min(elapsed / duration, 1);
+      const progress = Math.min(elapsed / DURATION, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       el.textContent = String(Math.round(eased * target));
+      // Sync the SVG progress ring if present
+      if (ringFill) {
+        const fill = eased * (target / 100); // normalise to 0-1
+        ringFill.style.strokeDashoffset = String(
+          ringCircumference * (1 - Math.min(fill, 1)),
+        );
+      }
       if (progress < 1) requestAnimationFrame(step);
     }
     requestAnimationFrame(step);
@@ -75,7 +89,11 @@ document.documentElement.classList.add('animations-ready');
           const item = entry.target as HTMLElement;
           const target = parseInt(item.dataset.target ?? '0', 10);
           const countEl = item.querySelector<HTMLElement>('.stat-count');
-          if (countEl && target) animateCount(countEl, target, 1400);
+          const ringFill = item.querySelector<SVGCircleElement>('.stat-ring-fill');
+          const circumference = ringFill
+            ? 2 * Math.PI * (ringFill.r?.baseVal?.value ?? 54)
+            : 0;
+          if (countEl && target) animateCount(countEl, target, ringFill, circumference);
           io.unobserve(item);
         }
       });
