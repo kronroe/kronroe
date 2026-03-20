@@ -8,7 +8,19 @@ use chrono::{DateTime, Utc};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+
+/// On native targets, returns `Instant::now()` for real elapsed-time tracking.
+/// On WASM, `Instant` has no clock source and panics, so we return `()` and
+/// the `record` method uses `Duration::ZERO`.
+#[cfg(not(target_arch = "wasm32"))]
+fn storage_now() -> Instant {
+    Instant::now()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn storage_now() {}
 
 impl From<redb::DatabaseError> for KronroeError {
     fn from(e: redb::DatabaseError) -> Self {
@@ -150,6 +162,7 @@ impl KronroeStorage {
         Ok(Self { db, observer })
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn record(
         &self,
         operation: StorageOperation,
@@ -165,8 +178,24 @@ impl KronroeStorage {
         });
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn record(
+        &self,
+        operation: StorageOperation,
+        _started_at: (),
+        rows_scanned: usize,
+        success: bool,
+    ) {
+        self.observer.on_event(StorageEvent {
+            operation,
+            duration: std::time::Duration::ZERO,
+            rows_scanned,
+            success,
+        });
+    }
+
     pub(crate) fn initialize_schema(&self) -> Result<u64> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<u64> {
             let write_txn = self.db.begin_write()?;
             write_txn.open_table(FACTS)?;
@@ -230,7 +259,7 @@ impl KronroeStorage {
     }
 
     pub(crate) fn migrate_v1_to_v2(&self) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<usize> {
             let write_txn = self.db.begin_write()?;
 
@@ -378,7 +407,7 @@ impl KronroeStorage {
     }
 
     pub(crate) fn scan_facts(&self, prefix: &str) -> Result<Vec<StoredFactRow>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<(Vec<StoredFactRow>, usize)> {
             let read_txn = self.db.begin_read()?;
             let table = read_txn.open_table(FACTS)?;
@@ -412,7 +441,7 @@ impl KronroeStorage {
     }
 
     pub(crate) fn write_fact(&self, fact: &Fact) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<()> {
             let key = fact_row_key(&fact.subject, &fact.predicate, &fact.id);
             let value = serde_json::to_string(fact)?;
@@ -429,7 +458,7 @@ impl KronroeStorage {
     }
 
     pub(crate) fn replace_fact_row(&self, key: &str, fact: &Fact) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<()> {
             let value = serde_json::to_string(fact)?;
             let write_txn = self.db.begin_write()?;
@@ -450,7 +479,7 @@ impl KronroeStorage {
     }
 
     pub(crate) fn get_idempotency(&self, idempotency_key: &str) -> Result<Option<FactId>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<Option<FactId>> {
             let read_txn = self.db.begin_read()?;
             let idem_table = match read_txn.open_table(IDEMPOTENCY) {
@@ -491,7 +520,7 @@ impl KronroeStorage {
         idempotency_key: &str,
         fact: &Fact,
     ) -> Result<FactId> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<FactId> {
             let write_txn = self.db.begin_write()?;
 
@@ -544,7 +573,7 @@ impl KronroeStorage {
     where
         F: FnOnce(&[Fact]) -> Result<Vec<Contradiction>>,
     {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<(Vec<Contradiction>, usize)> {
             let write_txn = self.db.begin_write()?;
             let prefix = format!("{subject}:{predicate}:");
@@ -590,7 +619,7 @@ impl KronroeStorage {
 
     #[cfg(feature = "vector")]
     pub(crate) fn write_fact_with_embedding(&self, fact: &Fact, embedding: &[f32]) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<()> {
             if embedding.is_empty() {
                 return Err(KronroeError::InvalidEmbedding(
@@ -646,7 +675,7 @@ impl KronroeStorage {
 
     #[cfg(feature = "vector")]
     pub(crate) fn embedding_rows(&self) -> Result<Vec<(FactId, Vec<f32>)>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<Vec<(FactId, Vec<f32>)>> {
             let read_txn = self.db.begin_read()?;
             let emb_table = match read_txn.open_table(EMBEDDINGS) {
@@ -693,7 +722,7 @@ impl KronroeStorage {
 
     #[cfg(feature = "contradiction")]
     pub(crate) fn load_predicate_registry_entries(&self) -> Result<Vec<(String, String)>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<Vec<(String, String)>> {
             let read_txn = self.db.begin_read()?;
             let reg_table = match read_txn.open_table(PREDICATE_REGISTRY) {
@@ -724,7 +753,7 @@ impl KronroeStorage {
         predicate: &str,
         encoded: &str,
     ) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<()> {
             let write_txn = self.db.begin_write()?;
             {
@@ -745,7 +774,7 @@ impl KronroeStorage {
 
     #[cfg(feature = "uncertainty")]
     pub(crate) fn load_volatility_registry_entries(&self) -> Result<Vec<(String, String)>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<Vec<(String, String)>> {
             let read_txn = self.db.begin_read()?;
             let table = match read_txn.open_table(VOLATILITY_REGISTRY) {
@@ -771,7 +800,7 @@ impl KronroeStorage {
 
     #[cfg(feature = "uncertainty")]
     pub(crate) fn load_source_weight_registry_entries(&self) -> Result<Vec<(String, String)>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<Vec<(String, String)>> {
             let read_txn = self.db.begin_read()?;
             let table = match read_txn.open_table(SOURCE_WEIGHT_REGISTRY) {
@@ -801,7 +830,7 @@ impl KronroeStorage {
         predicate: &str,
         encoded: &str,
     ) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<()> {
             let write_txn = self.db.begin_write()?;
             {
@@ -826,7 +855,7 @@ impl KronroeStorage {
         source: &str,
         encoded: &str,
     ) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = (|| -> Result<()> {
             let write_txn = self.db.begin_write()?;
             {
