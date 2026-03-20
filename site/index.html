@@ -559,17 +559,16 @@
       .explain-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; position: relative; }
       /* Glowing vertical divider between the two comparison cards */
       .explain-grid::before {
-        content: 'vs';
+        content: '\21C4';
         position: absolute;
         left: 50%; top: 50%;
         transform: translate(-50%, -50%);
-        width: 28px; height: 28px;
+        width: 32px; height: 32px;
         border-radius: 50%;
         background: var(--bg);
         border: 1.5px solid var(--violet-border);
         color: var(--violet);
-        font-family: var(--hand);
-        font-size: 0.7rem;
+        font-size: 0.95rem;
         display: flex; align-items: center; justify-content: center;
         z-index: 2;
       }
