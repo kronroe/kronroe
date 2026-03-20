@@ -12,6 +12,7 @@ HEADER_DIR="${IOS_DIR}/include"
 export RUSTFLAGS="-C strip=symbols -C panic=abort -C link-arg=-Wl,-dead_strip ${RUSTFLAGS:-}"
 export CARGO_PROFILE_RELEASE_LTO="${CARGO_PROFILE_RELEASE_LTO:-true}"
 export CARGO_PROFILE_RELEASE_CODEGEN_UNITS="${CARGO_PROFILE_RELEASE_CODEGEN_UNITS:-1}"
+export CARGO_PROFILE_RELEASE_OPT_LEVEL="${CARGO_PROFILE_RELEASE_OPT_LEVEL:-z}"
 
 echo "Building iOS static libraries..."
 cargo build --release --target aarch64-apple-ios -p kronroe-ios
