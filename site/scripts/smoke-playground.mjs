@@ -10,16 +10,36 @@ function requireUrl() {
   return url;
 }
 
+function createFailure(error, details) {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    ok: false,
+    ...details,
+    error: message,
+  };
+}
+
 async function run() {
   const targetUrl = requireUrl();
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
+  const pageErrors = [];
+  const consoleErrors = [];
 
   const subject = `ci-user-${Date.now().toString(36).slice(-6)}`;
   const predicate = "works_at";
   const object = "AcmeCI";
 
   try {
+    page.on("pageerror", (error) => {
+      pageErrors.push(error.message);
+    });
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        consoleErrors.push(message.text());
+      }
+    });
+
     // Suppress the first-visit auto-demo — it races with smoke test inputs
     await page.addInitScript(() => {
       localStorage.setItem("kronroe_has_visited", "1");
@@ -36,9 +56,27 @@ async function run() {
     await page.locator("#obj-type").selectOption("Entity");
     await page.locator("#assert-btn").click();
 
-    // Use locator-based text matching instead of waitForFunction
-    // (waitForFunction uses eval(), which violates the page's CSP)
-    await page.locator("#assert-status", { hasText: "✓" }).waitFor({ timeout: 30_000 });
+    const assertSuccess = page.locator("#assert-status", { hasText: "✓" }).waitFor({ timeout: 30_000 });
+    const assertFailure = page.locator("#assert-status", { hasText: "Error:" }).waitFor({ timeout: 30_000 });
+    const assertOutcome = await Promise.race([
+      assertSuccess.then(() => "success"),
+      assertFailure.then(() => "failure"),
+    ]);
+
+    const assertStatus = ((await page.locator("#assert-status").textContent()) || "").trim();
+
+    if (assertOutcome === "failure") {
+      throw createFailure("assert flow failed", {
+        url: targetUrl,
+        subject,
+        predicate,
+        object,
+        assertStatus,
+        queryStatus: "",
+        pageErrors,
+        consoleErrors,
+      });
+    }
 
     await page.locator("#query-entity").fill(subject);
     await page.locator("#query-pred").fill(predicate);
@@ -51,8 +89,7 @@ async function run() {
 
     await page.locator("#query-status", { hasText: /retracted:/i }).waitFor({ timeout: 30_000 });
 
-    const queryStatus = (await page.locator("#query-status").textContent()) || "";
-    const assertStatus = (await page.locator("#assert-status").textContent()) || "";
+    const queryStatus = ((await page.locator("#query-status").textContent()) || "").trim();
 
     console.log(
       JSON.stringify(
@@ -62,8 +99,10 @@ async function run() {
           subject,
           predicate,
           object,
-          assertStatus: assertStatus.trim(),
-          queryStatus: queryStatus.trim(),
+          assertStatus,
+          queryStatus,
+          pageErrors,
+          consoleErrors,
         },
         null,
         2
@@ -75,6 +114,16 @@ async function run() {
 }
 
 run().catch((error) => {
-  console.error("Post-deploy playground smoke failed:", error);
+  const details =
+    error && typeof error === "object" && "ok" in error
+      ? error
+      : createFailure(error, {
+          url: requireUrl(),
+          assertStatus: "",
+          queryStatus: "",
+          pageErrors: [],
+          consoleErrors: [],
+        });
+  console.log(JSON.stringify(details, null, 2));
   process.exit(1);
 });
