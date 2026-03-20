@@ -15,7 +15,7 @@ categories = ["database-implementations", "api-bindings"]
 [lib]
 name = "kronroe_ios"
 path = "src/ffi.rs"
-crate-type = ["staticlib", "lib"]
+crate-type = ["staticlib"]
 
 [dependencies]
 kronroe = { version = "0.2.0", path = "../core", default-features = false }

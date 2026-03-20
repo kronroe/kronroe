@@ -14,7 +14,7 @@ categories = ["database-implementations", "data-structures"]
 
 [lib]
 path = "src/temporal_graph.rs"
-crate-type = ["rlib", "staticlib"]
+crate-type = ["rlib"]
 
 [features]
 default = ["fulltext"]
