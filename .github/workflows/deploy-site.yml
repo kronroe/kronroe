@@ -14,6 +14,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   deploy:
@@ -21,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
@@ -40,9 +41,9 @@ jobs:
         # outputs into site/public/pkg/ so Vite can serve it as a static asset
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
           cache-dependency-path: site/package-lock.json
 
@@ -54,6 +55,41 @@ jobs:
         run: npm run build
         working-directory: site
 
+      - name: Install Playwright (Chromium)
+        run: |
+          npm install --no-save playwright@1.51.1
+          npx playwright install --with-deps chromium
+        working-directory: site
+
+      - name: Run local preview smoke test
+        run: |
+          set -euo pipefail
+          npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/kronroe-site-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          cleanup() {
+            kill "${PREVIEW_PID}" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4173 >/dev/null
+          node scripts/smoke-playground.mjs "http://127.0.0.1:4173" | tee local-smoke-result.json
+          {
+            echo "## Local Playground Smoke Test"
+            echo ""
+            echo "- URL: http://127.0.0.1:4173"
+            echo "- Workflow: \`${{ github.workflow }}\`"
+            echo ""
+            echo '```json'
+            cat local-smoke-result.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+        working-directory: site
+
       - name: Deploy to Firebase Hosting
         id: deploy
         uses: FirebaseExtended/action-hosting-deploy@e2eda2e106cfa35cdbcf4ac9ddaf6c4756df2c8c # v0
@@ -62,12 +98,6 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KRONROE }}
           channelId: live
           projectId: kronroe
-
-      - name: Install Playwright (Chromium)
-        run: |
-          npm install --no-save playwright@1.51.1
-          npx playwright install --with-deps chromium
-        working-directory: site
 
       - name: Run post-deploy smoke test
         env:
