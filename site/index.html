@@ -94,11 +94,6 @@
         initial-value: 0deg;
         inherits: false;
       }
-      @property --card-beam-angle {
-        syntax: '<angle>';
-        initial-value: 0deg;
-        inherits: false;
-      }
       @property --win-beam-angle {
         syntax: '<angle>';
         initial-value: 0deg;
@@ -437,20 +432,16 @@
         margin-bottom: 1.25rem;
       }
       .hero .sub { font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); line-height: 1.65; letter-spacing: 0.01em; max-width: 480px; }
-      /* Hero highlight — glowing underline on key phrases */
+      /* Hero highlight — background slab on key phrases */
       .hero-hl {
         position: relative;
-        color: var(--text-mid);
+        color: var(--text);
         white-space: nowrap;
-      }
-      .hero-hl::after {
-        content: '';
-        position: absolute;
-        left: 0; right: 0; bottom: -1px;
-        height: 2px;
-        background: linear-gradient(90deg, var(--violet), var(--orchid));
-        border-radius: 1px;
-        opacity: 0.55;
+        padding: 0.05em 0.3em;
+        border-radius: 4px;
+        background: linear-gradient(135deg, rgba(124,92,252,0.12), rgba(180,92,252,0.10));
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
       }
       .hero-install { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem; }
       .install-cmd { font-family: var(--mono); font-size: 0.78rem; font-weight: 500; padding: 0.35rem 0.75rem; border-radius: 6px; background: var(--espresso); color: rgba(255,255,255,0.9); cursor: pointer; transition: background 0.15s; user-select: all; }
@@ -517,9 +508,24 @@
         padding: 0 1.75rem;
         font-family: var(--mono);
         font-size: 0.68rem;
-        color: rgba(255,255,255,0.36);
+        color: rgba(255,255,255,0.52);
         white-space: nowrap;
         letter-spacing: 0.04em;
+        position: relative;
+        overflow: hidden;
+      }
+      .trust-item::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%);
+        transform: translateX(-100%);
+        animation: trust-shimmer 5s ease-in-out infinite;
+      }
+      .trust-item:nth-child(2n)::after { animation-delay: -2.5s; }
+      @keyframes trust-shimmer {
+        0%, 100% { transform: translateX(-100%); }
+        50% { transform: translateX(100%); }
       }
       .trust-dot {
         width: 3px; height: 3px;
@@ -612,6 +618,13 @@
         flex-shrink: 0;
         position: relative;
         z-index: 1;
+        transition: background 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s;
+      }
+      .step-badge.beam-active {
+        background: var(--violet);
+        border-color: var(--violet);
+        color: #fff;
+        box-shadow: 0 0 12px rgba(124, 92, 252, 0.4);
       }
       .step-body {
         background: var(--surface);
@@ -679,6 +692,7 @@
       }
       .bento-tile:hover { box-shadow: 0 4px 24px rgba(26,21,16,0.07); }
       .bento-tile--wide { grid-column: 1 / 3; }
+      .bento-tile--wide-full { grid-column: 1 / -1; }
       .bento-tile--violet { border-color: var(--violet-border); background: var(--violet-bg); }
       .bento-tile--orange { border-color: var(--orange-border); background: var(--orange-bg); }
       .bento-tile--rose   { border-color: var(--rose-border);   background: var(--rose-bg); }
@@ -854,32 +868,8 @@
         transition: transform 0.18s ease, box-shadow 0.18s ease;
         will-change: transform;
       }
-      /* BorderBeam pseudo-element — always present, opacity toggled on hover */
-      .use-case-card::before {
-        content: '';
-        position: absolute;
-        inset: -1.5px;
-        border-radius: 13.5px;
-        background: conic-gradient(from var(--card-beam-angle),
-          transparent 0%,
-          rgba(124,92,252,0.85) 6%,
-          rgba(180,92,252,0.55) 12%,
-          transparent 22%
-        );
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        z-index: -1;
-        animation: card-beam-spin 3.5s linear infinite paused;
-      }
-      .use-case-card:hover::before {
-        opacity: 1;
-        animation-play-state: running;
-      }
       .use-case-card:hover {
         box-shadow: 0 12px 36px rgba(124,92,252,0.13), 0 2px 8px rgba(0,0,0,0.05);
-      }
-      @keyframes card-beam-spin {
-        to { --card-beam-angle: 360deg; }
       }
       .use-case-icon {
         font-size: 2.8rem;
@@ -893,6 +883,16 @@
         font-size: 0.875rem;
         color: var(--text-mid);
         line-height: 1.65;
+      }
+      /* Focus cards — blur siblings on hover */
+      .use-case-grid.has-hover .use-case-card {
+        opacity: 0.45;
+        filter: blur(1.5px);
+        transition: opacity 0.25s ease, filter 0.25s ease, transform 0.18s ease, box-shadow 0.18s ease;
+      }
+      .use-case-grid.has-hover .use-case-card.focused {
+        opacity: 1;
+        filter: none;
       }
 
       /* ── Playground ── */
@@ -1158,6 +1158,14 @@
       .feature-item[open] { border-color: var(--violet-border); }
       .feature-item-label { font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.08em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 0.1rem; }
       .feature-item-title { font-family: var(--body); font-weight: var(--w-heading); font-size: 0.9rem; color: var(--text); }
+      .feature-item-body > div {
+        overflow: hidden;
+        max-height: 0;
+        transition: max-height 0.3s ease;
+      }
+      .feature-item[open] .feature-item-body > div {
+        max-height: 12rem;
+      }
       .feature-item-desc {
         font-family: var(--body);
         font-size: 0.815rem;
@@ -1260,8 +1268,16 @@
         border: 1px solid rgba(255,255,255,0.10);
         color: rgba(255,255,255,0.78);
         cursor: pointer;
-        transition: background 0.15s, border-color 0.2s, color 0.15s;
+        transition: background 0.15s, border-color 0.2s, color 0.15s, box-shadow 0.3s;
         user-select: all;
+        box-shadow: 0 0 8px rgba(124,92,252,0.0);
+        animation: chip-glow 4s ease-in-out infinite;
+      }
+      .install-chip:nth-child(2) { animation-delay: -1.3s; }
+      .install-chip:nth-child(3) { animation-delay: -2.6s; }
+      @keyframes chip-glow {
+        0%, 100% { box-shadow: 0 0 6px rgba(124,92,252,0.0), 0 0 0 rgba(180,92,252,0.0); }
+        50% { box-shadow: 0 0 10px rgba(124,92,252,0.18), 0 0 20px rgba(180,92,252,0.08); }
       }
       .install-chip:hover {
         background: rgba(255,255,255,0.10);
@@ -1309,6 +1325,7 @@
         .playground-section-hdr { padding: 1.5rem 1.25rem 0; }
         .bento-grid { grid-template-columns: 1fr 1fr; }
         .bento-tile--wide { grid-column: 1 / -1; }
+        .bento-tile--wide-full { grid-column: 1 / -1; }
         .stats-inner { grid-template-columns: 1fr; gap: 2.5rem; }
         .mac-window-wrap { margin: 1rem 1.25rem; width: calc(100% - 2.5rem); }
       }
@@ -1318,6 +1335,7 @@
         .footer-inner { flex-direction: column; align-items: flex-start; }
         .bento-grid { grid-template-columns: 1fr; }
         .bento-tile--wide { grid-column: 1; }
+        .bento-tile--wide-full { grid-column: 1; }
       }
       @media (max-width: 640px) {
         .explain-grid { grid-template-columns: 1fr; }
@@ -1594,7 +1612,7 @@
             </div>
           </div>
 
-          <div class="bento-tile reveal-on-scroll">
+          <div class="bento-tile bento-tile--wide-full reveal-on-scroll">
             <div class="bento-eyebrow">Retrieval</div>
             <h3 class="bento-title">BM25 + vector + hybrid search</h3>
             <p class="bento-body">Kronroe BM25 full-text fused with cosine vector via RRF. Intent-gated two-stage temporal reranker. Bi-temporal filtering excludes invalidated facts.</p>
@@ -1620,8 +1638,8 @@
           <span class="stat-label">native library size</span>
           <span class="stat-sublabel">iOS · Android · WASM</span>
         </div>
-        <div class="stat-item reveal-on-scroll">
-          <span class="stat-value">4</span>
+        <div class="stat-item reveal-on-scroll" data-target="4">
+          <span class="stat-value"><span class="stat-count">0</span></span>
           <span class="stat-label">timestamps per fact</span>
           <span class="stat-sublabel">valid + transaction time</span>
         </div>
@@ -1689,28 +1707,28 @@
               <div class="feature-item-label">Retrieval</div>
               <div class="feature-item-title">BM25 + vector + hybrid search</div>
             </summary>
-            <p class="feature-item-desc">Full-text search via the Kronroe lexical engine with BM25 ranking and fuzzy matching. Flat cosine vector search with bi-temporal filtering — invalidated facts are excluded from current queries but remain available for historical point-in-time lookups. Hybrid mode fuses both channels with Reciprocal Rank Fusion and a two-stage intent-gated temporal reranker.</p>
+            <div class="feature-item-body"><div><p class="feature-item-desc">Full-text search via the Kronroe lexical engine with BM25 ranking and fuzzy matching. Flat cosine vector search with bi-temporal filtering — invalidated facts are excluded from current queries but remain available for historical point-in-time lookups. Hybrid mode fuses both channels with Reciprocal Rank Fusion and a two-stage intent-gated temporal reranker.</p></div></div>
           </details>
           <details class="feature-item reveal-on-scroll">
             <summary>
               <div class="feature-item-label">Integrity</div>
               <div class="feature-item-title">Contradiction detection</div>
             </summary>
-            <p class="feature-item-desc">Register predicates as singletons and Kronroe detects conflicting facts at write time using Allen's interval algebra — no LLM required. Confidence scores decay automatically by predicate age and source authority weight, giving you effective confidence at query time without any manual bookkeeping.</p>
+            <div class="feature-item-body"><div><p class="feature-item-desc">Register predicates as singletons and Kronroe detects conflicting facts at write time using Allen's interval algebra — no LLM required. Confidence scores decay automatically by predicate age and source authority weight, giving you effective confidence at query time without any manual bookkeeping.</p></div></div>
           </details>
           <details class="feature-item reveal-on-scroll">
             <summary>
               <div class="feature-item-label">Storage</div>
               <div class="feature-item-title">ACID, no C dependencies</div>
             </summary>
-            <p class="feature-item-desc">Backed by redb — a pure Rust B-tree copy-on-write key-value store with full ACID guarantees. File-backed or fully in-memory. Every fact is identified by a ULID for lexicographically sortable, monotonic insertion order. No C dependencies, no external processes, no separate database server to manage.</p>
+            <div class="feature-item-body"><div><p class="feature-item-desc">Backed by redb — a pure Rust B-tree copy-on-write key-value store with full ACID guarantees. File-backed or fully in-memory. Every fact is identified by a ULID for lexicographically sortable, monotonic insertion order. No C dependencies, no external processes, no separate database server to manage.</p></div></div>
           </details>
           <details class="feature-item reveal-on-scroll">
             <summary>
               <div class="feature-item-label">Platforms</div>
               <div class="feature-item-title">Rust, Python, iOS, Android, WASM</div>
             </summary>
-            <p class="feature-item-desc">One engine, every platform. Use the core Rust crate directly, the PyO3 Python bindings, a Swift Package on iOS, a JNI library on Android with a Kotlin wrapper, or the WebAssembly build in-browser. All targets share the same bi-temporal engine and ACID storage model.</p>
+            <div class="feature-item-body"><div><p class="feature-item-desc">One engine, every platform. Use the core Rust crate directly, the PyO3 Python bindings, a Swift Package on iOS, a JNI library on Android with a Kotlin wrapper, or the WebAssembly build in-browser. All targets share the same bi-temporal engine and ACID storage model.</p></div></div>
           </details>
         </div>
       </div>

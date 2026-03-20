@@ -92,16 +92,48 @@ document.documentElement.classList.add('animations-ready');
   const fill = document.getElementById('tracing-beam-fill');
   if (!container || !fill) return;
 
+  const badges = container.querySelectorAll<HTMLElement>('.step-badge');
+
   function update() {
-    const rect = container!.getBoundingClientRect();
+    const cRect = container!.getBoundingClientRect();
     const viewH = window.innerHeight;
-    // How far into the section the viewport midpoint has scrolled
-    const scrollInto = viewH * 0.6 - rect.top;
-    const totalH = rect.height;
+    // Trigger: beam fills from 0→100% as the user scrolls through the section.
+    // Use viewport 75% line as trigger so the beam completes when step 4 is visible.
+    const scrollInto = viewH * 0.75 - cRect.top;
+    const totalH = cRect.height;
     const pct = Math.max(0, Math.min(100, (scrollInto / totalH) * 100));
     fill!.style.height = `${pct}%`;
+
+    // Light up step circles as the beam passes them
+    const beamY = cRect.top + (pct / 100) * totalH;
+    badges.forEach((badge) => {
+      const bRect = badge.getBoundingClientRect();
+      const badgeMid = bRect.top + bRect.height / 2;
+      badge.classList.toggle('beam-active', beamY >= badgeMid);
+    });
   }
 
   window.addEventListener('scroll', update, { passive: true });
   update();
+})();
+
+// ── Focus cards — blur siblings on hover ─────────────────────────────────────
+(function () {
+  const grid = document.querySelector<HTMLElement>('.use-case-grid');
+  if (!grid) return;
+  const cards = grid.querySelectorAll<HTMLElement>('.use-case-card');
+
+  grid.addEventListener('mouseenter', () => {
+    grid.classList.add('has-hover');
+  });
+  grid.addEventListener('mouseleave', () => {
+    grid.classList.remove('has-hover');
+    cards.forEach((c) => c.classList.remove('focused'));
+  });
+  cards.forEach((card) => {
+    card.addEventListener('mouseenter', () => {
+      cards.forEach((c) => c.classList.remove('focused'));
+      card.classList.add('focused');
+    });
+  });
 })();
