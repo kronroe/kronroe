@@ -57,3 +57,6 @@ python/kronroe-mcp/src/kronroe_mcp.egg-info/
 # Scratch logo/design working directories
 /logo2/
 /word mark/
+
+# Brand assets — local only, not for public repo
+design/brand/

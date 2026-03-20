@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 30 180 115">
-  <title>Kronroe Logo — Flowing Curve</title>
-  <desc>Three nodes connected by a flowing S-curve path. More organic and expressive variant.</desc>
-  <path d="M 40 120 C 60 50, 100 40, 100 80 C 100 120, 140 50, 160 120" fill="none" stroke="#7C5CFC" stroke-width="5" stroke-linecap="round" opacity="0.3"/>
-  <circle cx="40" cy="120" r="16" fill="#7C5CFC"/>
-  <circle cx="100" cy="80" r="13" fill="#C04800"/>
-  <circle cx="160" cy="120" r="16" fill="#5A8A00"/>
-</svg>
