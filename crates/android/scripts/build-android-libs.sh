@@ -23,11 +23,16 @@ ABI_NAMES=(
   "x86"
 )
 
-# Size-optimized defaults for mobile shared libs.
-export RUSTFLAGS="-C strip=symbols -C panic=abort ${RUSTFLAGS:-}"
-export CARGO_PROFILE_RELEASE_LTO="${CARGO_PROFILE_RELEASE_LTO:-true}"
-export CARGO_PROFILE_RELEASE_CODEGEN_UNITS="${CARGO_PROFILE_RELEASE_CODEGEN_UNITS:-1}"
-export CARGO_PROFILE_RELEASE_OPT_LEVEL="${CARGO_PROFILE_RELEASE_OPT_LEVEL:-z}"
+# Size-optimized profile for mobile shared libs.
+# Passed via --config so Cargo fingerprints include them (env var overrides
+# can be ignored by cached artifacts from rust-cache).
+MOBILE_PROFILE=(
+  --config 'profile.release.opt-level="z"'
+  --config 'profile.release.lto=true'
+  --config 'profile.release.codegen-units=1'
+  --config 'profile.release.strip="symbols"'
+  --config 'profile.release.panic="abort"'
+)
 
 # Min Android API level (matches most apps' minSdk).
 MIN_API="${ANDROID_MIN_API:-24}"
@@ -40,7 +45,7 @@ for i in "${!TARGETS[@]}"; do
 
   echo "  Building ${target} (${abi})..."
   cargo ndk --target "${target}" --platform "${MIN_API}" \
-    build --release -p kronroe-android
+    build --release -p kronroe-android "${MOBILE_PROFILE[@]}"
 
   src="${ROOT_DIR}/target/${target}/release/libkronroe_android.so"
   dest="${BUILD_DIR}/${abi}"
