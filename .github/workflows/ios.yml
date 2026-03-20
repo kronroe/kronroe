@@ -33,6 +33,8 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          prefix-key: "ios-v2"
 
       - name: Run iOS FFI behavior tests
         run: cargo test -p kronroe-ios

@@ -15,7 +15,6 @@ MOBILE_PROFILE=(
   --config 'profile.release.opt-level="z"'
   --config 'profile.release.lto=true'
   --config 'profile.release.codegen-units=1'
-  --config 'profile.release.strip="symbols"'
   --config 'profile.release.panic="abort"'
 )
 # macOS linker dead-strip — only available via RUSTFLAGS.
@@ -27,6 +26,21 @@ cargo build --release --target aarch64-apple-ios-sim -p kronroe-ios "${MOBILE_PR
 
 DEVICE_LIB="${ROOT_DIR}/target/aarch64-apple-ios/release/libkronroe_ios.a"
 SIM_LIB="${ROOT_DIR}/target/aarch64-apple-ios-sim/release/libkronroe_ios.a"
+
+# Print raw sizes before stripping.
+echo "Pre-strip sizes:"
+ls -lh "${DEVICE_LIB}" "${SIM_LIB}"
+
+# Strip debug info and local symbols from staticlibs.
+# Cargo's profile.release.strip is a no-op for staticlib crate-types because
+# there is no final link step — the .a is just an archive of object files.
+# -S  = remove debug sections (STABS, DWARF)
+# -x  = remove local (non-global) symbols — linker only needs globals
+strip -S -x "${DEVICE_LIB}"
+strip -S -x "${SIM_LIB}"
+
+echo "Post-strip sizes:"
+ls -lh "${DEVICE_LIB}" "${SIM_LIB}"
 
 mkdir -p "${BUILD_DIR}" "${OUT_DIR}"
 rm -rf "${OUT_XCFRAMEWORK}"
