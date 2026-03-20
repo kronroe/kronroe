@@ -410,6 +410,10 @@ Exit criteria:
 - no public API changes
 - no behavioral regressions
 - all storage-sensitive tests run against the new abstraction
+- no dead legacy paths or duplicate backend code remain after each phase slice
+- cross-surface builds still pass for every shipped bridge that can be affected by
+  storage/linkage changes, especially iOS framework generation, Android, Python,
+  MCP, and WASM
 
 ### Phase 2: Add observability and benchmark harnesses
 
@@ -491,6 +495,11 @@ Mitigations:
 - use contract tests aggressively
 - benchmark before deciding
 - prototype in parallel rather than forcing immediate cutover
+- remove superseded code paths as replacement work lands instead of carrying
+  parallel "just in case" implementations that can silently break downstream
+  packaging or framework builds
+- treat iOS framework generation and other bridge builds as first-class
+  replacement verification, not optional post-merge cleanup
 
 ## Immediate Next 3 Moves
 

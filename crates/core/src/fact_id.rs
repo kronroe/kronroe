@@ -2,6 +2,7 @@ use getrandom::fill as fill_random;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::sync::{Mutex, OnceLock};
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const PREFIX: &str = "kf_";
@@ -58,7 +59,7 @@ impl GeneratorState {
     }
 
     fn next_parts(&mut self) -> (u64, u16) {
-        let mut now_ms = unix_time_ms(SystemTime::now());
+        let mut now_ms = now_ms();
         loop {
             match now_ms.cmp(&self.last_ms) {
                 std::cmp::Ordering::Greater => {
@@ -210,21 +211,33 @@ impl<'de> Deserialize<'de> for FactId {
     }
 }
 
-fn unix_time_ms(time: SystemTime) -> u64 {
-    time.duration_since(UNIX_EPOCH)
+/// Current wall-clock time in milliseconds since UNIX epoch.
+///
+/// On native targets this uses `SystemTime::now()`. On `wasm32-unknown-unknown`
+/// it delegates to JavaScript's `Date.now()` because `SystemTime` has no clock
+/// source on bare WASM.
+#[cfg(not(target_arch = "wasm32"))]
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .unwrap_or(Duration::ZERO)
         .as_millis()
         .min(u128::from(u64::MAX)) as u64
 }
 
+#[cfg(target_arch = "wasm32")]
+fn now_ms() -> u64 {
+    js_sys::Date::now() as u64
+}
+
 fn wait_until_next_millisecond(last_ms: u64) -> u64 {
     loop {
-        let now_ms = unix_time_ms(SystemTime::now());
-        if now_ms > last_ms {
-            return now_ms;
+        let current = now_ms();
+        if current > last_ms {
+            return current;
         }
         #[cfg(not(target_arch = "wasm32"))]
-        std::thread::sleep(Duration::from_millis(1));
+        std::thread::sleep(std::time::Duration::from_millis(1));
         #[cfg(target_arch = "wasm32")]
         std::hint::spin_loop();
     }
