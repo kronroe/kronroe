@@ -107,9 +107,16 @@ enum BenchmarkBackendMode {
     OnDisk,
 }
 
+#[derive(Clone, Copy, Serialize)]
+enum BenchmarkStorageEngine {
+    Redb,
+    AppendLog,
+}
+
 #[derive(Serialize)]
 struct WorkloadReport {
     workload: String,
+    storage_engine: BenchmarkStorageEngine,
     backend_mode: BenchmarkBackendMode,
     wall_duration_ms: u128,
     parameters: BTreeMap<String, usize>,
@@ -128,13 +135,32 @@ struct OperationSummary {
     total_rows_scanned: usize,
 }
 
-fn graph_in_memory(observer: Arc<dyn StorageObserver>) -> TemporalGraph {
-    let storage = KronroeStorage::open_in_memory_with_observer(observer).unwrap();
+fn graph_in_memory(
+    engine: BenchmarkStorageEngine,
+    observer: Arc<dyn StorageObserver>,
+) -> TemporalGraph {
+    let storage = match engine {
+        BenchmarkStorageEngine::Redb => KronroeStorage::open_in_memory_with_observer(observer),
+        BenchmarkStorageEngine::AppendLog => {
+            KronroeStorage::open_append_log_in_memory_with_observer(observer)
+        }
+    }
+    .unwrap();
     TemporalGraph::init(storage).unwrap()
 }
 
-fn graph_on_disk(path: &str, observer: Arc<dyn StorageObserver>) -> TemporalGraph {
-    let storage = KronroeStorage::open_with_observer(path, observer).unwrap();
+fn graph_on_disk(
+    engine: BenchmarkStorageEngine,
+    path: &str,
+    observer: Arc<dyn StorageObserver>,
+) -> TemporalGraph {
+    let storage = match engine {
+        BenchmarkStorageEngine::Redb => KronroeStorage::open_with_observer(path, observer),
+        BenchmarkStorageEngine::AppendLog => {
+            KronroeStorage::open_append_log_with_observer(path, observer)
+        }
+    }
+    .unwrap();
     TemporalGraph::init(storage).unwrap()
 }
 
@@ -168,6 +194,7 @@ fn summarize_operations(events: Vec<StorageEvent>) -> Vec<OperationSummary> {
 
 fn build_report(
     workload: &str,
+    storage_engine: BenchmarkStorageEngine,
     backend_mode: BenchmarkBackendMode,
     started_at: Instant,
     observer: Arc<RecordingObserver>,
@@ -177,6 +204,7 @@ fn build_report(
     let events = observer.events.lock().unwrap().clone();
     WorkloadReport {
         workload: workload.to_string(),
+        storage_engine,
         backend_mode,
         wall_duration_ms: started_at.elapsed().as_millis(),
         parameters,
@@ -185,9 +213,12 @@ fn build_report(
     }
 }
 
-fn run_assert_heavy_ingestion(config: BenchmarkConfig) -> WorkloadReport {
+fn run_assert_heavy_ingestion(
+    config: BenchmarkConfig,
+    storage_engine: BenchmarkStorageEngine,
+) -> WorkloadReport {
     let observer = Arc::new(RecordingObserver::default());
-    let db = graph_in_memory(observer.clone());
+    let db = graph_in_memory(storage_engine, observer.clone());
     let started_at = Instant::now();
     let base = Utc::now();
 
@@ -213,6 +244,7 @@ fn run_assert_heavy_ingestion(config: BenchmarkConfig) -> WorkloadReport {
 
     build_report(
         "assert_heavy_ingestion",
+        storage_engine,
         BenchmarkBackendMode::InMemory,
         started_at,
         observer,
@@ -221,9 +253,12 @@ fn run_assert_heavy_ingestion(config: BenchmarkConfig) -> WorkloadReport {
     )
 }
 
-fn run_correction_heavy_timeline_churn(config: BenchmarkConfig) -> WorkloadReport {
+fn run_correction_heavy_timeline_churn(
+    config: BenchmarkConfig,
+    storage_engine: BenchmarkStorageEngine,
+) -> WorkloadReport {
     let observer = Arc::new(RecordingObserver::default());
-    let db = graph_in_memory(observer.clone());
+    let db = graph_in_memory(storage_engine, observer.clone());
     let started_at = Instant::now();
     let base = Utc::now();
 
@@ -260,6 +295,7 @@ fn run_correction_heavy_timeline_churn(config: BenchmarkConfig) -> WorkloadRepor
 
     build_report(
         "correction_heavy_timeline_churn",
+        storage_engine,
         BenchmarkBackendMode::InMemory,
         started_at,
         observer,
@@ -268,9 +304,12 @@ fn run_correction_heavy_timeline_churn(config: BenchmarkConfig) -> WorkloadRepor
     )
 }
 
-fn run_current_state_scan(config: BenchmarkConfig) -> WorkloadReport {
+fn run_current_state_scan(
+    config: BenchmarkConfig,
+    storage_engine: BenchmarkStorageEngine,
+) -> WorkloadReport {
     let observer = Arc::new(RecordingObserver::default());
-    let db = graph_in_memory(observer.clone());
+    let db = graph_in_memory(storage_engine, observer.clone());
     let started_at = Instant::now();
     let base = Utc::now();
 
@@ -310,6 +349,7 @@ fn run_current_state_scan(config: BenchmarkConfig) -> WorkloadReport {
 
     build_report(
         "current_state_scan",
+        storage_engine,
         BenchmarkBackendMode::InMemory,
         started_at,
         observer,
@@ -318,9 +358,12 @@ fn run_current_state_scan(config: BenchmarkConfig) -> WorkloadReport {
     )
 }
 
-fn run_historical_point_in_time_scan(config: BenchmarkConfig) -> WorkloadReport {
+fn run_historical_point_in_time_scan(
+    config: BenchmarkConfig,
+    storage_engine: BenchmarkStorageEngine,
+) -> WorkloadReport {
     let observer = Arc::new(RecordingObserver::default());
-    let db = graph_in_memory(observer.clone());
+    let db = graph_in_memory(storage_engine, observer.clone());
     let started_at = Instant::now();
     let base = Utc::now();
 
@@ -351,6 +394,7 @@ fn run_historical_point_in_time_scan(config: BenchmarkConfig) -> WorkloadReport 
 
     build_report(
         "historical_point_in_time_scan",
+        storage_engine,
         BenchmarkBackendMode::InMemory,
         started_at,
         observer,
@@ -359,9 +403,12 @@ fn run_historical_point_in_time_scan(config: BenchmarkConfig) -> WorkloadReport 
     )
 }
 
-fn run_idempotent_retries(config: BenchmarkConfig) -> WorkloadReport {
+fn run_idempotent_retries(
+    config: BenchmarkConfig,
+    storage_engine: BenchmarkStorageEngine,
+) -> WorkloadReport {
     let observer = Arc::new(RecordingObserver::default());
-    let db = graph_in_memory(observer.clone());
+    let db = graph_in_memory(storage_engine, observer.clone());
     let started_at = Instant::now();
     let base = Utc::now();
 
@@ -406,6 +453,7 @@ fn run_idempotent_retries(config: BenchmarkConfig) -> WorkloadReport {
 
     build_report(
         "idempotent_retries",
+        storage_engine,
         BenchmarkBackendMode::InMemory,
         started_at,
         observer,
@@ -415,14 +463,24 @@ fn run_idempotent_retries(config: BenchmarkConfig) -> WorkloadReport {
 }
 
 #[cfg(feature = "vector")]
-fn run_embedding_reopen(config: BenchmarkConfig) -> WorkloadReport {
+fn run_embedding_reopen(
+    config: BenchmarkConfig,
+    storage_engine: BenchmarkStorageEngine,
+) -> WorkloadReport {
     let temp_dir = tempdir().unwrap();
-    let db_path: PathBuf = temp_dir.path().join("storage-bench.kronroe");
+    let db_path: PathBuf = temp_dir.path().join(match storage_engine {
+        BenchmarkStorageEngine::Redb => "storage-bench-redb.kronroe",
+        BenchmarkStorageEngine::AppendLog => "storage-bench-append-log.kronroe",
+    });
 
     let write_observer = Arc::new(RecordingObserver::default());
     let write_started_at = Instant::now();
     {
-        let db = graph_on_disk(db_path.to_str().unwrap(), write_observer.clone());
+        let db = graph_on_disk(
+            storage_engine,
+            db_path.to_str().unwrap(),
+            write_observer.clone(),
+        );
         let base = Utc::now();
         for i in 0..config.embedding_facts {
             db.assert_fact_with_embedding(
@@ -438,7 +496,11 @@ fn run_embedding_reopen(config: BenchmarkConfig) -> WorkloadReport {
 
     let reopen_observer = Arc::new(RecordingObserver::default());
     let reopen_started_at = Instant::now();
-    let reopened = graph_on_disk(db_path.to_str().unwrap(), reopen_observer.clone());
+    let reopened = graph_on_disk(
+        storage_engine,
+        db_path.to_str().unwrap(),
+        reopen_observer.clone(),
+    );
     let query_results = reopened
         .search_by_vector(&[1.0, 0.0, 0.0], 8, None)
         .unwrap();
@@ -461,6 +523,7 @@ fn run_embedding_reopen(config: BenchmarkConfig) -> WorkloadReport {
 
     WorkloadReport {
         workload: "embedding_reopen".into(),
+        storage_engine,
         backend_mode: BenchmarkBackendMode::OnDisk,
         wall_duration_ms: reopen_started_at.elapsed().as_millis(),
         parameters,
@@ -469,9 +532,12 @@ fn run_embedding_reopen(config: BenchmarkConfig) -> WorkloadReport {
     }
 }
 
-fn run_mixed_session(_config: BenchmarkConfig) -> WorkloadReport {
+fn run_mixed_session(
+    _config: BenchmarkConfig,
+    storage_engine: BenchmarkStorageEngine,
+) -> WorkloadReport {
     let observer = Arc::new(RecordingObserver::default());
-    let db = graph_in_memory(observer.clone());
+    let db = graph_in_memory(storage_engine, observer.clone());
     let started_at = Instant::now();
     let base = Utc::now();
 
@@ -503,6 +569,7 @@ fn run_mixed_session(_config: BenchmarkConfig) -> WorkloadReport {
 
     build_report(
         "mixed_real_task_session",
+        storage_engine,
         BenchmarkBackendMode::InMemory,
         started_at,
         observer,
@@ -511,18 +578,26 @@ fn run_mixed_session(_config: BenchmarkConfig) -> WorkloadReport {
     )
 }
 
+fn supported_benchmark_engines() -> &'static [BenchmarkStorageEngine] {
+    &[
+        BenchmarkStorageEngine::Redb,
+        BenchmarkStorageEngine::AppendLog,
+    ]
+}
+
 fn build_storage_benchmark_report(scale: BenchmarkScale) -> StorageBenchmarkReport {
     let config = BenchmarkConfig::for_scale(scale);
-    let mut workloads = vec![
-        run_assert_heavy_ingestion(config),
-        run_correction_heavy_timeline_churn(config),
-        run_current_state_scan(config),
-        run_historical_point_in_time_scan(config),
-        run_idempotent_retries(config),
-        run_mixed_session(config),
-    ];
+    let mut workloads = Vec::new();
+    for &storage_engine in supported_benchmark_engines() {
+        workloads.push(run_assert_heavy_ingestion(config, storage_engine));
+        workloads.push(run_correction_heavy_timeline_churn(config, storage_engine));
+        workloads.push(run_current_state_scan(config, storage_engine));
+        workloads.push(run_historical_point_in_time_scan(config, storage_engine));
+        workloads.push(run_idempotent_retries(config, storage_engine));
+        workloads.push(run_mixed_session(config, storage_engine));
+    }
     #[cfg(feature = "vector")]
-    workloads.push(run_embedding_reopen(config));
+    workloads.push(run_embedding_reopen(config, BenchmarkStorageEngine::Redb));
 
     StorageBenchmarkReport {
         generated_at: Utc::now().to_rfc3339(),
@@ -542,11 +617,15 @@ fn emit_report(report: &StorageBenchmarkReport) {
 #[test]
 fn storage_benchmark_smoke_produces_workload_report() {
     let report = build_storage_benchmark_report(BenchmarkScale::Smoke);
-    assert!(report.workloads.len() >= 6);
+    assert!(report.workloads.len() >= 12);
     assert!(report
         .workloads
         .iter()
         .all(|workload| !workload.operations.is_empty()));
+    assert!(report
+        .workloads
+        .iter()
+        .any(|workload| matches!(workload.storage_engine, BenchmarkStorageEngine::AppendLog)));
 }
 
 #[test]
