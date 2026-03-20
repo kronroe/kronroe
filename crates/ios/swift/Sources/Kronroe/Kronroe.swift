@@ -30,6 +30,15 @@ public final class KronroeGraph {
         }
     }
 
+    /// Explicitly close the graph and release the underlying file lock.
+    /// Safe to call multiple times. After calling, all other methods will throw.
+    public func close() {
+        if let handle {
+            kronroe_graph_close(handle)
+            self.handle = nil
+        }
+    }
+
     public static func open(url: URL) throws -> KronroeGraph {
         let path = url.path
         guard let handle = path.withCString({ cPath in

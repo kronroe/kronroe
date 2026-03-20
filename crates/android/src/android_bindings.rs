@@ -71,7 +71,13 @@ mod jni_bridge {
     ///
     /// # Safety
     /// Caller must guarantee `handle` was returned by `nativeOpen` or
-    /// `nativeOpenInMemory` and has not been closed.
+    /// `nativeOpenInMemory` and has not been closed via `nativeClose`.
+    ///
+    /// The `'static` lifetime is a necessary fiction for JNI interop — the
+    /// reference is only valid as long as the handle is open. The Kotlin
+    /// `KronroeGraph` wrapper enforces this via a `@Volatile closed` flag
+    /// and `@Synchronized close()`. Direct JNI callers bypassing the wrapper
+    /// must uphold this invariant manually.
     unsafe fn handle_ref(handle: jlong) -> &'static KronroeGraphHandle {
         unsafe { &*(handle as *const KronroeGraphHandle) }
     }

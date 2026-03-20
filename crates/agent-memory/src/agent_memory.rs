@@ -404,7 +404,7 @@ pub struct RecallForTaskReport {
     pub recommended_next_checks: Vec<String>,
 }
 
-fn is_high_impact_predicate(predicate: &str) -> bool {
+pub fn is_high_impact_predicate(predicate: &str) -> bool {
     matches!(
         predicate,
         "works_at" | "lives_in" | "job_title" | "email" | "phone"

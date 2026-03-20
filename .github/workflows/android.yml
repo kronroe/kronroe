@@ -3,6 +3,7 @@ name: Android
 on:
   pull_request:
     paths:
+      - "crates/core/**"
       - "crates/android/**"
       - ".github/workflows/android.yml"
   push:

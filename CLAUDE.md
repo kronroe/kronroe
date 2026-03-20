@@ -26,7 +26,7 @@ kronroe/
 │   ├── agent-memory/   # `kronroe-agent-memory` crate — AgentMemory API
 │   ├── ios/            # `kronroe-ios` crate — C FFI staticlib + cbindgen header + Swift Package
 │   ├── android/        # `kronroe-android` crate — JNI cdylib + Kotlin wrapper
-│   ├── mcp-server/     # `kronroe-mcp` binary — stdio MCP server (8 tools)
+│   ├── mcp-server/     # `kronroe-mcp` binary — stdio MCP server (11 tools)
 │   ├── python/         # `kronroe-py` crate — PyO3 bindings
 │   └── wasm/           # `kronroe-wasm` crate — WebAssembly bindings (browser)
 ├── packages/
@@ -142,8 +142,8 @@ Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memo
 
 | Type | Description |
 |------|-------------|
-| `KronroeDb` | Python class wrapping `TemporalGraph` — exposes `open`, `assert_fact`, `search` |
-| `AgentMemory` | Python class wrapping `AgentMemory` — exposes `open`, `assert_fact`, `assert_with_confidence`, `recall`, `recall_scored`, `assemble_context`, `correct_fact`, `invalidate_fact`, `facts_about` |
+| `KronroeDb` | Python class wrapping `TemporalGraph` — exposes `open`, `open_in_memory`, `assert_fact`, `search` |
+| `AgentMemory` | Python class wrapping `AgentMemory` — exposes `open`, `open_in_memory`, `assert_fact`, `assert_with_confidence`, `recall`, `recall_scored`, `assemble_context`, `correct_fact`, `invalidate_fact`, `facts_about` |
 
 ### Storage
 
@@ -159,7 +159,7 @@ Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memo
 kronroe-agent-memory   ← agent ergonomics, Phase 1 memory API
 kronroe-py             ← Python/PyO3 bindings
 kronroe-wasm           ← browser WASM bindings (in-memory only)
-kronroe-mcp            ← stdio MCP server (5 tools)
+kronroe-mcp            ← stdio MCP server (11 tools)
 kronroe-ios            ← C FFI staticlib + cbindgen header + Swift Package
 kronroe-android        ← JNI cdylib + Kotlin wrapper
         ↓
@@ -233,7 +233,7 @@ Future crates will layer on top.
 - Stdio transport with LSP-style `Content-Length` framing — works with any MCP client
 - **Wraps `AgentMemory`** (not raw `TemporalGraph`) — inherits scored recall, context assembly,
   contradiction/uncertainty auto-registration, and all Phase 1 agent features
-- Tools (8):
+- Tools (11):
   - `remember` (stores free-text as facts via Kronroe parsing)
   - `recall` (full-text search with optional confidence filtering, hybrid mode, temporal intent)
   - `recall_scored` (recall with per-result signal breakdown: RRF/BM25 scores, confidence, effective confidence)
@@ -242,6 +242,9 @@ Future crates will layer on top.
   - `assert_fact` (structured assertion with optional confidence, source, idempotency key, valid_from)
   - `correct_fact` (in-place correction preserving history semantics)
   - `invalidate_fact` (retire a fact by ID)
+  - `what_changed` (entity change summary since a timestamp)
+  - `memory_health` (operational health snapshot for an entity)
+  - `recall_for_task` (decision-ready recall context scoped to a task)
 - Database path: `KRONROE_MCP_DB_PATH` env var (default: `./kronroe-mcp.kronroe`)
 - Install binary: `cargo install --path crates/mcp-server`
 - **npm shim** (`packages/kronroe-mcp`): `npx kronroe-mcp` — delegates to binary on PATH
@@ -348,7 +351,7 @@ Snapshot as of 2026-03-09. See GitHub milestones/issues for source of truth.
 | 0.2 | iOS compilation spike | ✅ Done locally (aarch64-apple-ios + aarch64-apple-ios-sim compile) | Rebekah (local) |
 | 0.3 | Full-text index (Kronroe lexical engine) | ✅ Done | — |
 | 0.4 | Python bindings (PyO3) | ✅ Done | — |
-| 0.5 | MCP server | ✅ Done — stdio server, 5 tools (remember/recall/facts_about/assert_fact/correct_fact), pip wrapper | — |
+| 0.5 | MCP server | ✅ Done — stdio server, 11 tools (remember/recall/recall_scored/assemble_context/facts_about/assert_fact/correct_fact/invalidate_fact/what_changed/memory_health/recall_for_task), pip wrapper | — |
 | 0.6 | iOS XCFramework | ✅ Done locally (aarch64-apple-ios + Swift package scaffold, commit cc4287e) | Rebekah (local) |
 | 0.7 | Kindly Roe integration | ✅ Done (PR #76-78 — KronroeMemoryStore + Swift 6 compat + simulator proof) | Rebekah (local) |
 | 0.8 | Vector index | ✅ Done — flat cosine similarity, zero deps, temporal filtering, PR #18 | — |

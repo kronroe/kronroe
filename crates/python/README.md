@@ -72,7 +72,7 @@ This means you can query "what did we know about Alice on March 1st?" and get a 
 
 Pure Rust core. No C dependencies. Python bindings via PyO3.
 
-The same engine also compiles to iOS (XCFramework), Android (JNI), WASM (browser), and runs as an MCP server with 8 tools for Claude Desktop, Cursor, and other MCP clients.
+The same engine also compiles to iOS (XCFramework), Android (JNI), WASM (browser), and runs as an MCP server with 11 tools for Claude Desktop, Cursor, and other MCP clients.
 
 ## Low-level API
 
@@ -90,7 +90,7 @@ results = db.search("alice Acme", limit=10)
 
 - [GitHub](https://github.com/kronroe/kronroe) — source, issues, contributing
 - [Commercial licence](https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md) — for proprietary/SaaS use
-- [MCP server](https://github.com/kronroe/kronroe/tree/main/crates/mcp-server) — 8 tools for AI assistants
+- [MCP server](https://github.com/kronroe/kronroe/tree/main/crates/mcp-server) — 11 tools for AI assistants
 
 ## Licence
 

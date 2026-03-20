@@ -79,6 +79,7 @@ jobs:
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'crates/core/**'
+              - 'crates/agent-memory/**'
               - 'crates/wasm/**'
             wrappers:
               - 'Cargo.toml'
@@ -216,7 +217,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
           cache-dependency-path: site/package-lock.json
 
@@ -242,7 +243,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Set up Python
         uses: actions/setup-python@v5

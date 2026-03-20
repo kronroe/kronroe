@@ -4,8 +4,8 @@ use kronroe::{Fact, Value};
 #[cfg(feature = "hybrid")]
 use kronroe::{TemporalIntent, TemporalOperator};
 use kronroe_agent_memory::{
-    AgentMemory, ConfidenceShift, FactCorrection, MemoryHealthReport, RecallForTaskReport,
-    RecallOptions, RecallScore, WhatChangedReport,
+    is_high_impact_predicate, AgentMemory, ConfidenceShift, FactCorrection, MemoryHealthReport,
+    RecallForTaskReport, RecallOptions, RecallScore, WhatChangedReport,
 };
 use serde_json::{json, Map, Value as JsonValue};
 use std::env;
@@ -913,18 +913,15 @@ fn call_tool_recall_for_task(state: &mut AppState, args: &JsonValue) -> Result<J
     };
 
     let query_embedding = parse_embedding(args.get("query_embedding"))?;
-    let use_hybrid = args
-        .get("use_hybrid")
-        .and_then(JsonValue::as_bool)
-        .unwrap_or(false);
+    let use_hybrid = args.get("use_hybrid").and_then(JsonValue::as_bool);
 
     #[cfg(not(feature = "hybrid"))]
-    if query_embedding.is_some() || use_hybrid {
+    if query_embedding.is_some() || use_hybrid == Some(true) {
         anyhow::bail!("hybrid task recall controls are unavailable without hybrid feature");
     }
 
     #[cfg(feature = "hybrid")]
-    let embedding_for_call = if use_hybrid {
+    let embedding_for_call = if query_embedding.is_some() && use_hybrid != Some(false) {
         query_embedding.as_deref()
     } else {
         None
@@ -1223,13 +1220,6 @@ fn recall_for_task_report_to_json(report: &RecallForTaskReport) -> JsonValue {
         "watchouts": report.watchouts.clone(),
         "recommended_next_checks": report.recommended_next_checks.clone(),
     })
-}
-
-fn is_high_impact_predicate(predicate: &str) -> bool {
-    matches!(
-        predicate,
-        "works_at" | "lives_in" | "job_title" | "email" | "phone"
-    )
 }
 
 fn level_score(level: &str) -> f32 {
@@ -2261,6 +2251,60 @@ mod tests {
             .and_then(JsonValue::as_str)
             .unwrap_or("");
         assert_eq!(on_type, "text");
+    }
+
+    #[test]
+    fn correct_fact_returns_new_fact_id() {
+        let mut state = temp_state();
+        let first = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme"
+                }
+            })),
+        )
+        .unwrap();
+        let fact_id = first
+            .get("structuredContent")
+            .and_then(|v| v.get("fact_id"))
+            .and_then(JsonValue::as_str)
+            .unwrap();
+
+        let corrected = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "correct_fact",
+                "arguments": { "fact_id": fact_id, "new_value": "Globex" }
+            })),
+        )
+        .unwrap();
+        let new_fact_id = corrected
+            .get("structuredContent")
+            .and_then(|v| v.get("new_fact_id"))
+            .and_then(JsonValue::as_str)
+            .unwrap();
+        assert!(new_fact_id.starts_with("kf_"));
+        assert_ne!(new_fact_id, fact_id);
+
+        // The corrected value should appear in recall
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall",
+                "arguments": { "query": "Globex", "limit": 10 }
+            })),
+        )
+        .unwrap();
+        let facts = out
+            .get("structuredContent")
+            .and_then(|v| v.get("facts"))
+            .and_then(JsonValue::as_array)
+            .unwrap();
+        assert!(!facts.is_empty());
     }
 
     #[test]

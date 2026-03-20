@@ -42,7 +42,7 @@ Kronroe is still early-stage software, but this document defines which surfaces 
 
 | API surface | Gate | Level | Notes |
 |---|---|---|---|
-| Tool names and JSON-RPC framing (`remember`, `recall`, `recall_scored`, `assemble_context`, `facts_about`, `assert_fact`, `correct_fact`, `invalidate_fact`) | base | `Stable` | Main integration surface for AI agents. |
+| Tool names and JSON-RPC framing (`remember`, `recall`, `recall_scored`, `assemble_context`, `facts_about`, `assert_fact`, `correct_fact`, `invalidate_fact`, `what_changed`, `memory_health`, `recall_for_task`) | base | `Stable` | Main integration surface for AI agents (11 tools). |
 | Core tool arguments (`query`, `limit`, `fact_id`, etc.) | base | `Stable` | Additive fields may be introduced without breaking existing calls. `fact_id` now uses Kronroe Fact IDs (`kf_...`). |
 | Hybrid recall options (`query_embedding`, `use_hybrid`, temporal intent/operator) | `hybrid` | `Experimental` | Feature-gated and may evolve. |
 | Effective-confidence filtering (`confidence_filter_mode=effective`) | `uncertainty` | `Preview` | Depends on uncertainty model evolution. |
