@@ -598,7 +598,7 @@ fn test_search_by_vector_ranked_order() {
         assert_eq!(*rank, i);
     }
     // alice (closer to [1,0]) should be rank 0
-    assert_eq!(ranked[0].0 .0.len(), 26); // ULID is 26 chars — just verify it's a valid id
+    assert!(ranked[0].0.as_str().starts_with("kf_")); // canonical Kronroe Fact ID
 }
 ```
 
@@ -652,7 +652,7 @@ git commit -m "feat(core): add search_by_vector_ranked() private helper for hybr
 
 ## Task 6: Create `crates/core/src/hybrid.rs` with RRF fusion
 
-**Context:** This is the core math. Weighted Reciprocal Rank Fusion: for each candidate, accumulate `weight / (rank_constant + rank)` from each channel. Merge by `FactId`, break ties by ULID string (deterministic). Temporal adjustment is a bounded additive pass after fusion.
+**Context:** This is the core math. Weighted Reciprocal Rank Fusion: for each candidate, accumulate `weight / (rank_constant + rank)` from each channel. Merge by `FactId`, break ties by canonical Fact ID ordering (deterministic). Temporal adjustment is a bounded additive pass after fusion.
 
 **Files:**
 - Create: `crates/core/src/hybrid.rs`
@@ -1252,7 +1252,7 @@ pub fn remember(
 fn test_remember_stores_fact() {
     let (mem, _f) = open_temp_memory();
     let id = mem.remember("Alice loves Rust", "ep-001", None).unwrap();
-    assert_eq!(id.0.len(), 26, "should be a valid ULID");
+    assert!(id.as_str().starts_with("kf_"), "should be a canonical Kronroe Fact ID");
     let facts = mem.facts_about("ep-001").unwrap();
     assert_eq!(facts.len(), 1);
     assert_eq!(facts[0].subject, "ep-001");

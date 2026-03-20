@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use kronroe::{Fact, FactId, Value};
+use kronroe::{Fact, Value};
 #[cfg(feature = "hybrid")]
 use kronroe::{TemporalIntent, TemporalOperator};
 use kronroe_agent_memory::{
@@ -485,7 +485,7 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
 
             Ok(json!({
                 "content": [{ "type": "text", "text": format!("asserted fact {fact_id}") }],
-                "structuredContent": { "fact_id": fact_id.0 }
+                "structuredContent": { "fact_id": fact_id.as_str() }
             }))
         }
         "correct_fact" => {
@@ -496,10 +496,10 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
             let new_value = json_to_value(args.get("new_value").context("new_value is required")?)?;
             let new_fact = state
                 .memory
-                .correct_fact(&FactId(fact_id.to_string()), new_value)?;
+                .correct_fact(fact_id, new_value)?;
             Ok(json!({
-                "content": [{ "type": "text", "text": format!("corrected fact {fact_id} -> {}", new_fact.0) }],
-                "structuredContent": { "new_fact_id": new_fact.0 }
+                "content": [{ "type": "text", "text": format!("corrected fact {fact_id} -> {}", new_fact.as_str()) }],
+                "structuredContent": { "new_fact_id": new_fact.as_str() }
             }))
         }
         "invalidate_fact" => {
@@ -507,7 +507,7 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
                 .get("fact_id")
                 .and_then(JsonValue::as_str)
                 .context("fact_id is required")?;
-            state.memory.invalidate_fact(&FactId(fact_id.to_string()))?;
+            state.memory.invalidate_fact(fact_id)?;
             Ok(json!({
                 "content": [{ "type": "text", "text": format!("invalidated fact {fact_id}") }],
                 "structuredContent": { "fact_id": fact_id }
@@ -556,12 +556,12 @@ fn call_tool_remember(state: &mut AppState, args: &JsonValue) -> Result<JsonValu
     }
 
     let note_id = if let Some(key) = idempotency_key {
-        state
-            .memory
-            .remember_idempotent(key, text, episode_id)
-            .context("failed to remember note")?
-            .0
-    } else if query_embedding.is_some() {
+            state
+                .memory
+                .remember_idempotent(key, text, episode_id)
+                .context("failed to remember note")?
+            .to_string()
+        } else if query_embedding.is_some() {
         #[cfg(feature = "hybrid")]
         {
             let embedding = query_embedding
@@ -571,7 +571,7 @@ fn call_tool_remember(state: &mut AppState, args: &JsonValue) -> Result<JsonValu
                 .memory
                 .remember(text, episode_id, Some(embedding.to_vec()))
                 .context("failed to remember note")?
-                .0
+                .to_string()
         }
         #[cfg(not(feature = "hybrid"))]
         {
@@ -582,7 +582,7 @@ fn call_tool_remember(state: &mut AppState, args: &JsonValue) -> Result<JsonValu
             .memory
             .remember(text, episode_id, None)
             .context("failed to remember note")?
-            .0
+            .to_string()
     };
 
     let mut ids = vec![note_id];
@@ -597,12 +597,12 @@ fn call_tool_remember(state: &mut AppState, args: &JsonValue) -> Result<JsonValu
                     "works_at",
                     employer.to_string(),
                 )?
-                .0
+                .to_string()
         } else {
             state
                 .memory
                 .assert(subject, "works_at", employer.to_string())?
-                .0
+                .to_string()
         };
         ids.push(relation_id);
     }
@@ -1080,7 +1080,7 @@ fn json_to_value(v: &JsonValue) -> anyhow::Result<Value> {
 
 fn fact_to_json(fact: &Fact) -> JsonValue {
     json!({
-        "id": fact.id.0,
+        "id": fact.id.as_str(),
         "subject": fact.subject,
         "predicate": fact.predicate,
         "object": match &fact.object {
@@ -1152,8 +1152,8 @@ fn fact_correction_to_json(correction: &FactCorrection) -> JsonValue {
 
 fn confidence_shift_to_json(shift: &ConfidenceShift) -> JsonValue {
     json!({
-        "from_fact_id": shift.from_fact_id.0,
-        "to_fact_id": shift.to_fact_id.0,
+        "from_fact_id": shift.from_fact_id.as_str(),
+        "to_fact_id": shift.to_fact_id.as_str(),
         "from_confidence": shift.from_confidence,
         "to_confidence": shift.to_confidence,
     })

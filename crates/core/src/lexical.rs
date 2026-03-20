@@ -137,7 +137,7 @@ impl LexicalIndex {
             b_score
                 .partial_cmp(a_score)
                 .unwrap_or(Ordering::Equal)
-                .then_with(|| a_id.0.cmp(&b_id.0))
+                .then_with(|| a_id.cmp(b_id))
         });
         hits.truncate(limit);
         hits
@@ -256,7 +256,10 @@ mod tests {
     use super::*;
 
     fn doc_with(id: &str, content: &str) -> LexicalDocument {
-        LexicalDocument::new(FactId(id.to_string()), content.to_string())
+        LexicalDocument::new(
+            FactId::from_parts(1_742_355_200_000, 0, crate::fact_id::deterministic_entropy(id)),
+            content.to_string(),
+        )
     }
 
     #[test]
@@ -269,16 +272,16 @@ mod tests {
     fn fuzzy_fallback_only_runs_when_exact_search_is_empty() {
         let docs = vec![doc_with("a", "alice"), doc_with("b", "alcie")];
         let hits = search_scored(&docs, "alice", 10);
-        let ids: Vec<&str> = hits.iter().map(|(id, _)| id.0.as_str()).collect();
-        assert_eq!(ids, vec!["a"]);
+        let ids: Vec<FactId> = hits.into_iter().map(|(id, _)| id).collect();
+        assert_eq!(ids, vec![docs[0].id.clone()]);
     }
 
     #[test]
     fn search_orders_ties_by_fact_id() {
         let docs = vec![doc_with("b", "rust"), doc_with("a", "rust")];
         let hits = search_scored(&docs, "rust", 10);
-        let ids: Vec<&str> = hits.iter().map(|(id, _)| id.0.as_str()).collect();
-        assert_eq!(ids, vec!["a", "b"]);
+        let ids: Vec<FactId> = hits.into_iter().map(|(id, _)| id).collect();
+        assert_eq!(ids, vec![docs[1].id.clone(), docs[0].id.clone()]);
     }
 
     #[test]
@@ -289,32 +292,32 @@ mod tests {
             doc_with("fact-c", "carol lives_in London"),
         ];
 
-        let acme_ids: Vec<String> = search_scored(&docs, "Acme", 10)
+        let acme_ids: Vec<FactId> = search_scored(&docs, "Acme", 10)
             .into_iter()
-            .map(|(id, _)| id.0)
+            .map(|(id, _)| id)
             .collect();
-        assert_eq!(acme_ids, vec!["fact-b".to_string(), "fact-a".to_string()]);
+        assert_eq!(acme_ids, vec![docs[1].id.clone(), docs[0].id.clone()]);
 
-        let multi_term_ids: Vec<String> = search_scored(&docs, "alice works at", 10)
+        let multi_term_ids: Vec<FactId> = search_scored(&docs, "alice works at", 10)
             .into_iter()
-            .map(|(id, _)| id.0)
+            .map(|(id, _)| id)
             .collect();
         assert_eq!(
             multi_term_ids,
-            vec!["fact-a".to_string(), "fact-b".to_string()]
+            vec![docs[0].id.clone(), docs[1].id.clone()]
         );
 
-        let alias_ids: Vec<String> = search_scored(&docs, "ally", 10)
+        let alias_ids: Vec<FactId> = search_scored(&docs, "ally", 10)
             .into_iter()
-            .map(|(id, _)| id.0)
+            .map(|(id, _)| id)
             .collect();
-        assert_eq!(alias_ids, vec!["fact-a".to_string()]);
+        assert_eq!(alias_ids, vec![docs[0].id.clone()]);
 
-        let typo_ids: Vec<String> = search_scored(&docs, "alcie", 10)
+        let typo_ids: Vec<FactId> = search_scored(&docs, "alcie", 10)
             .into_iter()
-            .map(|(id, _)| id.0)
+            .map(|(id, _)| id)
             .collect();
-        assert_eq!(typo_ids, vec!["fact-a".to_string()]);
+        assert_eq!(typo_ids, vec![docs[0].id.clone()]);
     }
 
     #[test]

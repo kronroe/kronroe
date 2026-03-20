@@ -116,7 +116,7 @@ Additional fact metadata fields:
 | `SourceWeight` | Authority multiplier for fact source. Clamped to \[0.0, 2.0\], default 1.0 (feature: uncertainty) |
 | `EffectiveConfidence` | Query-time result: `value`, `base_confidence`, `age_decay`, `source_weight` (feature: uncertainty) |
 | `Fact` | The fundamental unit of storage. Fully bi-temporal. `with_confidence(f32)` and `with_source(impl Into<String>)` builders. |
-| `FactId` | ULID — lexicographically sortable, monotonic insertion order |
+| `FactId` | Kronroe Fact ID (`kf_...`) — lexicographically sortable, monotonic insertion order |
 | `Value` | `Text(String)` \| `Number(f64)` \| `Boolean(bool)` \| `Entity(String)` |
 | `KronroeError` | Error type |
 
@@ -176,7 +176,7 @@ Future crates will layer on top.
 
 - Compiles to `wasm32-unknown-unknown` via `wasm-pack build --target web`
 - Uses `redb::backends::InMemoryBackend` — no file I/O in browser
-- `getrandom` with `wasm_js` feature provides `Crypto.getRandomValues` for ULID generation
+- `getrandom` with `wasm_js` feature provides `Crypto.getRandomValues` for Kronroe Fact ID generation
 - The `wasm` crate builds with `--no-default-features`, so browser builds exclude the optional
   full-text engine while keeping the rest of core available; full-text search in core remains
   gated with `#[cfg(feature = "fulltext")]`
@@ -413,7 +413,7 @@ Rebekah Cole — project owner & sole maintainer of Kronroe. Building Kindly Roe
 |------|---------|
 | FFI | Foreign Function Interface — C API layer for iOS/Android |
 | CoW | Copy on Write — redb storage strategy |
-| ULID | Universally Unique Lexicographically Sortable Identifier — FactId format |
+| Kronroe Fact ID | Canonical `kf_...` sortable fact identifier used across all surfaces |
 | MCP | Model Context Protocol — AI tool integration standard |
 | PyO3 | Python ↔ Rust bindings framework (crates/python) |
 | WASM | WebAssembly — browser target (wasm32-unknown-unknown) |

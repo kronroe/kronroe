@@ -350,7 +350,7 @@ mod tests {
 
     fn make_fact(predicate: &str, valid_from: DateTime<Utc>, confidence: f32) -> Fact {
         Fact {
-            id: FactId(ulid::Ulid::new().to_string()),
+            id: FactId::new(),
             subject: "alice".to_string(),
             predicate: predicate.to_string(),
             object: Value::Text("Acme".to_string()),

@@ -323,7 +323,7 @@ fn rerank_two_stage_internal(
         let sb = semantic_core(b);
         sb.partial_cmp(&sa)
             .unwrap_or(Ordering::Equal)
-            .then_with(|| fa.id.0.cmp(&fb.id.0))
+            .then_with(|| fa.id.cmp(&fb.id))
     });
 
     let stage1_n = if matches!(intent, TemporalIntent::Timeless) {
@@ -354,7 +354,7 @@ fn rerank_two_stage_internal(
                 (wv * b.vector_rrf_contrib) + (wt * b.text_rrf_contrib) + (0.02 * b.final_score);
             sb.partial_cmp(&sa)
                 .unwrap_or(Ordering::Equal)
-                .then_with(|| fa.id.0.cmp(&fb.id.0))
+                .then_with(|| fa.id.cmp(&fb.id))
         });
         hits.truncate(k);
         return hits;
@@ -381,7 +381,7 @@ fn rerank_two_stage_internal(
         let sb = semantic_core(b) + (weight * temporal_signal(fb));
         sb.partial_cmp(&sa)
             .unwrap_or(Ordering::Equal)
-            .then_with(|| fa.id.0.cmp(&fb.id.0))
+            .then_with(|| fa.id.cmp(&fb.id))
     });
 
     hits.truncate(k);
@@ -445,7 +445,7 @@ mod tests {
         confidence: f32,
     ) -> Fact {
         Fact {
-            id: FactId(ulid::Ulid::new().to_string()),
+            id: FactId::new(),
             subject: subject.to_string(),
             predicate: "test".to_string(),
             object: Value::Text("val".to_string()),

@@ -29,6 +29,7 @@
 
 #[cfg(feature = "fulltext")]
 mod lexical;
+mod fact_id;
 #[cfg(feature = "vector")]
 mod vector;
 
@@ -50,6 +51,7 @@ mod uncertainty;
 pub use uncertainty::{EffectiveConfidence, PredicateVolatility, SourceWeight};
 
 use chrono::{DateTime, Utc};
+pub use fact_id::{FactId, FactIdParseError};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
 #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
@@ -59,7 +61,6 @@ use std::cmp::Ordering;
     all(feature = "hybrid-experimental", feature = "vector")
 ))]
 use std::collections::HashMap;
-use ulid::Ulid;
 
 // ---------------------------------------------------------------------------
 // Error types
@@ -75,6 +76,8 @@ pub enum KronroeError {
     NotFound(String),
     #[error("search error: {0}")]
     Search(String),
+    #[error("invalid fact id: {0}")]
+    InvalidFactId(String),
     #[error("invalid embedding: {0}")]
     InvalidEmbedding(String),
     #[error("internal error: {0}")]
@@ -120,28 +123,6 @@ pub type Result<T> = std::result::Result<T, KronroeError>;
 // ---------------------------------------------------------------------------
 // Core types
 // ---------------------------------------------------------------------------
-
-/// A stable, time-sortable identifier for a [`Fact`].
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct FactId(pub String);
-
-impl FactId {
-    pub fn new() -> Self {
-        Self(Ulid::new().to_string())
-    }
-}
-
-impl Default for FactId {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl std::fmt::Display for FactId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 /// The value stored in a fact's object position.
 ///
@@ -289,6 +270,37 @@ impl Fact {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StoredFactRecord {
+    id: String,
+    subject: String,
+    predicate: String,
+    object: Value,
+    valid_from: DateTime<Utc>,
+    valid_to: Option<DateTime<Utc>>,
+    recorded_at: DateTime<Utc>,
+    expired_at: Option<DateTime<Utc>>,
+    confidence: f32,
+    source: Option<String>,
+}
+
+impl StoredFactRecord {
+    fn into_fact_with_id(self, id: FactId) -> Fact {
+        Fact {
+            id,
+            subject: self.subject,
+            predicate: self.predicate,
+            object: self.object,
+            valid_from: self.valid_from,
+            valid_to: self.valid_to,
+            recorded_at: self.recorded_at,
+            expired_at: self.expired_at,
+            confidence: self.confidence,
+            source: self.source,
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Storage
 // ---------------------------------------------------------------------------
@@ -304,10 +316,11 @@ impl Fact {
 /// | Version | Date | What changed |
 /// |---------|------|--------------|
 /// | 1 | 2026-02-27 | Initial committed format. Tables: `facts`, `idempotency`, `embeddings` (feature=vector), `embedding_meta` (feature=vector). Key: `"{subject}:{predicate}:{fact_id}"`. Value: JSON `Fact`. |
+/// | 2 | 2026-03-19 | Kronroe Fact ID migration. Canonical IDs become `kf_...`; existing fact/idempotency/embedding rows auto-migrated on open. |
 ///
 /// A file whose stored version differs from this constant cannot be opened —
 /// [`TemporalGraph::open`] returns [`KronroeError::SchemaMismatch`].
-const SCHEMA_VERSION: u64 = 1;
+const SCHEMA_VERSION: u64 = 2;
 
 /// Single-row database metadata table.
 /// Key `"schema_version"` stores the [`SCHEMA_VERSION`] stamped when the file
@@ -316,7 +329,7 @@ const META: TableDefinition<&str, u64> = TableDefinition::new("meta");
 
 /// Composite string key: `"{subject}:{predicate}:{fact_id}"`.
 ///
-/// The ULID-based fact_id is time-sortable, so facts for the same
+/// The Kronroe fact_id is time-sortable, so facts for the same
 /// (subject, predicate) pair are stored in insertion order.
 ///
 /// This is the Phase 0 storage strategy — a proper multi-level B-tree
@@ -347,13 +360,11 @@ const SOURCE_WEIGHT_REGISTRY: TableDefinition<&str, &str> =
 
 /// Raw little-endian f32 bytes keyed by fact_id string.
 /// Written atomically alongside the fact row in `assert_fact_with_embedding`.
-#[cfg(feature = "vector")]
 const EMBEDDINGS: TableDefinition<&str, &[u8]> = TableDefinition::new("embeddings");
 
 /// Single-row metadata table for the vector index.
 /// Key `"dim"` stores the established embedding dimension (`u64`).
 /// Written once (on first insert) inside a serialised write transaction.
-#[cfg(feature = "vector")]
 const EMBEDDING_META: TableDefinition<&str, u64> = TableDefinition::new("embedding_meta");
 
 /// Kronroe temporal property graph database.
@@ -414,11 +425,8 @@ impl TemporalGraph {
             let write_txn = db.begin_write()?;
             write_txn.open_table(FACTS)?;
             write_txn.open_table(IDEMPOTENCY)?;
-            #[cfg(feature = "vector")]
-            {
-                write_txn.open_table(EMBEDDINGS)?;
-                write_txn.open_table(EMBEDDING_META)?;
-            }
+            write_txn.open_table(EMBEDDINGS)?;
+            write_txn.open_table(EMBEDDING_META)?;
             #[cfg(feature = "contradiction")]
             {
                 write_txn.open_table(PREDICATE_REGISTRY)?;
@@ -431,28 +439,47 @@ impl TemporalGraph {
 
             // Stamp or verify the schema version.  Extract to owned before any
             // mutable borrow (redb AccessGuard borrow rule — see CLAUDE.md).
-            {
+            let stored_version = {
                 let mut meta = write_txn.open_table(META)?;
                 let stored: Option<u64> = meta.get("schema_version")?.map(|g| g.value());
                 match stored {
                     None => {
-                        // New file, or file created before versioning was added —
-                        // both are treated as schema v1 (the initial committed format).
-                        meta.insert("schema_version", SCHEMA_VERSION)?;
+                        let facts_exist = write_txn.open_table(FACTS)?.iter()?.next().transpose()?.is_some();
+                        let idempotency_exists = write_txn
+                            .open_table(IDEMPOTENCY)?
+                            .iter()?
+                            .next()
+                            .transpose()?
+                            .is_some();
+                        let embeddings_exist = write_txn
+                            .open_table(EMBEDDINGS)?
+                            .iter()?
+                            .next()
+                            .transpose()?
+                            .is_some();
+                        if facts_exist || idempotency_exists || embeddings_exist {
+                            1
+                        } else {
+                            meta.insert("schema_version", SCHEMA_VERSION)?;
+                            SCHEMA_VERSION
+                        }
                     }
-                    Some(v) if v == SCHEMA_VERSION => {
-                        // File is current — nothing to do.
-                    }
-                    Some(v) => {
-                        return Err(KronroeError::SchemaMismatch {
-                            found: v,
-                            expected: SCHEMA_VERSION,
-                        });
-                    }
+                    Some(v) => v,
                 }
-            }
+            };
 
             write_txn.commit()?;
+
+            match stored_version {
+                v if v == SCHEMA_VERSION => {}
+                1 => Self::migrate_v1_to_v2(&db)?,
+                found => {
+                    return Err(KronroeError::SchemaMismatch {
+                        found,
+                        expected: SCHEMA_VERSION,
+                    })
+                }
+            }
         }
         #[cfg(feature = "vector")]
         let vector_index = {
@@ -545,7 +572,12 @@ impl TemporalGraph {
 
         for entry in emb_table.iter()? {
             let (key, value) = entry?;
-            let fact_id = FactId(key.value().to_string());
+            let fact_id = FactId::parse(key.value()).map_err(|e| {
+                KronroeError::Storage(format!(
+                    "corrupt embedding fact id `{}` while rebuilding vector index: {e}",
+                    key.value()
+                ))
+            })?;
             let bytes = value.value();
 
             if bytes.len() % 4 != 0 {
@@ -565,6 +597,143 @@ impl TemporalGraph {
         }
 
         Ok(idx)
+    }
+
+    fn migrate_v1_to_v2(db: &Database) -> Result<()> {
+        let write_txn = db.begin_write()?;
+
+        let facts_rows: Vec<(String, StoredFactRecord)> = {
+            let facts = write_txn.open_table(FACTS)?;
+            let mut rows = Vec::new();
+            for entry in facts.iter()? {
+                let (key, value) = entry?;
+                let fact: StoredFactRecord = serde_json::from_str(value.value()).map_err(|e| {
+                    KronroeError::Storage(format!(
+                        "invalid v1 fact row `{}` during Fact ID migration: {e}",
+                        key.value()
+                    ))
+                })?;
+                rows.push((key.value().to_string(), fact));
+            }
+            rows
+        };
+
+        let idempotency_rows: Vec<(String, String)> = {
+            let table = write_txn.open_table(IDEMPOTENCY)?;
+            let mut rows = Vec::new();
+            for entry in table.iter()? {
+                let (key, value) = entry?;
+                rows.push((key.value().to_string(), value.value().to_string()));
+            }
+            rows
+        };
+
+        let embedding_rows: Vec<(String, Vec<u8>)> = {
+            let table = write_txn.open_table(EMBEDDINGS)?;
+            let mut rows = Vec::new();
+            for entry in table.iter()? {
+                let (key, value) = entry?;
+                rows.push((key.value().to_string(), value.value().to_vec()));
+            }
+            rows
+        };
+
+        let mut ordered_facts: Vec<(usize, &StoredFactRecord)> =
+            facts_rows.iter().enumerate().map(|(idx, (_key, fact))| (idx, fact)).collect();
+        ordered_facts.sort_by(|(left_idx, left), (right_idx, right)| {
+            left.recorded_at
+                .cmp(&right.recorded_at)
+                .then_with(|| left.id.cmp(&right.id))
+                .then_with(|| left_idx.cmp(right_idx))
+        });
+
+        let mut migration_last_ms = 0u64;
+        let mut migration_sequence = 0u16;
+        let mut migrated_ids: Vec<FactId> = vec![FactId::default(); facts_rows.len()];
+
+        for (idx, fact) in ordered_facts {
+            let mut timestamp_ms = fact
+                .recorded_at
+                .timestamp_millis()
+                .max(0) as u64;
+            if timestamp_ms < migration_last_ms {
+                timestamp_ms = migration_last_ms;
+            }
+            if timestamp_ms == migration_last_ms {
+                if migration_sequence == u16::MAX {
+                    migration_last_ms += 1;
+                    migration_sequence = 0;
+                } else {
+                    migration_sequence += 1;
+                }
+            } else {
+                migration_last_ms = timestamp_ms;
+                migration_sequence = 0;
+            }
+
+            let new_id = FactId::from_parts(
+                migration_last_ms,
+                migration_sequence,
+                fact_id::deterministic_entropy(&fact.id),
+            );
+            migrated_ids[idx] = new_id.clone();
+        }
+
+        {
+            let mut facts = write_txn.open_table(FACTS)?;
+            for (old_key, _fact) in &facts_rows {
+                facts.remove(old_key.as_str())?;
+            }
+            for ((_, stored_fact), new_id) in facts_rows.iter().zip(migrated_ids.iter()) {
+                let fact = stored_fact.clone().into_fact_with_id(new_id.clone());
+                let key = Self::fact_row_key(&fact.subject, &fact.predicate, &fact.id);
+                let value = serde_json::to_string(&fact)?;
+                facts.insert(key.as_str(), value.as_str())?;
+            }
+        }
+
+        {
+            let mut idempotency = write_txn.open_table(IDEMPOTENCY)?;
+            for (key, legacy_id) in &idempotency_rows {
+                let canonical_id = facts_rows
+                    .iter()
+                    .zip(migrated_ids.iter())
+                    .find_map(|((_, fact), new_id)| (fact.id == *legacy_id).then_some(new_id))
+                    .ok_or_else(|| {
+                        KronroeError::Storage(format!(
+                            "missing migrated idempotency mapping for legacy fact id `{legacy_id}`"
+                        ))
+                    })?;
+                idempotency.insert(key.as_str(), canonical_id.as_str())?;
+            }
+        }
+
+        {
+            let mut embeddings = write_txn.open_table(EMBEDDINGS)?;
+            for (old_id, _bytes) in &embedding_rows {
+                embeddings.remove(old_id.as_str())?;
+            }
+            for (old_id, bytes) in &embedding_rows {
+                let canonical_id = facts_rows
+                    .iter()
+                    .zip(migrated_ids.iter())
+                    .find_map(|((_, fact), new_id)| (fact.id == *old_id).then_some(new_id))
+                    .ok_or_else(|| {
+                        KronroeError::Storage(format!(
+                            "missing migrated embedding mapping for legacy fact id `{old_id}`"
+                        ))
+                    })?;
+                embeddings.insert(canonical_id.as_str(), bytes.as_slice())?;
+            }
+        }
+
+        {
+            let mut meta = write_txn.open_table(META)?;
+            meta.insert("schema_version", SCHEMA_VERSION)?;
+        }
+
+        write_txn.commit()?;
+        Ok(())
     }
 
     /// Write a single fact row inside an already-open [`redb::WriteTransaction`].
@@ -599,13 +768,21 @@ impl TemporalGraph {
             fact = fact.with_source(src);
         }
         let fact_id = fact.id.clone();
-        let key = format!("{}:{}:{}", subject, predicate, fact.id);
+        let key = Self::fact_row_key(subject, predicate, &fact.id);
         let value = serde_json::to_string(&fact)?;
         {
             let mut table = write_txn.open_table(FACTS)?;
             table.insert(key.as_str(), value.as_str())?;
         }
         Ok(fact_id)
+    }
+
+    fn fact_row_key(subject: &str, predicate: &str, fact_id: &FactId) -> String {
+        format!("{subject}:{predicate}:{}", fact_id.as_str())
+    }
+
+    fn resolve_fact_id_input(&self, fact_id: &str) -> Result<FactId> {
+        FactId::parse(fact_id).map_err(|_| KronroeError::InvalidFactId(fact_id.to_string()))
     }
 
     /// Assert a new fact and return its [`FactId`].
@@ -717,7 +894,8 @@ impl TemporalGraph {
                     .get(idempotency_key)?
                     .map(|guard| guard.value().to_string());
                 if let Some(existing_id) = existing {
-                    return Ok(FactId(existing_id));
+                    return FactId::parse(&existing_id)
+                        .map_err(|e| KronroeError::Storage(format!("corrupt idempotency fact id `{existing_id}`: {e}")));
                 }
             }
         }
@@ -732,7 +910,8 @@ impl TemporalGraph {
                 .get(idempotency_key)?
                 .map(|guard| guard.value().to_string());
             if let Some(existing_id) = existing {
-                return Ok(FactId(existing_id));
+                return FactId::parse(&existing_id)
+                    .map_err(|e| KronroeError::Storage(format!("corrupt idempotency fact id `{existing_id}`: {e}")));
             }
         }
 
@@ -748,7 +927,7 @@ impl TemporalGraph {
 
         {
             let mut idem_table = write_txn.open_table(IDEMPOTENCY)?;
-            idem_table.insert(idempotency_key, fact_id.0.as_str())?;
+            idem_table.insert(idempotency_key, fact_id.as_str())?;
         }
 
         write_txn.commit()?;
@@ -828,12 +1007,12 @@ impl TemporalGraph {
                 .collect();
             let top_docs = lexical::search_scored(&docs, query, limit);
 
-            let facts_by_id: HashMap<String, Fact> =
-                facts.into_iter().map(|f| (f.id.0.clone(), f)).collect();
+            let facts_by_id: HashMap<FactId, Fact> =
+                facts.into_iter().map(|f| (f.id.clone(), f)).collect();
             let mut results = Vec::new();
 
             for (fact_id, score) in top_docs {
-                if let Some(fact) = facts_by_id.get(&fact_id.0) {
+                if let Some(fact) = facts_by_id.get(&fact_id) {
                     results.push((fact.clone(), score));
                 }
             }
@@ -848,7 +1027,8 @@ impl TemporalGraph {
     /// The fact is not deleted — its history is preserved. After invalidation,
     /// the fact will no longer appear in `current_facts()` but will still be
     /// returned by `facts_at()` for timestamps before `at`.
-    pub fn invalidate_fact(&self, fact_id: &FactId, at: DateTime<Utc>) -> Result<()> {
+    pub fn invalidate_fact(&self, fact_id: impl AsRef<str>, at: DateTime<Utc>) -> Result<()> {
+        let fact_id = self.resolve_fact_id_input(fact_id.as_ref())?;
         // Phase 0: linear scan to find the fact. Replace with ID index in Phase 1.
         let read_txn = self.db.begin_read()?;
         let table = read_txn.open_table(FACTS)?;
@@ -859,7 +1039,7 @@ impl TemporalGraph {
         for entry in table.iter()? {
             let (k, v) = entry?;
             let fact: Fact = serde_json::from_str(v.value())?;
-            if fact.id == *fact_id {
+            if fact.id == fact_id {
                 found_key = Some(k.value().to_string());
                 found_fact = Some(fact);
                 break;
@@ -882,24 +1062,25 @@ impl TemporalGraph {
                 write_txn.commit()?;
                 Ok(())
             }
-            _ => Err(KronroeError::NotFound(format!("fact id {fact_id}"))),
+            _ => Err(KronroeError::NotFound(format!("fact id {}", fact_id.as_str()))),
         }
     }
 
     /// Retrieve a fact by its id.
     ///
     /// Phase 0 implementation performs a linear scan.
-    pub fn fact_by_id(&self, fact_id: &FactId) -> Result<Fact> {
+    pub fn fact_by_id(&self, fact_id: impl AsRef<str>) -> Result<Fact> {
+        let fact_id = self.resolve_fact_id_input(fact_id.as_ref())?;
         let read_txn = self.db.begin_read()?;
         let table = read_txn.open_table(FACTS)?;
         for entry in table.iter()? {
             let (_k, v) = entry?;
             let fact: Fact = serde_json::from_str(v.value())?;
-            if fact.id == *fact_id {
+            if fact.id == fact_id {
                 return Ok(fact);
             }
         }
-        Err(KronroeError::NotFound(format!("fact id {fact_id}")))
+        Err(KronroeError::NotFound(format!("fact id {}", fact_id.as_str())))
     }
 
     /// Correct a fact by id while preserving history.
@@ -908,10 +1089,11 @@ impl TemporalGraph {
     /// with the same subject/predicate and a new object value.
     pub fn correct_fact(
         &self,
-        fact_id: &FactId,
+        fact_id: impl AsRef<str>,
         new_value: impl Into<Value>,
         at: DateTime<Utc>,
     ) -> Result<FactId> {
+        let fact_id = fact_id.as_ref();
         let old = self.fact_by_id(fact_id)?;
         self.invalidate_fact(fact_id, at)?;
         self.assert_fact(&old.subject, &old.predicate, new_value, at)
@@ -1156,7 +1338,7 @@ impl TemporalGraph {
         let contradictions: Vec<Contradiction> = contradictions
             .into_iter()
             .map(|mut c| {
-                c.conflicting_fact_id = fact_id.0.clone();
+                c.conflicting_fact_id = fact_id.to_string();
                 c
             })
             .collect();
@@ -1427,11 +1609,11 @@ impl TemporalGraph {
         let vec_ranked = self.search_by_vector_ranked(vector_query, window, at)?;
 
         let rank_constant = params.rank_constant as f64;
-        let mut by_id: HashMap<String, HybridScoreBreakdown> = HashMap::new();
+        let mut by_id: HashMap<FactId, HybridScoreBreakdown> = HashMap::new();
 
         for (fact_id, rank) in text_ranked {
             let contrib = params.text_weight as f64 / (rank_constant + (rank + 1) as f64);
-            let entry = by_id.entry(fact_id.0).or_insert(HybridScoreBreakdown {
+            let entry = by_id.entry(fact_id).or_insert(HybridScoreBreakdown {
                 final_score: 0.0,
                 text_rrf_contrib: 0.0,
                 vector_rrf_contrib: 0.0,
@@ -1443,7 +1625,7 @@ impl TemporalGraph {
 
         for (fact_id, rank) in vec_ranked {
             let contrib = params.vector_weight as f64 / (rank_constant + (rank + 1) as f64);
-            let entry = by_id.entry(fact_id.0).or_insert(HybridScoreBreakdown {
+            let entry = by_id.entry(fact_id).or_insert(HybridScoreBreakdown {
                 final_score: 0.0,
                 text_rrf_contrib: 0.0,
                 vector_rrf_contrib: 0.0,
@@ -1455,7 +1637,6 @@ impl TemporalGraph {
 
         let mut fused: Vec<(FactId, HybridScoreBreakdown)> = by_id
             .into_iter()
-            .map(|(id, breakdown)| (FactId(id), breakdown))
             .collect();
 
         // Sort by RRF score descending, FactId ascending for deterministic ties.
@@ -1463,7 +1644,7 @@ impl TemporalGraph {
             b.final_score
                 .partial_cmp(&a.final_score)
                 .unwrap_or(Ordering::Equal)
-                .then_with(|| a_id.0.cmp(&b_id.0))
+                .then_with(|| a_id.cmp(b_id))
         });
         fused.truncate(window);
 
@@ -1660,6 +1841,7 @@ impl TemporalGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use redb::Database;
     use tempfile::NamedTempFile;
 
     fn open_temp_db() -> (TemporalGraph, NamedTempFile) {
@@ -1667,6 +1849,51 @@ mod tests {
         let path = file.path().to_str().unwrap().to_string();
         let db = TemporalGraph::open(&path).unwrap();
         (db, file)
+    }
+
+    fn seed_schema_v1_db(
+        path: &str,
+        facts: &[StoredFactRecord],
+        idempotency: &[(&str, &str)],
+        embeddings: &[(&str, &[f32])],
+    ) {
+        let raw = Database::create(path).unwrap();
+        let txn = raw.begin_write().unwrap();
+
+        {
+            let mut facts_table = txn.open_table(FACTS).unwrap();
+            for fact in facts {
+                let key = format!("{}:{}:{}", fact.subject, fact.predicate, fact.id);
+                let value = serde_json::to_string(fact).unwrap();
+                facts_table.insert(key.as_str(), value.as_str()).unwrap();
+            }
+        }
+
+        {
+            let mut idempotency_table = txn.open_table(IDEMPOTENCY).unwrap();
+            for (key, fact_id) in idempotency {
+                idempotency_table.insert(*key, *fact_id).unwrap();
+            }
+        }
+
+        {
+            let mut embeddings_table = txn.open_table(EMBEDDINGS).unwrap();
+            let mut embedding_meta = txn.open_table(EMBEDDING_META).unwrap();
+            if let Some((_, first)) = embeddings.first() {
+                embedding_meta.insert("dim", first.len() as u64).unwrap();
+            }
+            for (fact_id, embedding) in embeddings {
+                let bytes: Vec<u8> = embedding.iter().flat_map(|value| value.to_le_bytes()).collect();
+                embeddings_table.insert(*fact_id, bytes.as_slice()).unwrap();
+            }
+        }
+
+        {
+            let mut meta = txn.open_table(META).unwrap();
+            meta.insert("schema_version", 1).unwrap();
+        }
+
+        txn.commit().unwrap();
     }
 
     fn dt(s: &str) -> DateTime<Utc> {
@@ -2136,8 +2363,8 @@ mod tests {
         let ranked = db.search_ranked("Acme", 10).unwrap();
         let scored = db.search_scored("Acme", 10).unwrap();
 
-        let ranked_ids: Vec<String> = ranked.into_iter().map(|(id, _)| id.0).collect();
-        let scored_ids: Vec<String> = scored.into_iter().map(|(fact, _)| fact.id.0).collect();
+        let ranked_ids: Vec<FactId> = ranked.into_iter().map(|(id, _)| id).collect();
+        let scored_ids: Vec<FactId> = scored.into_iter().map(|(fact, _)| fact.id).collect();
         assert_eq!(
             ranked_ids, scored_ids,
             "hybrid lexical ranking input should match search_scored ordering"
@@ -2269,11 +2496,11 @@ mod tests {
             "expected both rust facts in the result set"
         );
 
-        let first_two_ids = [scored[0].0.id.0.clone(), scored[1].0.id.0.clone()];
-        let expected = if first.0 <= second.0 {
-            [first.0, second.0]
+        let first_two_ids = [scored[0].0.id.clone(), scored[1].0.id.clone()];
+        let expected = if first <= second {
+            [first, second]
         } else {
-            [second.0, first.0]
+            [second, first]
         };
         assert_eq!(
             first_two_ids, expected,
@@ -2414,7 +2641,7 @@ mod tests {
     #[test]
     fn invalidate_nonexistent_fact_returns_not_found() {
         let (db, _tmp) = open_temp_db();
-        let bogus_id = FactId(Ulid::new().to_string());
+        let bogus_id = FactId::new();
         let result = db.invalidate_fact(&bogus_id, Utc::now());
         assert!(
             result.is_err(),
@@ -2481,6 +2708,156 @@ mod tests {
         }
     }
 
+    #[test]
+    fn opening_schema_v1_db_auto_migrates_fact_ids_and_preserves_idempotency() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("legacy-fact-ids.kronroe");
+        let path_str = path.to_str().unwrap();
+
+        let legacy_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        let valid_from = dt("2024-01-01T00:00:00Z");
+        let recorded_at = dt("2024-03-14T12:30:00Z");
+
+        seed_schema_v1_db(
+            path_str,
+            &[StoredFactRecord {
+                id: legacy_id.to_string(),
+                subject: "alice".to_string(),
+                predicate: "works_at".to_string(),
+                object: Value::Text("Acme".to_string()),
+                valid_from,
+                valid_to: None,
+                recorded_at,
+                expired_at: None,
+                confidence: 1.0,
+                source: Some("migration-test".to_string()),
+            }],
+            &[("evt-legacy", legacy_id)],
+            &[],
+        );
+
+        let db = TemporalGraph::open(path_str).unwrap();
+        let facts = db.all_facts_about("alice").unwrap();
+        assert_eq!(facts.len(), 1);
+
+        let canonical_id = facts[0].id.clone();
+        assert!(canonical_id.as_str().starts_with("kf_"));
+        assert_eq!(canonical_id.as_str().len(), 29);
+        assert_ne!(canonical_id.as_str(), legacy_id);
+
+        let by_canonical = db.fact_by_id(&canonical_id).unwrap();
+        assert_eq!(by_canonical.id, canonical_id);
+        assert_eq!(by_canonical.source.as_deref(), Some("migration-test"));
+
+        match db.fact_by_id(legacy_id) {
+            Err(KronroeError::InvalidFactId(id)) => assert_eq!(id, legacy_id),
+            other => panic!("expected InvalidFactId for legacy id after migration, got {other:?}"),
+        }
+
+        let idempotent = db
+            .assert_fact_idempotent("evt-legacy", "alice", "works_at", "Acme", valid_from)
+            .unwrap();
+        assert_eq!(idempotent, canonical_id);
+
+        drop(db);
+
+        let reopened = TemporalGraph::open(path_str).unwrap();
+        let reopened_fact = reopened.fact_by_id(&canonical_id).unwrap();
+        assert_eq!(reopened_fact.id, canonical_id);
+    }
+
+    #[test]
+    fn migrated_databases_require_canonical_ids_for_direct_id_ops() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("legacy-direct-id-ops.kronroe");
+        let path_str = path.to_str().unwrap();
+
+        let legacy_id = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
+        let valid_from = dt("2024-01-01T00:00:00Z");
+        let cutoff = dt("2024-06-01T00:00:00Z");
+
+        seed_schema_v1_db(
+            path_str,
+            &[StoredFactRecord {
+                id: legacy_id.to_string(),
+                subject: "alice".to_string(),
+                predicate: "works_at".to_string(),
+                object: Value::Text("Acme".to_string()),
+                valid_from,
+                valid_to: None,
+                recorded_at: dt("2024-03-14T12:30:00Z"),
+                expired_at: None,
+                confidence: 1.0,
+                source: None,
+            }],
+            &[],
+            &[],
+        );
+
+        let db = TemporalGraph::open(path_str).unwrap();
+        let canonical_id = db.all_facts_about("alice").unwrap()[0].id.clone();
+
+        match db.invalidate_fact(legacy_id, cutoff) {
+            Err(KronroeError::InvalidFactId(id)) => assert_eq!(id, legacy_id),
+            other => panic!("expected InvalidFactId for legacy invalidate, got {other:?}"),
+        }
+        db.invalidate_fact(&canonical_id, cutoff).unwrap();
+        let invalidated = db.fact_by_id(&canonical_id).unwrap();
+        assert_eq!(invalidated.valid_to, Some(cutoff));
+        assert_eq!(invalidated.expired_at, Some(cutoff));
+
+        match db.correct_fact(legacy_id, "BetaCorp", cutoff) {
+            Err(KronroeError::InvalidFactId(id)) => assert_eq!(id, legacy_id),
+            other => panic!("expected InvalidFactId for legacy correct, got {other:?}"),
+        }
+
+        let replacement = db.correct_fact(&canonical_id, "BetaCorp", cutoff).unwrap();
+        assert!(replacement.as_str().starts_with("kf_"));
+        let replacement_fact = db.fact_by_id(&replacement).unwrap();
+        assert!(matches!(replacement_fact.object, Value::Text(ref text) if text == "BetaCorp"));
+    }
+
+    #[test]
+    #[cfg(feature = "vector")]
+    fn opening_schema_v1_db_migrates_embeddings_and_rebuilds_vector_index() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("legacy-embeddings.kronroe");
+        let path_str = path.to_str().unwrap();
+
+        let legacy_id = "01ARZ3NDEKTSV4RRFFQ69G5FAX";
+        seed_schema_v1_db(
+            path_str,
+            &[StoredFactRecord {
+                id: legacy_id.to_string(),
+                subject: "alice".to_string(),
+                predicate: "interest".to_string(),
+                object: Value::Text("Rust".to_string()),
+                valid_from: dt("2024-01-01T00:00:00Z"),
+                valid_to: None,
+                recorded_at: dt("2024-03-14T12:30:00Z"),
+                expired_at: None,
+                confidence: 1.0,
+                source: None,
+            }],
+            &[],
+            &[(legacy_id, &[1.0, 0.0])],
+        );
+
+        let db = TemporalGraph::open(path_str).unwrap();
+        let migrated = db.all_facts_about("alice").unwrap().remove(0);
+        assert!(migrated.id.as_str().starts_with("kf_"));
+
+        match db.fact_by_id(legacy_id) {
+            Err(KronroeError::InvalidFactId(id)) => assert_eq!(id, legacy_id),
+            other => panic!("expected InvalidFactId for legacy id after migration, got {other:?}"),
+        }
+
+        let results = db.search_by_vector(&[1.0, 0.0], 5, None).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0.id, migrated.id);
+        assert!(matches!(&results[0].0.object, Value::Text(text) if text == "Rust"));
+    }
+
     // -- Contradiction detection integration tests ----------------------------
 
     #[cfg(feature = "contradiction")]
@@ -2532,13 +2909,13 @@ mod tests {
         let (fact_id, contradictions) = db
             .assert_fact_checked("alice", "works_at", "Beta Corp", Utc::now())
             .unwrap();
-        assert!(!fact_id.0.is_empty(), "fact should be stored");
+        assert!(!fact_id.as_str().is_empty(), "fact should be stored");
         assert_eq!(contradictions.len(), 1, "should detect one contradiction");
 
         // Regression: conflicting_fact_id must reference the actually-persisted
         // fact, not the temporary candidate used during detection.
         assert_eq!(
-            contradictions[0].conflicting_fact_id, fact_id.0,
+            contradictions[0].conflicting_fact_id, fact_id.to_string(),
             "conflicting_fact_id should match the stored fact's ID"
         );
 

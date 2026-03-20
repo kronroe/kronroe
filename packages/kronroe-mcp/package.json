@@ -1,6 +1,6 @@
 {
   "name": "kronroe-mcp",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "MCP wrapper for the kronroe-mcp Rust server",
   "bin": {
     "kronroe-mcp": "./bin/kronroe-mcp.js"

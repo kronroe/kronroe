@@ -17,7 +17,7 @@
 //! ```
 
 use chrono::{DateTime, Utc};
-use kronroe::{FactId, Value};
+use kronroe::Value;
 use kronroe_agent_memory::{AgentMemory, AssertParams, RecallOptions, RecallScore};
 use serde_json::json;
 use serde_json::Value as JsonValue;
@@ -353,10 +353,9 @@ impl WasmGraph {
     /// Correct a fact by ID.
     #[wasm_bindgen]
     pub fn correct_fact(&self, fact_id: &str, new_object: &str) -> Result<String, JsValue> {
-        let fact_id = FactId(fact_id.to_string());
         let new_id = self
             .inner
-            .correct_fact(&fact_id, new_object.to_string())
+            .correct_fact(fact_id, new_object.to_string())
             .map_err(to_js_err)?;
         Ok(new_id.to_string())
     }
@@ -611,8 +610,7 @@ impl WasmGraph {
     /// Invalidate a fact by its ID at the current time.
     #[wasm_bindgen]
     pub fn invalidate_fact(&self, fact_id: &str) -> Result<(), JsValue> {
-        let id = FactId(fact_id.to_string());
-        self.inner.invalidate_fact(&id).map_err(to_js_err)
+        self.inner.invalidate_fact(fact_id).map_err(to_js_err)
     }
 }
 

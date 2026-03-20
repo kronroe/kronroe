@@ -610,7 +610,7 @@ impl AgentMemory {
         }
 
         corrections.sort_by_key(|pair| pair.new_fact.recorded_at);
-        confidence_shifts.sort_by(|left, right| left.to_fact_id.0.cmp(&right.to_fact_id.0));
+        confidence_shifts.sort_by(|left, right| left.to_fact_id.cmp(&right.to_fact_id));
 
         Ok(WhatChangedReport {
             entity: entity.to_string(),
@@ -761,7 +761,7 @@ impl AgentMemory {
 
         let key_facts: Vec<Fact> = if let Some(subject) = subject {
             let mut subject_facts = Vec::new();
-            let mut seen_fact_ids = HashSet::new();
+            let mut seen_fact_ids: HashSet<FactId> = HashSet::new();
             let mut fetch_limit = limit.clamp(1, DEFAULT_MAX_SCORED_ROWS);
 
             loop {
@@ -772,7 +772,7 @@ impl AgentMemory {
                 }
 
                 for (fact, _) in &scored {
-                    if fact.subject == subject && seen_fact_ids.insert(fact.id.0.clone()) {
+                    if fact.subject == subject && seen_fact_ids.insert(fact.id.clone()) {
                         subject_facts.push(fact.clone());
                     }
                 }
@@ -883,13 +883,13 @@ impl AgentMemory {
     }
 
     /// Correct an existing fact by id, preserving temporal history.
-    pub fn correct_fact(&self, fact_id: &FactId, new_value: impl Into<Value>) -> Result<FactId> {
+    pub fn correct_fact(&self, fact_id: impl AsRef<str>, new_value: impl Into<Value>) -> Result<FactId> {
         self.graph.correct_fact(fact_id, new_value, Utc::now())
     }
 
     /// Invalidate an existing fact by id, recording the current time as
     /// the transaction end.
-    pub fn invalidate_fact(&self, fact_id: &FactId) -> Result<()> {
+    pub fn invalidate_fact(&self, fact_id: impl AsRef<str>) -> Result<()> {
         self.graph.invalidate_fact(fact_id, Utc::now())
     }
 
@@ -1360,7 +1360,7 @@ impl AgentMemory {
                 }
 
                 let mut filtered = Vec::new();
-                let mut seen_fact_ids: HashSet<String> = HashSet::new();
+                let mut seen_fact_ids: HashSet<FactId> = HashSet::new();
                 let mut fetch_limit = opts.limit.max(1).min(max_scored_rows);
                 let mut consecutive_no_confidence_batches = 0u8;
 
@@ -1386,7 +1386,7 @@ impl AgentMemory {
                     }
 
                     for (fact, score) in scored.iter() {
-                        if !seen_fact_ids.insert(fact.id.0.clone()) {
+                        if !seen_fact_ids.insert(fact.id.clone()) {
                             continue;
                         }
                         newly_seen += 1;
@@ -1667,7 +1667,8 @@ mod tests {
     fn test_remember_stores_fact() {
         let (mem, _tmp) = open_temp_memory();
         let id = mem.remember("Alice loves Rust", "ep-001", None).unwrap();
-        assert_eq!(id.0.len(), 26);
+        assert!(id.as_str().starts_with("kf_"));
+        assert_eq!(id.as_str().len(), 29);
 
         let facts = mem.facts_about("ep-001").unwrap();
         assert_eq!(facts.len(), 1);
@@ -1857,7 +1858,8 @@ mod tests {
         let id = mem
             .remember("Bob likes Python", "ep-002", Some(vec![0.1f32, 0.2, 0.3]))
             .unwrap();
-        assert_eq!(id.0.len(), 26);
+        assert!(id.as_str().starts_with("kf_"));
+        assert_eq!(id.as_str().len(), 29);
     }
 
     #[cfg(feature = "hybrid")]
@@ -1927,7 +1929,7 @@ mod tests {
         let (id, contradictions) = mem
             .assert_checked("alice", "works_at", "Beta Corp")
             .unwrap();
-        assert!(!id.0.is_empty());
+        assert!(!id.as_str().is_empty());
         assert_eq!(contradictions.len(), 1);
         assert_eq!(contradictions[0].predicate, "works_at");
     }
@@ -2642,7 +2644,7 @@ mod tests {
             .recall_scored_with_min_confidence("Rust", None, 2, 0.9)
             .unwrap()
             .into_iter()
-            .map(|(fact, _)| fact.id.0)
+            .map(|(fact, _)| fact.id)
             .collect::<Vec<_>>();
 
         let opts = RecallOptions::new("Rust")
@@ -2652,7 +2654,7 @@ mod tests {
             .recall_scored_with_options(&opts)
             .unwrap()
             .into_iter()
-            .map(|(fact, _)| fact.id.0)
+            .map(|(fact, _)| fact.id)
             .collect::<Vec<_>>();
 
         assert_eq!(method_results, options_results);
