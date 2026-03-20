@@ -505,7 +505,7 @@
         position: absolute;
         top: 0; bottom: 0;
         width: 180px;
-        background: linear-gradient(90deg, transparent 0%, rgba(124,92,252,0.18) 40%, rgba(255,255,255,0.10) 50%, rgba(124,92,252,0.18) 60%, transparent 100%);
+        background: linear-gradient(90deg, transparent 0%, rgba(124,92,252,0.32) 40%, rgba(255,255,255,0.28) 50%, rgba(124,92,252,0.32) 60%, transparent 100%);
         animation: trust-beam-sweep 8s ease-in-out infinite;
         pointer-events: none;
         z-index: 1;
@@ -794,7 +794,7 @@
       }
       .bento-tile:hover { box-shadow: 0 4px 24px rgba(26,21,16,0.07); }
       .bento-tile--wide { grid-column: 1 / 3; }
-      .bento-tile--wide-full { grid-column: 1 / -1; min-height: 180px; }
+      .bento-tile--wide-full { grid-column: 1 / -1; min-height: 220px; }
       .bento-tile--violet { border-color: var(--violet-border); background: var(--violet-bg); }
       .bento-tile--orange { border-color: var(--orange-border); background: var(--orange-bg); }
       .bento-tile--rose   { border-color: var(--rose-border);   background: var(--rose-bg); }
@@ -997,6 +997,7 @@
       .use-case-grid.has-hover .use-case-card.focused {
         opacity: 1;
         filter: none;
+        transform: translateY(-2px);
       }
 
       /* ── Playground ── */
@@ -1842,7 +1843,7 @@
               </svg>
             </div>
             <h3>MCP tool memory</h3>
-            <p>Drop-in persistent memory for Claude Desktop, Cursor, and any MCP-compatible client. Eight tools ship out of the box: remember, recall, recall_scored, assemble_context, facts_about, assert_fact, correct_fact, and invalidate_fact. Install in seconds via <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">npx kronroe-mcp</code> or <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">pip install kronroe-mcp</code>. Facts persist across sessions in a local .kronroe file.</p>
+            <p>Drop-in persistent memory for Claude Desktop, Cursor, and any MCP-compatible client. Eleven tools ship out of the box: remember, recall, recall_scored, assemble_context, facts_about, assert_fact, correct_fact, invalidate_fact, what_changed, memory_health, and recall_for_task. Install in seconds via <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">npx kronroe-mcp</code> or <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">pip install kronroe-mcp</code>. Facts persist across sessions in a local .kronroe file.</p>
           </div>
         </div>
       </div>
@@ -1866,7 +1867,14 @@
               <div class="feature-item-label">Integrity</div>
               <div class="feature-item-title">Contradiction detection</div>
             </summary>
-            <div class="feature-item-body"><div><p class="feature-item-desc">Register predicates as singletons and Kronroe detects conflicting facts at write time using Allen's interval algebra — no LLM required. Confidence scores decay automatically by predicate age and source authority weight, giving you effective confidence at query time without any manual bookkeeping.</p></div></div>
+            <div class="feature-item-body"><div><p class="feature-item-desc">Register predicates as singletons and Kronroe detects conflicting facts at write time using Allen's interval algebra. Conflict severity is graded by temporal overlap — full containment, partial overlap, or edge contact. Write-time policies let you allow, warn, or reject contradictions. No LLM required.</p></div></div>
+          </details>
+          <details class="feature-item reveal-on-scroll">
+            <summary>
+              <div class="feature-item-label">Confidence</div>
+              <div class="feature-item-title">Uncertainty model</div>
+            </summary>
+            <div class="feature-item-body"><div><p class="feature-item-desc">Every fact carries a base confidence score. At query time, Kronroe computes effective confidence by applying exponential age decay (per-predicate half-life) and source authority weights. Volatile predicates like job titles decay faster than stable ones like date of birth. Pure Rust math, nothing stored back — always fresh at read time.</p></div></div>
           </details>
           <details class="feature-item reveal-on-scroll">
             <summary>

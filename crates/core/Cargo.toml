@@ -32,5 +32,11 @@ chrono = { workspace = true }
 getrandom = { workspace = true }
 thiserror = { workspace = true }
 
+# WASM needs js-sys for wall-clock time (SystemTime::now() is unsupported on
+# wasm32-unknown-unknown).  js-sys is already a transitive dep via wasm-bindgen
+# so this adds zero new code to WASM builds, and is completely ignored on native.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+
 [dev-dependencies]
 tempfile = { workspace = true }

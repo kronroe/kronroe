@@ -26,10 +26,21 @@ type WasmGraph = {
   // Entity-reference facts (graph edges)
   assert_entity_fact(subject: string, predicate: string, entity: string): string;
   assert_entity_fact_at(subject: string, predicate: string, entity: string, valid_from_iso: string): string;
+  // Confidence
+  assert_with_confidence(subject: string, predicate: string, object: string, confidence: number): string;
+  // Correction
+  correct_fact(fact_id: string, new_object: string): string;
   // Query
   current_facts(subject: string, predicate: string): string;       // JSON → WasmFact[]
   facts_at(subject: string, predicate: string, at_iso: string): string; // JSON → WasmFact[]
   all_facts_about(subject: string): string;                         // JSON → WasmFact[]
+  facts_about(subject: string): string;                             // JSON → WasmFact[] (alias)
+  // Agent-memory level methods
+  remember(text: string, episode_id: string, query_embedding?: Float64Array, idempotency_key?: string): string;
+  recall(query: string, query_embedding: Float64Array | undefined, limit: number): string;
+  recall_scored(query: string, limit: number, query_embedding?: Float64Array, min_confidence?: number, confidence_filter_mode?: string, max_scored_rows?: number, use_hybrid?: boolean, temporal_intent?: string, temporal_operator?: string): string;
+  assemble_context(query: string, max_tokens: number, query_embedding?: Float64Array): string;
+  // Mutation
   invalidate_fact(fact_id: string): void;
   free(): void;
 };
