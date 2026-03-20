@@ -23,10 +23,9 @@ ABI_NAMES=(
   "x86"
 )
 
-# Size-optimized defaults for mobile shared libs.
-export RUSTFLAGS="-C strip=symbols -C panic=abort ${RUSTFLAGS:-}"
-export CARGO_PROFILE_RELEASE_LTO="${CARGO_PROFILE_RELEASE_LTO:-true}"
-export CARGO_PROFILE_RELEASE_CODEGEN_UNITS="${CARGO_PROFILE_RELEASE_CODEGEN_UNITS:-1}"
+# Size profile (opt-level=z, lto, codegen-units=1) is set in the workspace
+# Cargo.toml [profile.release].  Only mobile-specific flags go here.
+export RUSTFLAGS="-C panic=abort ${RUSTFLAGS:-}"
 
 # Min Android API level (matches most apps' minSdk).
 MIN_API="${ANDROID_MIN_API:-24}"

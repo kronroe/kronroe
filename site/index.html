@@ -68,7 +68,6 @@
       }
     }
     </script>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://excalidraw.com data:; img-src 'self' data: https://kronroe.dev https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com; connect-src 'self' ws: wss: https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com; object-src 'none'; base-uri 'self';" />
     <title>Kronroe — Bi-temporal Graph Database</title>
     <link rel="icon" type="image/x-icon"  href="/favicon/favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32"  href="/favicon/favicon-32x32.png" />
@@ -1874,7 +1873,7 @@
               <div class="feature-item-label">Storage</div>
               <div class="feature-item-title">ACID, no C dependencies</div>
             </summary>
-            <div class="feature-item-body"><div><p class="feature-item-desc">Backed by redb — a pure Rust B-tree copy-on-write key-value store with full ACID guarantees. File-backed or fully in-memory. Every fact is identified by a ULID for lexicographically sortable, monotonic insertion order. No C dependencies, no external processes, no separate database server to manage.</p></div></div>
+            <div class="feature-item-body"><div><p class="feature-item-desc">Backed by redb — a pure Rust B-tree copy-on-write key-value store with full ACID guarantees. File-backed or fully in-memory. Every fact is identified by a Kronroe Fact ID for lexicographically sortable, monotonic insertion order. No C dependencies, no external processes, no separate database server to manage.</p></div></div>
           </details>
           <details class="feature-item reveal-on-scroll">
             <summary>

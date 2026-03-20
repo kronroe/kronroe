@@ -22,14 +22,17 @@ export KRONROE_MCP_DB_PATH=/path/to/memory.kronroe
 
 ## Tools
 
-- `remember(text, episode_id?)`
-- `recall(query, limit? <= 200)`
-- `recall_scored(query, limit? <= 200, min_confidence?)`
+- `remember(text, episode_id?, idempotency_key?, query_embedding?)`
+- `recall(query, limit? <= 200, min_confidence?, confidence_filter_mode?)`
+- `recall_scored(query, limit? <= 200, min_confidence?, confidence_filter_mode?)`
 - `assemble_context(query, max_tokens?)`
 - `facts_about(entity)`
 - `assert_fact(subject, predicate, object, valid_from?, confidence?, source?, idempotency_key?)`
 - `correct_fact(fact_id, new_value)`
 - `invalidate_fact(fact_id)`
+- `what_changed(entity, since, predicate_filter?)`
+- `memory_health(entity?, predicate_filter?, low_confidence_threshold?, stale_days?)`
+- `recall_for_task(task, subject?, now?, horizon_days?, limit?)`
 
 ## Claude Desktop config snippet
 

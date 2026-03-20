@@ -45,6 +45,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   changes:
@@ -79,6 +80,7 @@ jobs:
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'crates/core/**'
+              - 'crates/agent-memory/**'
               - 'crates/wasm/**'
             wrappers:
               - 'Cargo.toml'
@@ -216,7 +218,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
           cache-dependency-path: site/package-lock.json
 
@@ -242,7 +244,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Set up Python
         uses: actions/setup-python@v5

@@ -25,7 +25,7 @@ Hybrid is **adopted behind experimental guardrails** and is not yet promoted to 
 
 - [x] Hybrid controls are feature-gated across core / agent-memory / MCP
 - [x] MCP returns machine-actionable decision metadata for user-first methods
-- [ ] Cross-surface contract parity refreshed (Rust/Python/WASM wrapper checks)
+- [x] Cross-surface contract parity refreshed (Rust/Python/WASM wrapper checks — PRs #91, #92, #94)
 - [ ] Stage-3 reranker metadata contract finalized and documented
 
 ### D) Reliability + operations gates

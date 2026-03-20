@@ -3,6 +3,7 @@ name: Android
 on:
   pull_request:
     paths:
+      - "crates/core/**"
       - "crates/android/**"
       - ".github/workflows/android.yml"
   push:
@@ -15,6 +16,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   host-tests:

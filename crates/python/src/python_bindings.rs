@@ -358,6 +358,12 @@ impl PyKronroeDb {
         Ok(Self { inner })
     }
 
+    #[classmethod]
+    fn open_in_memory(_cls: &Bound<'_, PyType>) -> PyResult<Self> {
+        let inner = TemporalGraph::open_in_memory().map_err(to_py_err)?;
+        Ok(Self { inner })
+    }
+
     fn assert_fact(
         &self,
         py: Python<'_>,
@@ -515,6 +521,12 @@ impl PyAgentMemory {
         let path = path.to_owned();
         let inner = Python::with_gil(|py| py.allow_threads(|| AgentMemory::open(&path)))
             .map_err(to_py_err)?;
+        Ok(Self { inner })
+    }
+
+    #[classmethod]
+    fn open_in_memory(_cls: &Bound<'_, PyType>) -> PyResult<Self> {
+        let inner = AgentMemory::open_in_memory().map_err(to_py_err)?;
         Ok(Self { inner })
     }
 

@@ -8,10 +8,9 @@ OUT_DIR="${IOS_DIR}/swift"
 OUT_XCFRAMEWORK="${OUT_DIR}/KronroeFFI.xcframework"
 HEADER_DIR="${IOS_DIR}/include"
 
-# Size-optimized defaults for mobile staticlibs.
-export RUSTFLAGS="-C strip=symbols -C panic=abort -C link-arg=-Wl,-dead_strip ${RUSTFLAGS:-}"
-export CARGO_PROFILE_RELEASE_LTO="${CARGO_PROFILE_RELEASE_LTO:-true}"
-export CARGO_PROFILE_RELEASE_CODEGEN_UNITS="${CARGO_PROFILE_RELEASE_CODEGEN_UNITS:-1}"
+# Size profile (opt-level=z, lto, codegen-units=1) is set in the workspace
+# Cargo.toml [profile.release].  Only iOS/Android-specific flags go here.
+export RUSTFLAGS="-C panic=abort -C link-arg=-Wl,-dead_strip ${RUSTFLAGS:-}"
 
 echo "Building iOS static libraries..."
 cargo build --release --target aarch64-apple-ios -p kronroe-ios
@@ -19,6 +18,21 @@ cargo build --release --target aarch64-apple-ios-sim -p kronroe-ios
 
 DEVICE_LIB="${ROOT_DIR}/target/aarch64-apple-ios/release/libkronroe_ios.a"
 SIM_LIB="${ROOT_DIR}/target/aarch64-apple-ios-sim/release/libkronroe_ios.a"
+
+# Print raw sizes before stripping.
+echo "Pre-strip sizes:"
+ls -lh "${DEVICE_LIB}" "${SIM_LIB}"
+
+# Strip debug info and local symbols from staticlibs.
+# Cargo's profile.release.strip is a no-op for staticlib crate-types because
+# there is no final link step — the .a is just an archive of object files.
+# -S  = remove debug sections (STABS, DWARF)
+# -x  = remove local (non-global) symbols — linker only needs globals
+strip -S -x "${DEVICE_LIB}"
+strip -S -x "${SIM_LIB}"
+
+echo "Post-strip sizes:"
+ls -lh "${DEVICE_LIB}" "${SIM_LIB}"
 
 mkdir -p "${BUILD_DIR}" "${OUT_DIR}"
 rm -rf "${OUT_XCFRAMEWORK}"
