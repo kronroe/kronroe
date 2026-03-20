@@ -105,6 +105,15 @@ impl KronroeStorage {
     }
 
     #[cfg(test)]
+    pub(crate) fn open_with_observer(
+        path: &str,
+        observer: Arc<dyn StorageObserver>,
+    ) -> Result<Self> {
+        let db = Database::create(path)?;
+        Ok(Self { db, observer })
+    }
+
+    #[cfg(test)]
     pub(crate) fn open_in_memory_with_observer(observer: Arc<dyn StorageObserver>) -> Result<Self> {
         let backend = redb::backends::InMemoryBackend::new();
         let db = Database::builder().create_with_backend(backend)?;

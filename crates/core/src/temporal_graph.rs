@@ -31,6 +31,8 @@ mod fact_id;
 #[cfg(feature = "fulltext")]
 mod lexical;
 mod storage;
+#[cfg(test)]
+mod storage_benchmarks;
 mod storage_observability;
 #[cfg(feature = "vector")]
 mod vector;

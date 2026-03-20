@@ -1,7 +1,8 @@
+use serde::Serialize;
 use std::sync::Arc;
 use std::time::Duration;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub(crate) enum StorageOperation {
     InitializeSchema,
     MigrateV1ToV2,
