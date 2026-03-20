@@ -1121,13 +1121,14 @@
       .entity-body { border-top: 1px solid var(--border); padding: 0.35rem 0.55rem 0.5rem; display: grid; gap: 0.25rem; font-family: var(--mono); font-size: 0.6rem; color: var(--text-mid); }
       .entity-line { display: flex; align-items: center; gap: 0.28rem; }
       .entity-line .k { color: var(--text-dim); min-width: 56px; }
-      .loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem; z-index: 200; transition: opacity 0.35s ease; }
+      .loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.25rem; z-index: 200; transition: opacity 0.35s ease; }
       .loading-overlay.hidden { opacity: 0; pointer-events: none; }
-      .loading-wordmark { font-family: var(--mono); font-size: 1.25rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--violet); }
-      .loading-track { width: 180px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
-      .loading-fill { height: 100%; background: var(--violet); border-radius: 1px; animation: track 1.4s ease-in-out infinite alternate; }
+      .loading-logo { opacity: 0; animation: loading-fade-in 0.5s ease forwards; }
+      @keyframes loading-fade-in { to { opacity: 1; } }
+      .loading-track { width: 140px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+      .loading-fill { height: 100%; background: linear-gradient(90deg, var(--violet), var(--orchid)); border-radius: 1px; animation: track 1.4s ease-in-out infinite alternate; }
       @keyframes track { from { width: 8%; margin-left: 0; } to { width: 55%; margin-left: 45%; } }
-      .loading-label { font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); letter-spacing: 0.04em; }
+      .loading-label { font-family: var(--body); font-size: 0.68rem; color: var(--text-dim); letter-spacing: 0.04em; }
 
       /* ── Section intro prose ── */
       .section-intro {
@@ -1396,7 +1397,19 @@
     <a href="#main-content" class="skip-nav">Skip to main content</a>
 
     <div class="loading-overlay" id="loading">
-      <div class="loading-wordmark">Kronroe</div>
+      <svg class="loading-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
+           height="56" style="display:block;width:auto;" aria-label="Kronroe loading">
+        <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
+        <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
+        <circle cx="136" cy="38" r="14" fill="none" stroke="#8BBF20" stroke-width="3.5"/>
+        <circle cx="136" cy="38" r="5" fill="#8BBF20"/>
+        <circle cx="48" cy="82" r="16" fill="#E87D4A"/>
+        <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5"/>
+        <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
+        <circle cx="136" cy="82" r="5" fill="#7C5CFC"/>
+        <text x="168" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#2A1D12">Kron</text>
+        <text x="282" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#E87D4A">roe</text>
+      </svg>
       <div class="loading-track"><div class="loading-fill"></div></div>
       <div class="loading-label">initialising wasm engine…</div>
     </div>
