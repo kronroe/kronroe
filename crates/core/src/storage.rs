@@ -10,7 +10,16 @@ use chrono::{DateTime, Utc};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+
+#[cfg(not(target_arch = "wasm32"))]
+fn storage_now() -> Instant {
+    Instant::now()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn storage_now() {}
 
 impl From<redb::DatabaseError> for KronroeError {
     fn from(e: redb::DatabaseError) -> Self {
@@ -206,6 +215,7 @@ impl KronroeStorage {
         })
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn record(
         &self,
         operation: StorageOperation,
@@ -221,6 +231,22 @@ impl KronroeStorage {
         });
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn record(
+        &self,
+        operation: StorageOperation,
+        _started_at: (),
+        rows_scanned: usize,
+        success: bool,
+    ) {
+        self.observer.on_event(StorageEvent {
+            operation,
+            duration: std::time::Duration::ZERO,
+            rows_scanned,
+            success,
+        });
+    }
+
     #[allow(dead_code)]
     fn unsupported_backend(operation: &str) -> KronroeError {
         KronroeError::Storage(format!(
@@ -229,7 +255,7 @@ impl KronroeStorage {
     }
 
     pub(crate) fn initialize_schema(&self) -> Result<u64> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<u64> {
                 let write_txn = db.begin_write()?;
@@ -297,7 +323,7 @@ impl KronroeStorage {
     }
 
     pub(crate) fn migrate_v1_to_v2(&self) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<usize> {
                 let write_txn = db.begin_write()?;
@@ -451,7 +477,7 @@ impl KronroeStorage {
     }
 
     pub(crate) fn scan_facts(&self, prefix: &str) -> Result<Vec<StoredFactRow>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<(Vec<StoredFactRow>, usize)> {
                 let read_txn = db.begin_read()?;
@@ -492,7 +518,7 @@ impl KronroeStorage {
     }
 
     pub(crate) fn write_fact(&self, fact: &Fact) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<()> {
                 let key = fact_row_key(&fact.subject, &fact.predicate, &fact.id);
@@ -513,7 +539,7 @@ impl KronroeStorage {
     }
 
     pub(crate) fn replace_fact_row(&self, key: &str, fact: &Fact) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<()> {
                 let value = serde_json::to_string(fact)?;
@@ -538,7 +564,7 @@ impl KronroeStorage {
     }
 
     pub(crate) fn get_idempotency(&self, idempotency_key: &str) -> Result<Option<FactId>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<Option<FactId>> {
                 let read_txn = db.begin_read()?;
@@ -583,7 +609,7 @@ impl KronroeStorage {
         idempotency_key: &str,
         fact: &Fact,
     ) -> Result<FactId> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<FactId> {
                 let write_txn = db.begin_write()?;
@@ -642,7 +668,7 @@ impl KronroeStorage {
     where
         F: FnOnce(&[Fact]) -> Result<Vec<Contradiction>>,
     {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<(Vec<Contradiction>, usize)> {
                 let write_txn = db.begin_write()?;
@@ -700,7 +726,7 @@ impl KronroeStorage {
 
     #[cfg(feature = "vector")]
     pub(crate) fn write_fact_with_embedding(&self, fact: &Fact, embedding: &[f32]) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<()> {
                 if embedding.is_empty() {
@@ -763,7 +789,7 @@ impl KronroeStorage {
 
     #[cfg(feature = "vector")]
     pub(crate) fn embedding_rows(&self) -> Result<Vec<(FactId, Vec<f32>)>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<Vec<(FactId, Vec<f32>)>> {
                 let read_txn = db.begin_read()?;
@@ -814,7 +840,7 @@ impl KronroeStorage {
 
     #[cfg(feature = "contradiction")]
     pub(crate) fn load_predicate_registry_entries(&self) -> Result<Vec<(String, String)>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<Vec<(String, String)>> {
                 let read_txn = db.begin_read()?;
@@ -849,7 +875,7 @@ impl KronroeStorage {
         predicate: &str,
         encoded: &str,
     ) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<()> {
                 let write_txn = db.begin_write()?;
@@ -877,7 +903,7 @@ impl KronroeStorage {
 
     #[cfg(feature = "uncertainty")]
     pub(crate) fn load_volatility_registry_entries(&self) -> Result<Vec<(String, String)>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<Vec<(String, String)>> {
                 let read_txn = db.begin_read()?;
@@ -907,7 +933,7 @@ impl KronroeStorage {
 
     #[cfg(feature = "uncertainty")]
     pub(crate) fn load_source_weight_registry_entries(&self) -> Result<Vec<(String, String)>> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<Vec<(String, String)>> {
                 let read_txn = db.begin_read()?;
@@ -941,7 +967,7 @@ impl KronroeStorage {
         predicate: &str,
         encoded: &str,
     ) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<()> {
                 let write_txn = db.begin_write()?;
@@ -973,7 +999,7 @@ impl KronroeStorage {
         source: &str,
         encoded: &str,
     ) -> Result<()> {
-        let started_at = Instant::now();
+        let started_at = storage_now();
         let result = match &self.engine {
             StorageEngine::Redb(db) => (|| -> Result<()> {
                 let write_txn = db.begin_write()?;
