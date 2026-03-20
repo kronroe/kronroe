@@ -30,6 +30,10 @@
 mod fact_id;
 #[cfg(feature = "fulltext")]
 mod lexical;
+mod storage;
+#[cfg(test)]
+mod storage_benchmarks;
+mod storage_observability;
 #[cfg(feature = "vector")]
 mod vector;
 
@@ -52,7 +56,6 @@ pub use uncertainty::{EffectiveConfidence, PredicateVolatility, SourceWeight};
 
 use chrono::{DateTime, Utc};
 pub use fact_id::{FactId, FactIdParseError};
-use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
 #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
 use std::cmp::Ordering;
@@ -61,6 +64,7 @@ use std::cmp::Ordering;
     all(feature = "hybrid-experimental", feature = "vector")
 ))]
 use std::collections::HashMap;
+use storage::{KronroeStorage, SCHEMA_VERSION};
 
 // ---------------------------------------------------------------------------
 // Error types
@@ -93,31 +97,6 @@ pub enum KronroeError {
     SchemaMismatch { found: u64, expected: u64 },
 }
 
-impl From<redb::DatabaseError> for KronroeError {
-    fn from(e: redb::DatabaseError) -> Self {
-        KronroeError::Storage(e.to_string())
-    }
-}
-impl From<redb::TransactionError> for KronroeError {
-    fn from(e: redb::TransactionError) -> Self {
-        KronroeError::Storage(e.to_string())
-    }
-}
-impl From<redb::TableError> for KronroeError {
-    fn from(e: redb::TableError) -> Self {
-        KronroeError::Storage(e.to_string())
-    }
-}
-impl From<redb::StorageError> for KronroeError {
-    fn from(e: redb::StorageError) -> Self {
-        KronroeError::Storage(e.to_string())
-    }
-}
-impl From<redb::CommitError> for KronroeError {
-    fn from(e: redb::CommitError) -> Self {
-        KronroeError::Storage(e.to_string())
-    }
-}
 pub type Result<T> = std::result::Result<T, KronroeError>;
 
 // ---------------------------------------------------------------------------
@@ -270,103 +249,6 @@ impl Fact {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct StoredFactRecord {
-    id: String,
-    subject: String,
-    predicate: String,
-    object: Value,
-    valid_from: DateTime<Utc>,
-    valid_to: Option<DateTime<Utc>>,
-    recorded_at: DateTime<Utc>,
-    expired_at: Option<DateTime<Utc>>,
-    confidence: f32,
-    source: Option<String>,
-}
-
-impl StoredFactRecord {
-    fn into_fact_with_id(self, id: FactId) -> Fact {
-        Fact {
-            id,
-            subject: self.subject,
-            predicate: self.predicate,
-            object: self.object,
-            valid_from: self.valid_from,
-            valid_to: self.valid_to,
-            recorded_at: self.recorded_at,
-            expired_at: self.expired_at,
-            confidence: self.confidence,
-            source: self.source,
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Storage
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Schema version
-// ---------------------------------------------------------------------------
-
-/// Current on-disk schema version.
-///
-/// ## Version history
-///
-/// | Version | Date | What changed |
-/// |---------|------|--------------|
-/// | 1 | 2026-02-27 | Initial committed format. Tables: `facts`, `idempotency`, `embeddings` (feature=vector), `embedding_meta` (feature=vector). Key: `"{subject}:{predicate}:{fact_id}"`. Value: JSON `Fact`. |
-/// | 2 | 2026-03-19 | Kronroe Fact ID migration. Canonical IDs become `kf_...`; existing fact/idempotency/embedding rows auto-migrated on open. |
-///
-/// A file whose stored version differs from this constant cannot be opened —
-/// [`TemporalGraph::open`] returns [`KronroeError::SchemaMismatch`].
-const SCHEMA_VERSION: u64 = 2;
-
-/// Single-row database metadata table.
-/// Key `"schema_version"` stores the [`SCHEMA_VERSION`] stamped when the file
-/// was first created. Checked on every subsequent open.
-const META: TableDefinition<&str, u64> = TableDefinition::new("meta");
-
-/// Composite string key: `"{subject}:{predicate}:{fact_id}"`.
-///
-/// The Kronroe fact_id is time-sortable, so facts for the same
-/// (subject, predicate) pair are stored in insertion order.
-///
-/// This is the Phase 0 storage strategy — a proper multi-level B-tree
-/// index will replace this in Phase 1.
-const FACTS: TableDefinition<&str, &str> = TableDefinition::new("facts");
-/// Maps client-supplied idempotency keys to persisted fact IDs.
-///
-/// Used by [`TemporalGraph::assert_fact_idempotent`] to provide safe retry
-/// semantics for ingestion workflows.
-const IDEMPOTENCY: TableDefinition<&str, &str> = TableDefinition::new("idempotency");
-
-/// Predicate registry for contradiction detection.
-/// Key: predicate name. Value: JSON-encoded `(PredicateCardinality, ConflictPolicy)`.
-#[cfg(feature = "contradiction")]
-const PREDICATE_REGISTRY: TableDefinition<&str, &str> = TableDefinition::new("predicate_registry");
-
-/// Per-predicate volatility registry (half-life in days).
-/// Key: predicate name. Value: JSON-encoded `PredicateVolatility`.
-#[cfg(feature = "uncertainty")]
-const VOLATILITY_REGISTRY: TableDefinition<&str, &str> =
-    TableDefinition::new("volatility_registry");
-
-/// Per-source authority weights.
-/// Key: source string. Value: JSON-encoded `SourceWeight`.
-#[cfg(feature = "uncertainty")]
-const SOURCE_WEIGHT_REGISTRY: TableDefinition<&str, &str> =
-    TableDefinition::new("source_weight_registry");
-
-/// Raw little-endian f32 bytes keyed by fact_id string.
-/// Written atomically alongside the fact row in `assert_fact_with_embedding`.
-const EMBEDDINGS: TableDefinition<&str, &[u8]> = TableDefinition::new("embeddings");
-
-/// Single-row metadata table for the vector index.
-/// Key `"dim"` stores the established embedding dimension (`u64`).
-/// Written once (on first insert) inside a serialised write transaction.
-const EMBEDDING_META: TableDefinition<&str, u64> = TableDefinition::new("embedding_meta");
-
 /// Kronroe temporal property graph database.
 ///
 /// An embedded, serverless database where bi-temporal facts are the core
@@ -385,7 +267,7 @@ const EMBEDDING_META: TableDefinition<&str, u64> = TableDefinition::new("embeddi
 /// assert_eq!(current.len(), 1);
 /// ```
 pub struct TemporalGraph {
-    db: Database,
+    storage: KronroeStorage,
     /// In-memory vector index cache.  Rebuilt from the `embeddings` redb table
     /// on every [`init`] call, then kept in sync by [`assert_fact_with_embedding`].
     /// The redb tables are the source of truth; this cache is a read-optimised
@@ -406,8 +288,8 @@ impl TemporalGraph {
     /// The file will be created if it does not exist. The `.kronroe`
     /// extension is conventional but not enforced.
     pub fn open(path: &str) -> Result<Self> {
-        let db = Database::create(path)?;
-        Self::init(db)
+        let storage = KronroeStorage::open(path)?;
+        Self::init(storage)
     }
 
     /// Create an in-memory Kronroe database (no file I/O).
@@ -415,139 +297,72 @@ impl TemporalGraph {
     /// Useful for WASM targets, testing, and ephemeral workloads where
     /// persistence is not needed. Data is lost when the instance is dropped.
     pub fn open_in_memory() -> Result<Self> {
-        let backend = redb::backends::InMemoryBackend::new();
-        let db = Database::builder().create_with_backend(backend)?;
-        Self::init(db)
+        let storage = KronroeStorage::open_in_memory()?;
+        Self::init(storage)
     }
 
-    fn init(db: Database) -> Result<Self> {
-        {
-            let write_txn = db.begin_write()?;
-            write_txn.open_table(FACTS)?;
-            write_txn.open_table(IDEMPOTENCY)?;
-            write_txn.open_table(EMBEDDINGS)?;
-            write_txn.open_table(EMBEDDING_META)?;
-            #[cfg(feature = "contradiction")]
-            {
-                write_txn.open_table(PREDICATE_REGISTRY)?;
-            }
-            #[cfg(feature = "uncertainty")]
-            {
-                write_txn.open_table(VOLATILITY_REGISTRY)?;
-                write_txn.open_table(SOURCE_WEIGHT_REGISTRY)?;
-            }
-
-            // Stamp or verify the schema version.  Extract to owned before any
-            // mutable borrow (redb AccessGuard borrow rule — see CLAUDE.md).
-            let stored_version = {
-                let mut meta = write_txn.open_table(META)?;
-                let stored: Option<u64> = meta.get("schema_version")?.map(|g| g.value());
-                match stored {
-                    None => {
-                        let facts_exist = write_txn
-                            .open_table(FACTS)?
-                            .iter()?
-                            .next()
-                            .transpose()?
-                            .is_some();
-                        let idempotency_exists = write_txn
-                            .open_table(IDEMPOTENCY)?
-                            .iter()?
-                            .next()
-                            .transpose()?
-                            .is_some();
-                        let embeddings_exist = write_txn
-                            .open_table(EMBEDDINGS)?
-                            .iter()?
-                            .next()
-                            .transpose()?
-                            .is_some();
-                        if facts_exist || idempotency_exists || embeddings_exist {
-                            1
-                        } else {
-                            meta.insert("schema_version", SCHEMA_VERSION)?;
-                            SCHEMA_VERSION
-                        }
-                    }
-                    Some(v) => v,
-                }
-            };
-
-            write_txn.commit()?;
-
-            match stored_version {
-                v if v == SCHEMA_VERSION => {}
-                1 => Self::migrate_v1_to_v2(&db)?,
-                found => {
-                    return Err(KronroeError::SchemaMismatch {
-                        found,
-                        expected: SCHEMA_VERSION,
-                    })
-                }
+    fn init(storage: KronroeStorage) -> Result<Self> {
+        let stored_version = storage.initialize_schema()?;
+        match stored_version {
+            v if v == SCHEMA_VERSION => {}
+            1 => storage.migrate_v1_to_v2()?,
+            found => {
+                return Err(KronroeError::SchemaMismatch {
+                    found,
+                    expected: SCHEMA_VERSION,
+                })
             }
         }
         #[cfg(feature = "vector")]
         let vector_index = {
-            let idx = Self::rebuild_vector_index_from_db(&db)?;
+            let idx = Self::rebuild_vector_index_from_storage(&storage)?;
             std::sync::Mutex::new(idx)
         };
         #[cfg(feature = "contradiction")]
         let contradiction_detector = {
             let mut det = contradiction::ContradictionDetector::new();
-            let read_txn = db.begin_read()?;
-            if let Ok(reg_table) = read_txn.open_table(PREDICATE_REGISTRY) {
-                for entry in reg_table.iter()? {
-                    let (k, v) = entry?;
-                    let predicate = k.value().to_string();
-                    let (cardinality, policy) = serde_json::from_str::<(
-                        contradiction::PredicateCardinality,
-                        contradiction::ConflictPolicy,
-                    )>(v.value())
-                    .map_err(|e| {
-                        KronroeError::Storage(format!(
-                            "invalid predicate registry entry for '{}': {e}",
-                            predicate
-                        ))
-                    })?;
-                    det.register(&predicate, cardinality, policy);
-                }
+            for (predicate, encoded) in storage.load_predicate_registry_entries()? {
+                let (cardinality, policy) = serde_json::from_str::<(
+                    contradiction::PredicateCardinality,
+                    contradiction::ConflictPolicy,
+                )>(&encoded)
+                .map_err(|e| {
+                    KronroeError::Storage(format!(
+                        "invalid predicate registry entry for '{}': {e}",
+                        predicate
+                    ))
+                })?;
+                det.register(&predicate, cardinality, policy);
             }
             std::sync::Mutex::new(det)
         };
         #[cfg(feature = "uncertainty")]
         let uncertainty_engine = {
             let mut engine = uncertainty::UncertaintyEngine::new();
-            let read_txn = db.begin_read()?;
-            if let Ok(vol_table) = read_txn.open_table(VOLATILITY_REGISTRY) {
-                for entry in vol_table.iter()? {
-                    let (k, v) = entry?;
-                    let vol: uncertainty::PredicateVolatility = serde_json::from_str(v.value())
-                        .map_err(|e| {
-                            KronroeError::Storage(format!(
-                                "invalid volatility registry entry for predicate '{}': {e}",
-                                k.value()
-                            ))
-                        })?;
-                    engine.register_volatility(k.value(), vol);
-                }
+            for (predicate, encoded) in storage.load_volatility_registry_entries()? {
+                let vol: uncertainty::PredicateVolatility = serde_json::from_str(&encoded)
+                    .map_err(|e| {
+                        KronroeError::Storage(format!(
+                            "invalid volatility registry entry for predicate '{}': {e}",
+                            predicate
+                        ))
+                    })?;
+                engine.register_volatility(&predicate, vol);
             }
-            if let Ok(sw_table) = read_txn.open_table(SOURCE_WEIGHT_REGISTRY) {
-                for entry in sw_table.iter()? {
-                    let (k, v) = entry?;
-                    let sw: uncertainty::SourceWeight =
-                        serde_json::from_str(v.value()).map_err(|e| {
-                            KronroeError::Storage(format!(
-                                "invalid source-weight registry entry for source '{}': {e}",
-                                k.value()
-                            ))
-                        })?;
-                    engine.register_source_weight(k.value(), sw);
-                }
+            for (source, encoded) in storage.load_source_weight_registry_entries()? {
+                let sw: uncertainty::SourceWeight =
+                    serde_json::from_str(&encoded).map_err(|e| {
+                        KronroeError::Storage(format!(
+                            "invalid source-weight registry entry for source '{}': {e}",
+                            source
+                        ))
+                    })?;
+                engine.register_source_weight(&source, sw);
             }
             std::sync::Mutex::new(engine)
         };
         Ok(Self {
-            db,
+            storage,
             #[cfg(feature = "vector")]
             vector_index,
             #[cfg(feature = "contradiction")]
@@ -565,200 +380,22 @@ impl TemporalGraph {
     /// handled gracefully — the method returns an empty index and the table
     /// is created by the preceding `open_table` call in `init`.
     #[cfg(feature = "vector")]
-    fn rebuild_vector_index_from_db(db: &Database) -> Result<vector::VectorIndex> {
+    fn rebuild_vector_index_from_storage(storage: &KronroeStorage) -> Result<vector::VectorIndex> {
         let mut idx = vector::VectorIndex::new();
-        let read_txn = db.begin_read()?;
-
-        let emb_table = match read_txn.open_table(EMBEDDINGS) {
-            Ok(t) => t,
-            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(idx),
-            Err(e) => return Err(KronroeError::Storage(e.to_string())),
-        };
-
-        for entry in emb_table.iter()? {
-            let (key, value) = entry?;
-            let fact_id = FactId::parse(key.value()).map_err(|e| {
-                KronroeError::Storage(format!(
-                    "corrupt embedding fact id `{}` while rebuilding vector index: {e}",
-                    key.value()
-                ))
-            })?;
-            let bytes = value.value();
-
-            if bytes.len() % 4 != 0 {
-                return Err(KronroeError::Storage(format!(
-                    "corrupt embedding for fact {fact_id}: \
-                     byte length {} is not a multiple of 4",
-                    bytes.len()
-                )));
-            }
-
-            let embedding: Vec<f32> = bytes
-                .chunks_exact(4)
-                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-                .collect();
-
+        for (fact_id, embedding) in storage.embedding_rows()? {
             idx.insert(fact_id, embedding)?;
         }
 
         Ok(idx)
     }
-
-    fn migrate_v1_to_v2(db: &Database) -> Result<()> {
-        let write_txn = db.begin_write()?;
-
-        let facts_rows: Vec<(String, StoredFactRecord)> = {
-            let facts = write_txn.open_table(FACTS)?;
-            let mut rows = Vec::new();
-            for entry in facts.iter()? {
-                let (key, value) = entry?;
-                let fact: StoredFactRecord = serde_json::from_str(value.value()).map_err(|e| {
-                    KronroeError::Storage(format!(
-                        "invalid v1 fact row `{}` during Fact ID migration: {e}",
-                        key.value()
-                    ))
-                })?;
-                rows.push((key.value().to_string(), fact));
-            }
-            rows
-        };
-
-        let idempotency_rows: Vec<(String, String)> = {
-            let table = write_txn.open_table(IDEMPOTENCY)?;
-            let mut rows = Vec::new();
-            for entry in table.iter()? {
-                let (key, value) = entry?;
-                rows.push((key.value().to_string(), value.value().to_string()));
-            }
-            rows
-        };
-
-        let embedding_rows: Vec<(String, Vec<u8>)> = {
-            let table = write_txn.open_table(EMBEDDINGS)?;
-            let mut rows = Vec::new();
-            for entry in table.iter()? {
-                let (key, value) = entry?;
-                rows.push((key.value().to_string(), value.value().to_vec()));
-            }
-            rows
-        };
-
-        let mut ordered_facts: Vec<(usize, &StoredFactRecord)> = facts_rows
-            .iter()
-            .enumerate()
-            .map(|(idx, (_key, fact))| (idx, fact))
-            .collect();
-        ordered_facts.sort_by(|(left_idx, left), (right_idx, right)| {
-            left.recorded_at
-                .cmp(&right.recorded_at)
-                .then_with(|| left.id.cmp(&right.id))
-                .then_with(|| left_idx.cmp(right_idx))
-        });
-
-        let mut migration_last_ms = 0u64;
-        let mut migration_sequence = 0u16;
-        let mut migrated_ids: Vec<FactId> = vec![FactId::default(); facts_rows.len()];
-
-        for (idx, fact) in ordered_facts {
-            let mut timestamp_ms = fact.recorded_at.timestamp_millis().max(0) as u64;
-            if timestamp_ms < migration_last_ms {
-                timestamp_ms = migration_last_ms;
-            }
-            if timestamp_ms == migration_last_ms {
-                if migration_sequence == u16::MAX {
-                    migration_last_ms += 1;
-                    migration_sequence = 0;
-                } else {
-                    migration_sequence += 1;
-                }
-            } else {
-                migration_last_ms = timestamp_ms;
-                migration_sequence = 0;
-            }
-
-            let new_id = FactId::from_parts(
-                migration_last_ms,
-                migration_sequence,
-                fact_id::deterministic_entropy(&fact.id),
-            );
-            migrated_ids[idx] = new_id.clone();
-        }
-
-        {
-            let mut facts = write_txn.open_table(FACTS)?;
-            for (old_key, _fact) in &facts_rows {
-                facts.remove(old_key.as_str())?;
-            }
-            for ((_, stored_fact), new_id) in facts_rows.iter().zip(migrated_ids.iter()) {
-                let fact = stored_fact.clone().into_fact_with_id(new_id.clone());
-                let key = Self::fact_row_key(&fact.subject, &fact.predicate, &fact.id);
-                let value = serde_json::to_string(&fact)?;
-                facts.insert(key.as_str(), value.as_str())?;
-            }
-        }
-
-        {
-            let mut idempotency = write_txn.open_table(IDEMPOTENCY)?;
-            for (key, legacy_id) in &idempotency_rows {
-                let canonical_id = facts_rows
-                    .iter()
-                    .zip(migrated_ids.iter())
-                    .find_map(|((_, fact), new_id)| (fact.id == *legacy_id).then_some(new_id))
-                    .ok_or_else(|| {
-                        KronroeError::Storage(format!(
-                            "missing migrated idempotency mapping for legacy fact id `{legacy_id}`"
-                        ))
-                    })?;
-                idempotency.insert(key.as_str(), canonical_id.as_str())?;
-            }
-        }
-
-        {
-            let mut embeddings = write_txn.open_table(EMBEDDINGS)?;
-            for (old_id, _bytes) in &embedding_rows {
-                embeddings.remove(old_id.as_str())?;
-            }
-            for (old_id, bytes) in &embedding_rows {
-                let canonical_id = facts_rows
-                    .iter()
-                    .zip(migrated_ids.iter())
-                    .find_map(|((_, fact), new_id)| (fact.id == *old_id).then_some(new_id))
-                    .ok_or_else(|| {
-                        KronroeError::Storage(format!(
-                            "missing migrated embedding mapping for legacy fact id `{old_id}`"
-                        ))
-                    })?;
-                embeddings.insert(canonical_id.as_str(), bytes.as_slice())?;
-            }
-        }
-
-        {
-            let mut meta = write_txn.open_table(META)?;
-            meta.insert("schema_version", SCHEMA_VERSION)?;
-        }
-
-        write_txn.commit()?;
-        Ok(())
-    }
-
-    /// Write a single fact row inside an already-open [`redb::WriteTransaction`].
-    ///
-    /// The caller owns the transaction and is responsible for committing (or
-    /// letting it drop for an implicit rollback).  This helper is used by both
-    /// [`assert_fact`] and [`assert_fact_with_embedding`] so that the embedding
-    /// path can include the fact write inside the same atomic transaction.
-    ///
-    /// [`assert_fact`]: TemporalGraph::assert_fact
-    /// [`assert_fact_with_embedding`]: TemporalGraph::assert_fact_with_embedding
-    fn write_fact_in_txn(
-        write_txn: &redb::WriteTransaction,
+    fn build_fact(
         subject: &str,
         predicate: &str,
         object: Value,
         valid_from: DateTime<Utc>,
         confidence: f32,
         source: Option<&str>,
-    ) -> Result<FactId> {
+    ) -> Result<Fact> {
         let confidence = if confidence.is_finite() {
             confidence.clamp(0.0, 1.0)
         } else {
@@ -772,18 +409,7 @@ impl TemporalGraph {
         if let Some(src) = source {
             fact = fact.with_source(src);
         }
-        let fact_id = fact.id.clone();
-        let key = Self::fact_row_key(subject, predicate, &fact.id);
-        let value = serde_json::to_string(&fact)?;
-        {
-            let mut table = write_txn.open_table(FACTS)?;
-            table.insert(key.as_str(), value.as_str())?;
-        }
-        Ok(fact_id)
-    }
-
-    fn fact_row_key(subject: &str, predicate: &str, fact_id: &FactId) -> String {
-        format!("{subject}:{predicate}:{}", fact_id.as_str())
+        Ok(fact)
     }
 
     fn resolve_fact_id_input(&self, fact_id: &str) -> Result<FactId> {
@@ -804,17 +430,9 @@ impl TemporalGraph {
         object: impl Into<Value>,
         valid_from: DateTime<Utc>,
     ) -> Result<FactId> {
-        let write_txn = self.db.begin_write()?;
-        let fact_id = Self::write_fact_in_txn(
-            &write_txn,
-            subject,
-            predicate,
-            object.into(),
-            valid_from,
-            1.0,
-            None,
-        )?;
-        write_txn.commit()?;
+        let fact = Self::build_fact(subject, predicate, object.into(), valid_from, 1.0, None)?;
+        let fact_id = fact.id.clone();
+        self.storage.write_fact(&fact)?;
         Ok(fact_id)
     }
 
@@ -832,9 +450,7 @@ impl TemporalGraph {
         valid_from: DateTime<Utc>,
         confidence: f32,
     ) -> Result<FactId> {
-        let write_txn = self.db.begin_write()?;
-        let fact_id = Self::write_fact_in_txn(
-            &write_txn,
+        let fact = Self::build_fact(
             subject,
             predicate,
             object.into(),
@@ -842,7 +458,8 @@ impl TemporalGraph {
             confidence,
             None,
         )?;
-        write_txn.commit()?;
+        let fact_id = fact.id.clone();
+        self.storage.write_fact(&fact)?;
         Ok(fact_id)
     }
 
@@ -862,9 +479,7 @@ impl TemporalGraph {
         confidence: f32,
         source: &str,
     ) -> Result<FactId> {
-        let write_txn = self.db.begin_write()?;
-        let fact_id = Self::write_fact_in_txn(
-            &write_txn,
+        let fact = Self::build_fact(
             subject,
             predicate,
             object.into(),
@@ -872,7 +487,8 @@ impl TemporalGraph {
             confidence,
             Some(source),
         )?;
-        write_txn.commit()?;
+        let fact_id = fact.id.clone();
+        self.storage.write_fact(&fact)?;
         Ok(fact_id)
     }
 
@@ -889,60 +505,13 @@ impl TemporalGraph {
         object: impl Into<Value>,
         valid_from: DateTime<Utc>,
     ) -> Result<FactId> {
-        // Fast path: check with a read transaction to avoid holding the write
-        // lock on cache-hit (idempotent retry). The idempotency table may not
-        // exist yet on a fresh database, which is fine — just fall through.
-        {
-            let read_txn = self.db.begin_read()?;
-            if let Ok(idem_table) = read_txn.open_table(IDEMPOTENCY) {
-                let existing: Option<String> = idem_table
-                    .get(idempotency_key)?
-                    .map(|guard| guard.value().to_string());
-                if let Some(existing_id) = existing {
-                    return FactId::parse(&existing_id).map_err(|e| {
-                        KronroeError::Storage(format!(
-                            "corrupt idempotency fact id `{existing_id}`: {e}"
-                        ))
-                    });
-                }
-            }
+        if let Some(existing_id) = self.storage.get_idempotency(idempotency_key)? {
+            return Ok(existing_id);
         }
 
-        // Slow path: acquire write lock. Re-check the key since another writer
-        // may have inserted between our read and this write (double-check).
-        let write_txn = self.db.begin_write()?;
-
-        {
-            let idem_table = write_txn.open_table(IDEMPOTENCY)?;
-            let existing: Option<String> = idem_table
-                .get(idempotency_key)?
-                .map(|guard| guard.value().to_string());
-            if let Some(existing_id) = existing {
-                return FactId::parse(&existing_id).map_err(|e| {
-                    KronroeError::Storage(format!(
-                        "corrupt idempotency fact id `{existing_id}`: {e}"
-                    ))
-                });
-            }
-        }
-
-        let fact_id = Self::write_fact_in_txn(
-            &write_txn,
-            subject,
-            predicate,
-            object.into(),
-            valid_from,
-            1.0,
-            None,
-        )?;
-
-        {
-            let mut idem_table = write_txn.open_table(IDEMPOTENCY)?;
-            idem_table.insert(idempotency_key, fact_id.as_str())?;
-        }
-
-        write_txn.commit()?;
-        Ok(fact_id)
+        let fact = Self::build_fact(subject, predicate, object.into(), valid_from, 1.0, None)?;
+        self.storage
+            .write_fact_and_idempotency(idempotency_key, &fact)
     }
 
     /// Get all currently valid facts for `(subject, predicate)`.
@@ -1040,37 +609,18 @@ impl TemporalGraph {
     /// returned by `facts_at()` for timestamps before `at`.
     pub fn invalidate_fact(&self, fact_id: impl AsRef<str>, at: DateTime<Utc>) -> Result<()> {
         let fact_id = self.resolve_fact_id_input(fact_id.as_ref())?;
-        // Phase 0: linear scan to find the fact. Replace with ID index in Phase 1.
-        let read_txn = self.db.begin_read()?;
-        let table = read_txn.open_table(FACTS)?;
+        let found = self
+            .storage
+            .scan_facts("")?
+            .into_iter()
+            .find(|row| row.fact.id == fact_id);
 
-        let mut found_key: Option<String> = None;
-        let mut found_fact: Option<Fact> = None;
-
-        for entry in table.iter()? {
-            let (k, v) = entry?;
-            let fact: Fact = serde_json::from_str(v.value())?;
-            if fact.id == fact_id {
-                found_key = Some(k.value().to_string());
-                found_fact = Some(fact);
-                break;
-            }
-        }
-
-        drop(table);
-        drop(read_txn);
-
-        match (found_key, found_fact) {
-            (Some(key), Some(mut fact)) => {
+        match found {
+            Some(row) => {
+                let mut fact = row.fact;
                 fact.valid_to = Some(at);
                 fact.expired_at = Some(at);
-                let value = serde_json::to_string(&fact)?;
-                let write_txn = self.db.begin_write()?;
-                {
-                    let mut table = write_txn.open_table(FACTS)?;
-                    table.insert(key.as_str(), value.as_str())?;
-                }
-                write_txn.commit()?;
+                self.storage.replace_fact_row(&row.key, &fact)?;
                 Ok(())
             }
             _ => Err(KronroeError::NotFound(format!(
@@ -1085,13 +635,9 @@ impl TemporalGraph {
     /// Phase 0 implementation performs a linear scan.
     pub fn fact_by_id(&self, fact_id: impl AsRef<str>) -> Result<Fact> {
         let fact_id = self.resolve_fact_id_input(fact_id.as_ref())?;
-        let read_txn = self.db.begin_read()?;
-        let table = read_txn.open_table(FACTS)?;
-        for entry in table.iter()? {
-            let (_k, v) = entry?;
-            let fact: Fact = serde_json::from_str(v.value())?;
-            if fact.id == fact_id {
-                return Ok(fact);
+        for row in self.storage.scan_facts("")? {
+            if row.fact.id == fact_id {
+                return Ok(row.fact);
             }
         }
         Err(KronroeError::NotFound(format!(
@@ -1138,12 +684,8 @@ impl TemporalGraph {
     ) -> Result<()> {
         let cardinality = PredicateCardinality::Singleton;
         let encoded = serde_json::to_string(&(cardinality, policy))?;
-        let write_txn = self.db.begin_write()?;
-        {
-            let mut table = write_txn.open_table(PREDICATE_REGISTRY)?;
-            table.insert(predicate, encoded.as_str())?;
-        }
-        write_txn.commit()?;
+        self.storage
+            .write_predicate_registry_entry(predicate, encoded.as_str())?;
 
         let mut det = self
             .contradiction_detector
@@ -1306,59 +848,22 @@ impl TemporalGraph {
             return Ok((fact_id, Vec::new()));
         }
 
-        // Single WriteTransaction for atomic check-and-write.
-        // redb serialises write transactions, so no concurrent writer can
-        // interleave between the scan and the insert.
-        let write_txn = self.db.begin_write()?;
-
-        // Scan existing facts inside the write transaction.
-        let prefix = format!("{subject}:{predicate}:");
-        let existing: Vec<Fact> = {
-            let table = write_txn.open_table(FACTS)?;
-            let mut results = Vec::new();
-            for entry in table.iter()? {
-                let (k, v) = entry?;
-                if k.value().starts_with(prefix.as_str()) {
-                    let fact: Fact = serde_json::from_str(v.value())?;
-                    if fact.expired_at.is_none() {
-                        results.push(fact);
-                    }
-                }
-            }
-            results
-        };
-
-        // Build a temporary fact for comparison.
-        let candidate = Fact::new(subject, predicate, object.clone(), valid_from);
-
-        let det = self
-            .contradiction_detector
-            .lock()
-            .map_err(|e| KronroeError::Internal(e.to_string()))?;
-        let contradictions = det.check_against(&candidate, &existing);
-        drop(det);
-
-        if matches!(policy, ConflictPolicy::Reject) && !contradictions.is_empty() {
-            // Drop the write transaction without committing (implicit rollback).
-            drop(write_txn);
-            return Err(KronroeError::ContradictionRejected(contradictions));
-        }
-
-        // Write the fact inside the same transaction.
-        let fact_id = Self::write_fact_in_txn(
-            &write_txn, subject, predicate, object, valid_from, 1.0, None,
+        let fact = Self::build_fact(subject, predicate, object, valid_from, 1.0, None)?;
+        let fact_id = fact.id.clone();
+        let reject_on_conflict = matches!(policy, ConflictPolicy::Reject);
+        let contradictions = self.storage.write_fact_with_contradiction_check(
+            subject,
+            predicate,
+            &fact,
+            reject_on_conflict,
+            |existing| {
+                let det = self
+                    .contradiction_detector
+                    .lock()
+                    .map_err(|e| KronroeError::Internal(e.to_string()))?;
+                Ok(det.check_against(&fact, existing))
+            },
         )?;
-        write_txn.commit()?;
-
-        // Patch contradictions so conflicting_fact_id points to the
-        // actually-persisted fact, not the temporary candidate.
-        let contradictions: Vec<Contradiction> = contradictions
-            .into_iter()
-            .map(|mut c| {
-                c.conflicting_fact_id = fact_id.to_string();
-                c
-            })
-            .collect();
         Ok((fact_id, contradictions))
     }
 
@@ -1401,53 +906,9 @@ impl TemporalGraph {
             ));
         }
 
-        // One write transaction covers the dim check-and-set, the fact row,
-        // and the embedding bytes.  redb serialises writes, so this is atomic
-        // and race-free — no two threads can interleave inside here.
-        let write_txn = self.db.begin_write()?;
-
-        // --- dim check-and-set ---
-        {
-            let mut meta = write_txn.open_table(EMBEDDING_META)?;
-            // Extract the stored dim as an owned u64 before the match so that the
-            // `AccessGuard` borrow on `meta` is released before `meta.insert`.
-            let stored_dim: Option<u64> = meta.get("dim")?.map(|g| g.value());
-            match stored_dim {
-                None => {
-                    meta.insert("dim", embedding.len() as u64)?;
-                }
-                Some(d) => {
-                    let d = d as usize;
-                    if embedding.len() != d {
-                        // Dropping write_txn triggers an implicit redb rollback.
-                        return Err(KronroeError::InvalidEmbedding(format!(
-                            "embedding dimension mismatch: expected {d}, got {}",
-                            embedding.len()
-                        )));
-                    }
-                }
-            }
-        }
-
-        // --- fact row ---
-        let fact_id = Self::write_fact_in_txn(
-            &write_txn,
-            subject,
-            predicate,
-            object.into(),
-            valid_from,
-            1.0,
-            None,
-        )?;
-
-        // --- embedding bytes (little-endian f32) ---
-        {
-            let bytes: Vec<u8> = embedding.iter().flat_map(|x| x.to_le_bytes()).collect();
-            let mut emb_table = write_txn.open_table(EMBEDDINGS)?;
-            emb_table.insert(fact_id.to_string().as_str(), bytes.as_slice())?;
-        }
-
-        write_txn.commit()?;
+        let fact = Self::build_fact(subject, predicate, object.into(), valid_from, 1.0, None)?;
+        let fact_id = fact.id.clone();
+        self.storage.write_fact_with_embedding(&fact, &embedding)?;
 
         // Update the in-memory cache after the durable commit.
         // If the process crashes between commit() and here the cache is rebuilt
@@ -1695,17 +1156,10 @@ impl TemporalGraph {
 
     // Internal: scan facts table, filter by prefix, apply predicate.
     fn scan_prefix(&self, prefix: &str, predicate: impl Fn(&Fact) -> bool) -> Result<Vec<Fact>> {
-        let read_txn = self.db.begin_read()?;
-        let table = read_txn.open_table(FACTS)?;
         let mut results = Vec::new();
-
-        for entry in table.iter()? {
-            let (k, v) = entry?;
-            if k.value().starts_with(prefix) {
-                let fact: Fact = serde_json::from_str(v.value())?;
-                if predicate(&fact) {
-                    results.push(fact);
-                }
+        for row in self.storage.scan_facts(prefix)? {
+            if predicate(&row.fact) {
+                results.push(row.fact);
             }
         }
 
@@ -1765,12 +1219,8 @@ impl TemporalGraph {
         volatility: uncertainty::PredicateVolatility,
     ) -> Result<()> {
         let encoded = serde_json::to_string(&volatility)?;
-        let write_txn = self.db.begin_write()?;
-        {
-            let mut table = write_txn.open_table(VOLATILITY_REGISTRY)?;
-            table.insert(predicate, encoded.as_str())?;
-        }
-        write_txn.commit()?;
+        self.storage
+            .write_volatility_registry_entry(predicate, encoded.as_str())?;
         let mut engine = self
             .uncertainty_engine
             .lock()
@@ -1805,12 +1255,8 @@ impl TemporalGraph {
         weight: uncertainty::SourceWeight,
     ) -> Result<()> {
         let encoded = serde_json::to_string(&weight)?;
-        let write_txn = self.db.begin_write()?;
-        {
-            let mut table = write_txn.open_table(SOURCE_WEIGHT_REGISTRY)?;
-            table.insert(source, encoded.as_str())?;
-        }
-        write_txn.commit()?;
+        self.storage
+            .write_source_weight_registry_entry(source, encoded.as_str())?;
         let mut engine = self
             .uncertainty_engine
             .lock()
@@ -1856,7 +1302,7 @@ impl TemporalGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use redb::Database;
+    use storage::{KronroeStorage, StoredFactRecord};
     use tempfile::NamedTempFile;
 
     fn open_temp_db() -> (TemporalGraph, NamedTempFile) {
@@ -1872,46 +1318,7 @@ mod tests {
         idempotency: &[(&str, &str)],
         embeddings: &[(&str, &[f32])],
     ) {
-        let raw = Database::create(path).unwrap();
-        let txn = raw.begin_write().unwrap();
-
-        {
-            let mut facts_table = txn.open_table(FACTS).unwrap();
-            for fact in facts {
-                let key = format!("{}:{}:{}", fact.subject, fact.predicate, fact.id);
-                let value = serde_json::to_string(fact).unwrap();
-                facts_table.insert(key.as_str(), value.as_str()).unwrap();
-            }
-        }
-
-        {
-            let mut idempotency_table = txn.open_table(IDEMPOTENCY).unwrap();
-            for (key, fact_id) in idempotency {
-                idempotency_table.insert(*key, *fact_id).unwrap();
-            }
-        }
-
-        {
-            let mut embeddings_table = txn.open_table(EMBEDDINGS).unwrap();
-            let mut embedding_meta = txn.open_table(EMBEDDING_META).unwrap();
-            if let Some((_, first)) = embeddings.first() {
-                embedding_meta.insert("dim", first.len() as u64).unwrap();
-            }
-            for (fact_id, embedding) in embeddings {
-                let bytes: Vec<u8> = embedding
-                    .iter()
-                    .flat_map(|value| value.to_le_bytes())
-                    .collect();
-                embeddings_table.insert(*fact_id, bytes.as_slice()).unwrap();
-            }
-        }
-
-        {
-            let mut meta = txn.open_table(META).unwrap();
-            meta.insert("schema_version", 1).unwrap();
-        }
-
-        txn.commit().unwrap();
+        KronroeStorage::seed_schema_v1_file(path, facts, idempotency, embeddings).unwrap();
     }
 
     fn dt(s: &str) -> DateTime<Utc> {
@@ -2706,13 +2113,7 @@ mod tests {
 
         // Tamper: write a future version to simulate a file written by a newer build.
         {
-            use redb::Database;
-            let raw = Database::create(path_str).unwrap();
-            let txn = raw.begin_write().unwrap();
-            let mut meta = txn.open_table(META).unwrap();
-            meta.insert("schema_version", SCHEMA_VERSION + 1).unwrap();
-            drop(meta);
-            txn.commit().unwrap();
+            KronroeStorage::write_schema_version_for_test(path_str, SCHEMA_VERSION + 1).unwrap();
         }
 
         // Opening should return SchemaMismatch, not silently corrupt data.
@@ -3189,12 +2590,9 @@ mod tests {
         let path = tmp.path().to_str().unwrap().to_string();
         {
             let db = TemporalGraph::open(&path).unwrap();
-            let write_txn = db.db.begin_write().unwrap();
-            {
-                let mut vol_table = write_txn.open_table(VOLATILITY_REGISTRY).unwrap();
-                vol_table.insert("broken", "not-json").unwrap();
-            }
-            write_txn.commit().unwrap();
+            db.storage
+                .write_volatility_registry_entry("broken", "not-json")
+                .unwrap();
         }
 
         match TemporalGraph::open(&path) {
@@ -3215,12 +2613,9 @@ mod tests {
         let path = tmp.path().to_str().unwrap().to_string();
         {
             let db = TemporalGraph::open(&path).unwrap();
-            let write_txn = db.db.begin_write().unwrap();
-            {
-                let mut sw_table = write_txn.open_table(SOURCE_WEIGHT_REGISTRY).unwrap();
-                sw_table.insert("trusted-api", "not-json").unwrap();
-            }
-            write_txn.commit().unwrap();
+            db.storage
+                .write_source_weight_registry_entry("trusted-api", "not-json")
+                .unwrap();
         }
 
         match TemporalGraph::open(&path) {
@@ -3241,12 +2636,9 @@ mod tests {
         let path = tmp.path().to_str().unwrap().to_string();
         {
             let db = TemporalGraph::open(&path).unwrap();
-            let write_txn = db.db.begin_write().unwrap();
-            {
-                let mut table = write_txn.open_table(PREDICATE_REGISTRY).unwrap();
-                table.insert("works_at", "not-json").unwrap();
-            }
-            write_txn.commit().unwrap();
+            db.storage
+                .write_predicate_registry_entry("works_at", "not-json")
+                .unwrap();
         }
 
         match TemporalGraph::open(&path) {
