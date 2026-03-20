@@ -98,8 +98,9 @@ document.documentElement.classList.add('animations-ready');
     const cRect = container!.getBoundingClientRect();
     const viewH = window.innerHeight;
     // Trigger: beam fills from 0→100% as the user scrolls through the section.
-    // Use viewport 75% line as trigger so the beam completes when step 4 is visible.
-    const scrollInto = viewH * 0.75 - cRect.top;
+    // Use viewport 60% line so badges 3 and 4 activate while their steps are
+    // still centered, not after the user has already read past them.
+    const scrollInto = viewH * 0.60 - cRect.top;
     const totalH = cRect.height;
     const pct = Math.max(0, Math.min(100, (scrollInto / totalH) * 100));
     fill!.style.height = `${pct}%`;
