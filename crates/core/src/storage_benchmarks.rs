@@ -119,6 +119,7 @@ struct WorkloadReport {
     storage_engine: BenchmarkStorageEngine,
     backend_mode: BenchmarkBackendMode,
     wall_duration_ms: u128,
+    wall_duration_micros: u128,
     parameters: BTreeMap<String, usize>,
     notes: BTreeMap<String, String>,
     operations: Vec<OperationSummary>,
@@ -132,6 +133,8 @@ struct OperationSummary {
     failure_count: usize,
     total_duration_ms: u128,
     max_duration_ms: u128,
+    total_duration_micros: u128,
+    max_duration_micros: u128,
     total_rows_scanned: usize,
 }
 
@@ -176,6 +179,8 @@ fn summarize_operations(events: Vec<StorageEvent>) -> Vec<OperationSummary> {
                 failure_count: 0,
                 total_duration_ms: 0,
                 max_duration_ms: 0,
+                total_duration_micros: 0,
+                max_duration_micros: 0,
                 total_rows_scanned: 0,
             });
         summary.count += 1;
@@ -185,8 +190,11 @@ fn summarize_operations(events: Vec<StorageEvent>) -> Vec<OperationSummary> {
             summary.failure_count += 1;
         }
         let duration_ms = event.duration.as_millis();
+        let duration_micros = event.duration.as_micros();
         summary.total_duration_ms += duration_ms;
         summary.max_duration_ms = summary.max_duration_ms.max(duration_ms);
+        summary.total_duration_micros += duration_micros;
+        summary.max_duration_micros = summary.max_duration_micros.max(duration_micros);
         summary.total_rows_scanned += event.rows_scanned;
     }
     summaries.into_values().collect()
@@ -207,6 +215,7 @@ fn build_report(
         storage_engine,
         backend_mode,
         wall_duration_ms: started_at.elapsed().as_millis(),
+        wall_duration_micros: started_at.elapsed().as_micros(),
         parameters,
         notes,
         operations: summarize_operations(events),
@@ -526,6 +535,7 @@ fn run_embedding_reopen(
         storage_engine,
         backend_mode: BenchmarkBackendMode::OnDisk,
         wall_duration_ms: reopen_started_at.elapsed().as_millis(),
+        wall_duration_micros: reopen_started_at.elapsed().as_micros(),
         parameters,
         notes,
         operations: summarize_operations(events),
