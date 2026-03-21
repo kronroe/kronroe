@@ -534,8 +534,12 @@ impl TemporalGraph {
     ///
     /// A fact is currently valid if both `valid_to` and `expired_at` are `None`.
     pub fn current_facts(&self, subject: &str, predicate: &str) -> Result<Vec<Fact>> {
-        let prefix = format!("{}:{}:", subject, predicate);
-        self.scan_prefix(&prefix, |f| f.is_currently_valid())
+        Ok(self
+            .storage
+            .current_facts(subject, predicate)?
+            .into_iter()
+            .map(|row| row.fact)
+            .collect())
     }
 
     /// Get all facts valid at a given point in time for `(subject, predicate)`.
@@ -543,8 +547,12 @@ impl TemporalGraph {
     /// Uses the **valid time** axis: queries when something was true in the
     /// world, regardless of when it was recorded.
     pub fn facts_at(&self, subject: &str, predicate: &str, at: DateTime<Utc>) -> Result<Vec<Fact>> {
-        let prefix = format!("{}:{}:", subject, predicate);
-        self.scan_prefix(&prefix, |f| f.was_valid_at(at))
+        Ok(self
+            .storage
+            .facts_at(subject, predicate, at)?
+            .into_iter()
+            .map(|row| row.fact)
+            .collect())
     }
 
     /// Get every fact ever recorded for an entity, across all predicates.
