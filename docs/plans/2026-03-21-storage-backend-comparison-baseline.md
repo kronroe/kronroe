@@ -121,17 +121,46 @@ The comparison strengthens the case for a fully Kronroe-owned backend and gives 
    - wide current-state scans
 4. Preserve idempotency as a simple, fast path throughout the redesign.
 
+## First Indexed Rerun
+
+After this first comparison note, the append-log prototype gained a narrow
+derived index for exact `subject:predicate:` scans. A rerun of the same
+baseline showed:
+
+- `current_state_scan` rows scanned dropped from `393,216` to `32,768`
+- `current_state_scan` wall time stayed very low at about `32 ms`
+- `correction_heavy_timeline_churn` still scanned `1,003,002` rows
+- `historical_point_in_time_scan` still scanned `1,255,000` rows
+
+Interpretation:
+
+- the exact subject/predicate candidate index is already useful
+- it materially helps wide current-state access patterns
+- it does **not** solve the real remaining hotspot: long version chains inside a
+  single `(subject, predicate)` history
+
+That means the next backend slice should not be another generic prefix index.
+It should be a history-shaped derived structure for append-log, aimed at
+reducing candidate volume inside a single temporal chain.
+
 ## Recommended Next Slice
 
-The next prototype slice should add the first derived index on top of the append-log engine, rather than broadening feature coverage in every direction.
+The next prototype slice should add the first real history-aware derived index
+on top of the append-log engine, rather than broadening feature coverage in
+every direction.
 
 Recommended target:
 
-- a subject/predicate keyed current-state + historical candidate index for append-log
+- a subject/predicate version-chain index for append-log, with enough structure
+  to reduce candidate sets for:
+  - correction chains
+  - point-in-time lookups
+  - current-state retrieval inside long histories
 
 Why this next:
 
-- it directly targets the largest remaining cost center: raw scan volume
+- it directly targets the largest remaining cost center: raw scan volume inside
+  long temporal histories
 - it will tell us whether the next order-of-magnitude gain comes from indexing, not just from switching storage engines
 - it is more valuable right now than, for example, adding append-log vector persistence
 

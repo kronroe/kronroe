@@ -1,7 +1,7 @@
 use crate::storage::{fact_row_key, StoredFactRow, SCHEMA_VERSION};
 use crate::{Fact, FactId, KronroeError, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -37,10 +37,42 @@ struct AppendLogState {
     header_present: bool,
     schema_version: Option<u64>,
     facts: BTreeMap<String, Fact>,
+    facts_by_subject_predicate: BTreeMap<String, BTreeSet<String>>,
     idempotency: BTreeMap<String, String>,
 }
 
 impl AppendLogState {
+    fn subject_predicate_prefix(subject: &str, predicate: &str) -> String {
+        format!("{subject}:{predicate}:")
+    }
+
+    fn insert_fact_index(&mut self, key: &str, fact: &Fact) {
+        self.facts_by_subject_predicate
+            .entry(Self::subject_predicate_prefix(
+                &fact.subject,
+                &fact.predicate,
+            ))
+            .or_default()
+            .insert(key.to_string());
+    }
+
+    fn remove_fact_index(&mut self, key: &str, fact: &Fact) {
+        let prefix = Self::subject_predicate_prefix(&fact.subject, &fact.predicate);
+        if let Some(keys) = self.facts_by_subject_predicate.get_mut(&prefix) {
+            keys.remove(key);
+            if keys.is_empty() {
+                self.facts_by_subject_predicate.remove(&prefix);
+            }
+        }
+    }
+
+    fn apply_fact_upsert(&mut self, key: String, fact: Fact) {
+        if let Some(previous) = self.facts.insert(key.clone(), fact.clone()) {
+            self.remove_fact_index(&key, &previous);
+        }
+        self.insert_fact_index(&key, &fact);
+    }
+
     fn apply_record(&mut self, record: AppendLogRecord) {
         match record {
             AppendLogRecord::Header { magic } => {
@@ -51,7 +83,7 @@ impl AppendLogState {
             }
             AppendLogRecord::UpsertFact { key, fact }
             | AppendLogRecord::ReplaceFact { key, fact } => {
-                self.facts.insert(key, fact);
+                self.apply_fact_upsert(key, fact);
             }
             AppendLogRecord::UpsertFactAndIdempotency {
                 key,
@@ -60,7 +92,7 @@ impl AppendLogState {
             } => {
                 self.idempotency
                     .insert(idempotency_key, fact.id.as_str().to_string());
-                self.facts.insert(key, fact);
+                self.apply_fact_upsert(key, fact);
             }
         }
     }
@@ -198,6 +230,20 @@ impl AppendLogBackend {
 
     pub(crate) fn scan_facts(&self, prefix: &str) -> (Vec<StoredFactRow>, usize) {
         let state = self.state.lock().unwrap();
+        if let Some(keys) = state.facts_by_subject_predicate.get(prefix) {
+            let rows_scanned = keys.len();
+            let rows = keys
+                .iter()
+                .filter_map(|key| {
+                    state.facts.get(key).map(|fact| StoredFactRow {
+                        key: key.clone(),
+                        fact: fact.clone(),
+                    })
+                })
+                .collect();
+            return (rows, rows_scanned);
+        }
+
         let rows_scanned = state.facts.len();
         let rows = state
             .facts
@@ -285,16 +331,29 @@ impl AppendLogBackend {
     where
         F: FnOnce(&[Fact]) -> Result<Vec<crate::contradiction::Contradiction>>,
     {
-        let prefix = format!("{subject}:{predicate}:");
+        let prefix = AppendLogState::subject_predicate_prefix(subject, predicate);
         let mut state = self.state.lock().unwrap();
-        let rows_scanned = state.facts.len();
-        let existing: Vec<Fact> = state
-            .facts
-            .iter()
-            .filter(|(key, _)| key.starts_with(prefix.as_str()))
-            .map(|(_, fact)| fact.clone())
-            .filter(|fact| fact.expired_at.is_none())
-            .collect();
+        let (existing, rows_scanned): (Vec<Fact>, usize) =
+            if let Some(keys) = state.facts_by_subject_predicate.get(&prefix) {
+                (
+                    keys.iter()
+                        .filter_map(|key| state.facts.get(key).cloned())
+                        .filter(|fact| fact.expired_at.is_none())
+                        .collect(),
+                    keys.len(),
+                )
+            } else {
+                (
+                    state
+                        .facts
+                        .iter()
+                        .filter(|(key, _)| key.starts_with(prefix.as_str()))
+                        .map(|(_, fact)| fact.clone())
+                        .filter(|fact| fact.expired_at.is_none())
+                        .collect(),
+                    state.facts.len(),
+                )
+            };
 
         let contradictions = check(&existing)?;
         if reject_on_conflict && !contradictions.is_empty() {

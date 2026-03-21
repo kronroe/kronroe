@@ -1274,7 +1274,7 @@ mod tests {
             .iter()
             .find(|event| event.operation == StorageOperation::ScanFacts)
             .expect("scan event should be recorded");
-        assert_eq!(scan_event.rows_scanned, 2);
+        assert_eq!(scan_event.rows_scanned, 1);
     }
 
     #[cfg(feature = "contradiction")]
@@ -1312,6 +1312,31 @@ mod tests {
             .find(|event| event.operation == StorageOperation::ContradictionCheckedWrite)
             .expect("contradiction event should be recorded");
         assert_eq!(event.rows_scanned, 1);
+    }
+
+    #[test]
+    fn append_log_partial_prefix_still_reports_full_scan_when_not_indexed() {
+        let observer = Arc::new(RecordingObserver::default());
+        let storage =
+            KronroeStorage::open_append_log_in_memory_with_observer(observer.clone()).unwrap();
+        assert_eq!(storage.initialize_schema().unwrap(), SCHEMA_VERSION);
+
+        storage
+            .write_fact(&build_fact("alice", "works_at", "Acme"))
+            .unwrap();
+        storage
+            .write_fact(&build_fact("bob", "works_at", "BetaCorp"))
+            .unwrap();
+
+        let rows = storage.scan_facts("alice:").unwrap();
+        assert_eq!(rows.len(), 1);
+
+        let events = observer.events.lock().unwrap();
+        let scan_event = events
+            .iter()
+            .find(|event| event.operation == StorageOperation::ScanFacts)
+            .expect("scan event should be recorded");
+        assert_eq!(scan_event.rows_scanned, 2);
     }
 
     #[cfg(feature = "vector")]
