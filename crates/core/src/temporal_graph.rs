@@ -633,11 +633,7 @@ impl TemporalGraph {
     /// returned by `facts_at()` for timestamps before `at`.
     pub fn invalidate_fact(&self, fact_id: impl AsRef<str>, at: DateTime<Utc>) -> Result<()> {
         let fact_id = self.resolve_fact_id_input(fact_id.as_ref())?;
-        let found = self
-            .storage
-            .scan_facts("")?
-            .into_iter()
-            .find(|row| row.fact.id == fact_id);
+        let found = self.storage.fact_by_id(&fact_id)?;
 
         match found {
             Some(row) => {
@@ -659,15 +655,10 @@ impl TemporalGraph {
     /// Phase 0 implementation performs a linear scan.
     pub fn fact_by_id(&self, fact_id: impl AsRef<str>) -> Result<Fact> {
         let fact_id = self.resolve_fact_id_input(fact_id.as_ref())?;
-        for row in self.storage.scan_facts("")? {
-            if row.fact.id == fact_id {
-                return Ok(row.fact);
-            }
-        }
-        Err(KronroeError::NotFound(format!(
-            "fact id {}",
-            fact_id.as_str()
-        )))
+        self.storage
+            .fact_by_id(&fact_id)?
+            .map(|row| row.fact)
+            .ok_or_else(|| KronroeError::NotFound(format!("fact id {}", fact_id.as_str())))
     }
 
     /// Correct a fact by id while preserving history.

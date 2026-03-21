@@ -519,6 +519,49 @@ impl KronroeStorage {
         result.map(|(rows, _rows_scanned)| rows)
     }
 
+    pub(crate) fn fact_by_id(&self, fact_id: &FactId) -> Result<Option<StoredFactRow>> {
+        let started_at = storage_now();
+        let result = match &self.engine {
+            StorageEngine::Redb(db) => (|| -> Result<(Option<StoredFactRow>, usize)> {
+                let read_txn = db.begin_read()?;
+                let table = read_txn.open_table(FACTS)?;
+                let mut rows_scanned = 0usize;
+
+                for entry in table.iter()? {
+                    rows_scanned += 1;
+                    let (k, v) = entry?;
+                    let fact: Fact = serde_json::from_str(v.value())?;
+                    if fact.id == *fact_id {
+                        return Ok((
+                            Some(StoredFactRow {
+                                key: k.value().to_string(),
+                                fact,
+                            }),
+                            rows_scanned,
+                        ));
+                    }
+                }
+
+                Ok((None, rows_scanned))
+            })(),
+            #[cfg(any(test, feature = "storage-append-log"))]
+            StorageEngine::AppendLog(backend) => {
+                let (row, rows_scanned) = backend.fact_by_id(fact_id);
+                Ok((row, rows_scanned))
+            }
+        };
+        self.record(
+            StorageOperation::ScanFacts,
+            started_at,
+            result
+                .as_ref()
+                .map(|(_row, rows_scanned)| *rows_scanned)
+                .unwrap_or(0),
+            result.is_ok(),
+        );
+        result.map(|(row, _rows_scanned)| row)
+    }
+
     pub(crate) fn current_facts(
         &self,
         subject: &str,
@@ -1393,6 +1436,84 @@ mod tests {
                     conflicting_fact_id: incoming.id.to_string(),
                     subject: "alice".into(),
                     predicate: "works_at".into(),
+                    overlap_start: incoming.valid_from,
+                    overlap_end: None,
+                    severity: crate::ConflictSeverity::High,
+                    confidence_delta: 0.0,
+                    suggested_resolution: crate::SuggestedResolution::ManualReview,
+                }])
+            })
+            .unwrap();
+        assert_eq!(contradictions.len(), 1);
+
+        let events = observer.events.lock().unwrap();
+        let event = events
+            .iter()
+            .find(|event| event.operation == StorageOperation::ContradictionCheckedWrite)
+            .expect("contradiction event should be recorded");
+        assert_eq!(event.rows_scanned, 1);
+    }
+
+    #[test]
+    fn append_log_fact_by_id_uses_exact_lookup_index() {
+        let observer = Arc::new(RecordingObserver::default());
+        let storage =
+            KronroeStorage::open_append_log_in_memory_with_observer(observer.clone()).unwrap();
+        assert_eq!(storage.initialize_schema().unwrap(), SCHEMA_VERSION);
+
+        let alice = build_fact("alice", "works_at", "Acme");
+        let alice_id = alice.id.clone();
+        storage.write_fact(&alice).unwrap();
+        storage
+            .write_fact(&build_fact("bob", "works_at", "BetaCorp"))
+            .unwrap();
+
+        let row = storage
+            .fact_by_id(&alice_id)
+            .unwrap()
+            .expect("fact should exist");
+        assert_eq!(row.fact.subject, "alice");
+
+        let events = observer.events.lock().unwrap();
+        let scan_event = events
+            .iter()
+            .find(|event| event.operation == StorageOperation::ScanFacts)
+            .expect("scan event should be recorded");
+        assert_eq!(scan_event.rows_scanned, 1);
+    }
+
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn append_log_contradiction_write_scans_only_transaction_active_candidates() {
+        let observer = Arc::new(RecordingObserver::default());
+        let storage =
+            KronroeStorage::open_append_log_in_memory_with_observer(observer.clone()).unwrap();
+        assert_eq!(storage.initialize_schema().unwrap(), SCHEMA_VERSION);
+
+        let base = Utc::now();
+        for i in 0..5 {
+            let mut fact = build_fact("timeline", "role", format!("role-{i}"));
+            fact.valid_from = base + chrono::Duration::hours(i);
+            fact.recorded_at = fact.valid_from;
+            if i < 4 {
+                fact.expired_at = Some(base + chrono::Duration::hours(i + 1));
+            }
+            storage.write_fact(&fact).unwrap();
+        }
+
+        let incoming = build_fact("timeline", "role", "candidate");
+        let contradictions = storage
+            .write_fact_with_contradiction_check("timeline", "role", &incoming, false, |facts| {
+                assert_eq!(
+                    facts.len(),
+                    1,
+                    "only the live transaction row should be checked"
+                );
+                Ok(vec![Contradiction {
+                    existing_fact_id: facts[0].id.to_string(),
+                    conflicting_fact_id: incoming.id.to_string(),
+                    subject: "timeline".into(),
+                    predicate: "role".into(),
                     overlap_start: incoming.valid_from,
                     overlap_end: None,
                     severity: crate::ConflictSeverity::High,

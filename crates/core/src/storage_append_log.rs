@@ -37,7 +37,9 @@ struct AppendLogState {
     header_present: bool,
     schema_version: Option<u64>,
     facts: BTreeMap<String, Fact>,
+    fact_key_by_id: BTreeMap<String, String>,
     facts_by_subject_predicate: BTreeMap<String, BTreeSet<String>>,
+    active_facts_by_subject_predicate: BTreeMap<String, BTreeSet<String>>,
     current_facts_by_subject_predicate: BTreeMap<String, BTreeSet<String>>,
     version_chain_by_subject_predicate: BTreeMap<String, Vec<String>>,
     idempotency: BTreeMap<String, String>,
@@ -54,6 +56,12 @@ impl AppendLogState {
             .entry(prefix.clone())
             .or_default()
             .insert(key.to_string());
+        if fact.expired_at.is_none() {
+            self.active_facts_by_subject_predicate
+                .entry(prefix.clone())
+                .or_default()
+                .insert(key.to_string());
+        }
         if fact.is_currently_valid() {
             self.current_facts_by_subject_predicate
                 .entry(prefix.clone())
@@ -82,6 +90,12 @@ impl AppendLogState {
                 self.facts_by_subject_predicate.remove(&prefix);
             }
         }
+        if let Some(keys) = self.active_facts_by_subject_predicate.get_mut(&prefix) {
+            keys.remove(key);
+            if keys.is_empty() {
+                self.active_facts_by_subject_predicate.remove(&prefix);
+            }
+        }
         if let Some(keys) = self.current_facts_by_subject_predicate.get_mut(&prefix) {
             keys.remove(key);
             if keys.is_empty() {
@@ -102,6 +116,8 @@ impl AppendLogState {
         if let Some(previous) = self.facts.insert(key.clone(), fact.clone()) {
             self.remove_fact_index(&key, &previous);
         }
+        self.fact_key_by_id
+            .insert(fact.id.as_str().to_string(), key.clone());
         self.insert_fact_index(&key, &fact);
     }
 
@@ -289,6 +305,18 @@ impl AppendLogBackend {
         (rows, rows_scanned)
     }
 
+    pub(crate) fn fact_by_id(&self, fact_id: &FactId) -> (Option<StoredFactRow>, usize) {
+        let state = self.state.lock().unwrap();
+        let Some(key) = state.fact_key_by_id.get(fact_id.as_str()) else {
+            return (None, 0);
+        };
+        let row = state.facts.get(key).map(|fact| StoredFactRow {
+            key: key.clone(),
+            fact: fact.clone(),
+        });
+        (row, 1)
+    }
+
     pub(crate) fn current_facts(
         &self,
         subject: &str,
@@ -427,11 +455,10 @@ impl AppendLogBackend {
         let prefix = AppendLogState::subject_predicate_prefix(subject, predicate);
         let mut state = self.state.lock().unwrap();
         let (existing, rows_scanned): (Vec<Fact>, usize) =
-            if let Some(keys) = state.facts_by_subject_predicate.get(&prefix) {
+            if let Some(keys) = state.active_facts_by_subject_predicate.get(&prefix) {
                 (
                     keys.iter()
                         .filter_map(|key| state.facts.get(key).cloned())
-                        .filter(|fact| fact.expired_at.is_none())
                         .collect(),
                     keys.len(),
                 )
