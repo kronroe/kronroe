@@ -41,6 +41,12 @@ enum AppendLogRecord {
         fact: Fact,
         idempotency_key: String,
     },
+    #[cfg(feature = "vector")]
+    UpsertFactWithEmbedding {
+        key: String,
+        fact: Fact,
+        embedding: Vec<f32>,
+    },
     ReplaceFact {
         key: String,
         fact: Fact,
@@ -57,6 +63,10 @@ struct AppendLogState {
     volatility_registry: BTreeMap<String, String>,
     #[cfg(feature = "uncertainty")]
     source_weight_registry: BTreeMap<String, String>,
+    #[cfg(feature = "vector")]
+    embedding_dim: Option<usize>,
+    #[cfg(feature = "vector")]
+    embeddings: BTreeMap<String, Vec<f32>>,
     facts: BTreeMap<String, Fact>,
     fact_key_by_id: BTreeMap<String, String>,
     facts_by_subject_predicate: BTreeMap<String, BTreeSet<String>>,
@@ -142,6 +152,13 @@ impl AppendLogState {
         self.insert_fact_index(&key, &fact);
     }
 
+    #[cfg(feature = "vector")]
+    fn apply_embedding_upsert(&mut self, fact_id: &FactId, embedding: Vec<f32>) {
+        self.embedding_dim.get_or_insert(embedding.len());
+        self.embeddings
+            .insert(fact_id.as_str().to_string(), embedding);
+    }
+
     fn apply_record(&mut self, record: AppendLogRecord) {
         match record {
             AppendLogRecord::Header { magic } => {
@@ -173,6 +190,15 @@ impl AppendLogState {
             } => {
                 self.idempotency
                     .insert(idempotency_key, fact.id.as_str().to_string());
+                self.apply_fact_upsert(key, fact);
+            }
+            #[cfg(feature = "vector")]
+            AppendLogRecord::UpsertFactWithEmbedding {
+                key,
+                fact,
+                embedding,
+            } => {
+                self.apply_embedding_upsert(&fact.id, embedding);
                 self.apply_fact_upsert(key, fact);
             }
         }
@@ -549,6 +575,53 @@ impl AppendLogBackend {
         self.append_record(&record)?;
         state.apply_record(record);
         Ok(fact.id.clone())
+    }
+
+    #[cfg(feature = "vector")]
+    pub(crate) fn write_fact_with_embedding(&self, fact: &Fact, embedding: &[f32]) -> Result<()> {
+        if embedding.is_empty() {
+            return Err(KronroeError::InvalidEmbedding(
+                "embedding must not be empty".into(),
+            ));
+        }
+
+        let mut state = self.state.lock().unwrap();
+        if let Some(expected_dim) = state.embedding_dim {
+            if embedding.len() != expected_dim {
+                return Err(KronroeError::InvalidEmbedding(format!(
+                    "embedding dimension mismatch: expected {expected_dim}, got {}",
+                    embedding.len()
+                )));
+            }
+        }
+
+        let key = fact_row_key(&fact.subject, &fact.predicate, &fact.id);
+        let record = AppendLogRecord::UpsertFactWithEmbedding {
+            key,
+            fact: fact.clone(),
+            embedding: embedding.to_vec(),
+        };
+        self.append_record(&record)?;
+        state.apply_record(record);
+        Ok(())
+    }
+
+    #[cfg(feature = "vector")]
+    pub(crate) fn embedding_rows(&self) -> Result<Vec<(FactId, Vec<f32>)>> {
+        let state = self.state.lock().unwrap();
+        state
+            .embeddings
+            .iter()
+            .map(|(fact_id, embedding)| {
+                FactId::parse(fact_id)
+                    .map(|id| (id, embedding.clone()))
+                    .map_err(|error| {
+                        KronroeError::Storage(format!(
+                            "corrupt append-log embedding fact id `{fact_id}`: {error}"
+                        ))
+                    })
+            })
+            .collect()
     }
 
     #[cfg(feature = "contradiction")]
