@@ -134,7 +134,7 @@ enum StorageEngine {
     Redb(Database),
     #[cfg(any(test, feature = "storage-append-log"))]
     #[allow(dead_code)]
-    AppendLog(AppendLogBackend),
+    AppendLog(Box<AppendLogBackend>),
 }
 
 impl KronroeStorage {
@@ -181,7 +181,7 @@ impl KronroeStorage {
     #[allow(dead_code)]
     pub(crate) fn open_append_log(path: &str) -> Result<Self> {
         Ok(Self {
-            engine: StorageEngine::AppendLog(AppendLogBackend::open(path)?),
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open(path)?)),
             observer: noop_observer(),
         })
     }
@@ -190,7 +190,7 @@ impl KronroeStorage {
     #[allow(dead_code)]
     pub(crate) fn open_append_log_in_memory() -> Result<Self> {
         Ok(Self {
-            engine: StorageEngine::AppendLog(AppendLogBackend::open_in_memory()),
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open_in_memory())),
             observer: noop_observer(),
         })
     }
@@ -202,7 +202,7 @@ impl KronroeStorage {
         observer: Arc<dyn StorageObserver>,
     ) -> Result<Self> {
         Ok(Self {
-            engine: StorageEngine::AppendLog(AppendLogBackend::open(path)?),
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open(path)?)),
             observer,
         })
     }
@@ -213,7 +213,7 @@ impl KronroeStorage {
         observer: Arc<dyn StorageObserver>,
     ) -> Result<Self> {
         Ok(Self {
-            engine: StorageEngine::AppendLog(AppendLogBackend::open_in_memory()),
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open_in_memory())),
             observer,
         })
     }
