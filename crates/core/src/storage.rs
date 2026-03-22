@@ -117,6 +117,14 @@ impl KronroeStorage {
         result
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn compact(&self) -> Result<()> {
+        let started_at = storage_now();
+        let result = self.backend.compact();
+        self.record(StorageOperation::Compact, started_at, 0, result.is_ok());
+        result
+    }
+
     pub(crate) fn scan_facts(&self, prefix: &str) -> Result<Vec<StoredFactRow>> {
         let started_at = storage_now();
         let (rows, rows_scanned) = self.backend.scan_facts(prefix);

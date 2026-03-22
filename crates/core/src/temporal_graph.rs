@@ -1307,6 +1307,7 @@ impl TemporalGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use tempfile::NamedTempFile;
 
     fn open_temp_db() -> (TemporalGraph, NamedTempFile) {
@@ -1318,6 +1319,33 @@ mod tests {
 
     fn dt(s: &str) -> DateTime<Utc> {
         s.parse().unwrap()
+    }
+
+    fn append_bytes(path: &str, bytes: &[u8]) {
+        let mut data = fs::read(path).unwrap();
+        data.extend_from_slice(bytes);
+        fs::write(path, data).unwrap();
+    }
+
+    fn insert_bytes_after_nth_newline(path: &str, newline_index: usize, bytes: &[u8]) {
+        let data = fs::read(path).unwrap();
+        let mut seen = 0usize;
+        let mut insert_at = None;
+        for (index, byte) in data.iter().enumerate() {
+            if *byte == b'\n' {
+                if seen == newline_index {
+                    insert_at = Some(index + 1);
+                    break;
+                }
+                seen += 1;
+            }
+        }
+        let insert_at = insert_at.expect("newline should exist in append-log fixture");
+        let mut mutated = Vec::with_capacity(data.len() + bytes.len());
+        mutated.extend_from_slice(&data[..insert_at]);
+        mutated.extend_from_slice(bytes);
+        mutated.extend_from_slice(&data[insert_at..]);
+        fs::write(path, mutated).unwrap();
     }
 
     #[test]
@@ -2584,5 +2612,351 @@ mod tests {
             matches!(&results[0].0.object, Value::Text(s) if s == "Rust"),
             "most similar append-log fact after reopen should be Rust"
         );
+    }
+
+    #[test]
+    fn append_log_reopen_survives_truncated_final_newline() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        let now = Utc::now();
+        let fact_id = {
+            let db = TemporalGraph::open(&path).unwrap();
+            db.assert_fact("alice", "works_at", "Acme", now).unwrap()
+        };
+
+        let mut bytes = fs::read(&path).unwrap();
+        assert_eq!(bytes.last().copied(), Some(b'\n'));
+        bytes.pop();
+        fs::write(&path, bytes).unwrap();
+
+        let reopened = TemporalGraph::open(&path).unwrap();
+        assert_eq!(reopened.fact_by_id(&fact_id).unwrap().id, fact_id);
+        assert_eq!(
+            reopened.current_facts("alice", "works_at").unwrap().len(),
+            1
+        );
+    }
+
+    #[test]
+    #[cfg(all(feature = "vector", feature = "contradiction", feature = "uncertainty"))]
+    fn append_log_recovery_ignores_truncated_tail_and_preserves_state() {
+        use crate::{ConflictPolicy, PredicateVolatility, SourceWeight};
+
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("recovery-tail.kronroe");
+        let path_str = path.to_str().unwrap();
+        let now = Utc::now();
+
+        let fact_id = {
+            let db = TemporalGraph::open(path_str).unwrap();
+            db.register_singleton_predicate("works_at", ConflictPolicy::Warn)
+                .unwrap();
+            db.register_predicate_volatility("works_at", PredicateVolatility::new(730.0))
+                .unwrap();
+            db.register_source_weight("api:trusted", SourceWeight::new(1.2))
+                .unwrap();
+            db.assert_fact_with_embedding("alice", "works_at", "Acme", now, vec![1.0, 0.0, 0.0])
+                .unwrap()
+        };
+
+        append_bytes(path_str, br#"{"UpsertFact":{"key":"truncated"#);
+
+        let reopened = TemporalGraph::open(path_str).unwrap();
+        assert_eq!(reopened.fact_by_id(&fact_id).unwrap().id, fact_id);
+        assert!(reopened.is_singleton_predicate("works_at").unwrap());
+        assert!(reopened.predicate_volatility("works_at").unwrap().is_some());
+        assert!(reopened.source_weight("api:trusted").unwrap().is_some());
+        let vector_results = reopened
+            .search_by_vector(&[1.0, 0.0, 0.0], 1, None)
+            .unwrap();
+        assert_eq!(vector_results.len(), 1);
+    }
+
+    #[test]
+    fn append_log_reopen_rejects_mid_file_corruption() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        {
+            let db = TemporalGraph::open(&path).unwrap();
+            db.assert_fact("alice", "works_at", "Acme", Utc::now())
+                .unwrap();
+        }
+
+        insert_bytes_after_nth_newline(&path, 0, b"not-json\n");
+
+        match TemporalGraph::open(&path) {
+            Err(KronroeError::Storage(message)) => {
+                assert!(message.contains("append-log corruption"));
+            }
+            Err(error) => panic!("expected storage corruption error, got {error:?}"),
+            Ok(_) => panic!("expected mid-file corruption to fail reopen"),
+        }
+    }
+
+    #[test]
+    fn append_log_reopen_rejects_wrong_header() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        fs::write(
+            &path,
+            b"{\"Header\":{\"magic\":\"wrong-backend\"}}\n{\"SchemaVersion\":{\"version\":2}}\n",
+        )
+        .unwrap();
+
+        match TemporalGraph::open(&path) {
+            Err(KronroeError::Storage(message)) => {
+                assert!(message.contains("storage backend mismatch"));
+            }
+            Err(error) => panic!("expected backend mismatch, got {error:?}"),
+            Ok(_) => panic!("expected wrong header to fail reopen"),
+        }
+    }
+
+    #[test]
+    fn append_log_reopen_rejects_unsupported_schema_version() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        fs::write(
+            &path,
+            b"{\"Header\":{\"magic\":\"kronroe-append-log-v1\"}}\n{\"SchemaVersion\":{\"version\":999}}\n",
+        )
+        .unwrap();
+
+        match TemporalGraph::open(&path) {
+            Err(KronroeError::SchemaMismatch { found, expected }) => {
+                assert_eq!(found, 999);
+                assert_eq!(expected, SCHEMA_VERSION);
+            }
+            Err(error) => panic!("expected schema mismatch, got {error:?}"),
+            Ok(_) => panic!("expected unsupported schema version to fail reopen"),
+        }
+    }
+
+    #[test]
+    fn append_log_reopen_handles_long_replacement_chain() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        let jan = dt("2024-01-01T00:00:00Z");
+
+        {
+            let db = TemporalGraph::open(&path).unwrap();
+            let mut fact_id = db.assert_fact("alice", "works_at", "Acme", jan).unwrap();
+            for month in 1..12 {
+                let at = jan + chrono::Duration::days(month * 30);
+                db.invalidate_fact(&fact_id, at).unwrap();
+                fact_id = db
+                    .assert_fact("alice", "works_at", format!("Company-{month}"), at)
+                    .unwrap();
+            }
+        }
+
+        let reopened = TemporalGraph::open(&path).unwrap();
+        let current = reopened.current_facts("alice", "works_at").unwrap();
+        assert_eq!(current.len(), 1);
+        assert_eq!(current[0].object.to_string(), "Company-11");
+
+        let historical = reopened
+            .facts_at("alice", "works_at", dt("2024-05-15T00:00:00Z"))
+            .unwrap();
+        assert!(!historical.is_empty());
+    }
+
+    #[test]
+    fn append_log_compaction_preserves_temporal_state_and_idempotency() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("compaction.kronroe");
+        let path_str = path.to_str().unwrap();
+        let jan = dt("2024-01-01T00:00:00Z");
+        let jun = dt("2024-06-01T00:00:00Z");
+
+        let fact_id = {
+            let db = TemporalGraph::open(path_str).unwrap();
+            let fact_id = db
+                .assert_fact_idempotent("evt-compaction", "alice", "works_at", "Acme", jan)
+                .unwrap();
+            db.invalidate_fact(&fact_id, jun).unwrap();
+            db.assert_fact("alice", "works_at", "TechCorp", jun)
+                .unwrap();
+
+            let pre_all: Vec<_> = db
+                .all_facts_about("alice")
+                .unwrap()
+                .into_iter()
+                .map(|fact| {
+                    (
+                        fact.id.to_string(),
+                        fact.object.to_string(),
+                        fact.valid_from,
+                    )
+                })
+                .collect();
+            let pre_current: Vec<_> = db
+                .current_facts("alice", "works_at")
+                .unwrap()
+                .into_iter()
+                .map(|fact| {
+                    (
+                        fact.id.to_string(),
+                        fact.object.to_string(),
+                        fact.valid_from,
+                    )
+                })
+                .collect();
+            let pre_at: Vec<_> = db
+                .facts_at("alice", "works_at", dt("2024-03-01T00:00:00Z"))
+                .unwrap()
+                .into_iter()
+                .map(|fact| {
+                    (
+                        fact.id.to_string(),
+                        fact.object.to_string(),
+                        fact.valid_from,
+                    )
+                })
+                .collect();
+
+            db.storage.compact().unwrap();
+
+            let post_all: Vec<_> = db
+                .all_facts_about("alice")
+                .unwrap()
+                .into_iter()
+                .map(|fact| {
+                    (
+                        fact.id.to_string(),
+                        fact.object.to_string(),
+                        fact.valid_from,
+                    )
+                })
+                .collect();
+            let post_current: Vec<_> = db
+                .current_facts("alice", "works_at")
+                .unwrap()
+                .into_iter()
+                .map(|fact| {
+                    (
+                        fact.id.to_string(),
+                        fact.object.to_string(),
+                        fact.valid_from,
+                    )
+                })
+                .collect();
+            let post_at: Vec<_> = db
+                .facts_at("alice", "works_at", dt("2024-03-01T00:00:00Z"))
+                .unwrap()
+                .into_iter()
+                .map(|fact| {
+                    (
+                        fact.id.to_string(),
+                        fact.object.to_string(),
+                        fact.valid_from,
+                    )
+                })
+                .collect();
+
+            assert_eq!(post_all, pre_all);
+            assert_eq!(post_current, pre_current);
+            assert_eq!(post_at, pre_at);
+            fact_id
+        };
+
+        let reopened = TemporalGraph::open(path_str).unwrap();
+        let reused = reopened
+            .assert_fact_idempotent("evt-compaction", "alice", "works_at", "Acme", jan)
+            .unwrap();
+        assert_eq!(reused, fact_id);
+        assert_eq!(
+            reopened.current_facts("alice", "works_at").unwrap().len(),
+            1
+        );
+        assert_eq!(
+            reopened.current_facts("alice", "works_at").unwrap()[0]
+                .object
+                .to_string(),
+            "TechCorp"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "vector")]
+    fn append_log_compaction_preserves_vector_search() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("compaction-vectors.kronroe");
+        let path_str = path.to_str().unwrap();
+        let now = Utc::now();
+
+        {
+            let db = TemporalGraph::open(path_str).unwrap();
+            db.assert_fact_with_embedding("alice", "interest", "Rust", now, vec![1.0, 0.0, 0.0])
+                .unwrap();
+            db.assert_fact_with_embedding("alice", "interest", "Python", now, vec![0.0, 1.0, 0.0])
+                .unwrap();
+            let pre: Vec<_> = db
+                .search_by_vector(&[1.0, 0.0, 0.0], 2, None)
+                .unwrap()
+                .into_iter()
+                .map(|(fact, score)| (fact.id.to_string(), score))
+                .collect();
+            db.storage.compact().unwrap();
+            let post: Vec<_> = db
+                .search_by_vector(&[1.0, 0.0, 0.0], 2, None)
+                .unwrap()
+                .into_iter()
+                .map(|(fact, score)| (fact.id.to_string(), score))
+                .collect();
+            assert_eq!(post, pre);
+        }
+
+        let reopened = TemporalGraph::open(path_str).unwrap();
+        let results = reopened
+            .search_by_vector(&[1.0, 0.0, 0.0], 2, None)
+            .unwrap();
+        assert_eq!(results.len(), 2);
+        assert!(
+            matches!(&results[0].0.object, Value::Text(s) if s == "Rust"),
+            "most similar fact after compaction should still be Rust"
+        );
+    }
+
+    #[test]
+    fn append_log_open_rejects_second_writer_in_same_process() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        let db = TemporalGraph::open(&path).unwrap();
+
+        match TemporalGraph::open(&path) {
+            Err(KronroeError::Storage(message)) => {
+                assert!(message.contains("already open for write"));
+            }
+            Err(error) => panic!("expected single-writer lock error, got {error:?}"),
+            Ok(_) => panic!("expected second writer open to fail"),
+        }
+
+        drop(db);
+    }
+
+    #[test]
+    fn append_log_writer_lock_releases_after_drop() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        {
+            let _db = TemporalGraph::open(&path).unwrap();
+        }
+        let reopened = TemporalGraph::open(&path).unwrap();
+        assert_eq!(
+            reopened.current_facts("alice", "works_at").unwrap().len(),
+            0
+        );
+    }
+
+    #[test]
+    fn append_log_in_memory_instances_are_independent() {
+        let db1 = TemporalGraph::open_in_memory().unwrap();
+        let db2 = TemporalGraph::open_in_memory().unwrap();
+
+        db1.assert_fact("alice", "works_at", "Acme", Utc::now())
+            .unwrap();
+        assert_eq!(db1.current_facts("alice", "works_at").unwrap().len(), 1);
+        assert_eq!(db2.current_facts("alice", "works_at").unwrap().len(), 0);
     }
 }

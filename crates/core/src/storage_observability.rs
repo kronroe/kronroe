@@ -16,6 +16,8 @@ pub(crate) enum StorageOperation {
     WriteFactWithEmbedding,
     #[cfg(feature = "vector")]
     EmbeddingRows,
+    #[cfg_attr(not(test), allow(dead_code))]
+    Compact,
     #[cfg(feature = "contradiction")]
     LoadPredicateRegistryEntries,
     #[cfg(feature = "contradiction")]
