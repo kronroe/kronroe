@@ -1218,6 +1218,8 @@
       .btn-export:disabled { opacity: 0.45; cursor: default; }
       .stream-visuals { border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 70%, var(--surface-2)); padding: 0.625rem 0.75rem; display: grid; gap: 0.65rem; }
       .viz-block { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 0.55rem 0.6rem; }
+      .graph-block { padding: 0; overflow: hidden; border-radius: 10px; border: 1.5px solid var(--border-hi); }
+      .playground-graph-container { width: 100%; height: 280px; background: var(--surface); }
       .viz-label { font-family: var(--mono); font-size: 0.56rem; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 0.4rem; }
       .temporal-rail { display: grid; gap: 0.35rem; }
       .rail-track { border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); height: 14px; position: relative; overflow: hidden; }
@@ -2065,6 +2067,11 @@
             </div>
           </div>
           <div class="stream">
+            <!-- ── Knowledge Graph ── -->
+            <div class="viz-block graph-block">
+              <div class="viz-label">KNOWLEDGE GRAPH</div>
+              <div id="playground-graph" class="playground-graph-container" role="img" aria-label="Interactive knowledge graph showing entities and their relationships"></div>
+            </div>
             <div class="stream-hdr">
               <div class="stream-hdr-left">
                 <div class="pip"></div>Fact stream

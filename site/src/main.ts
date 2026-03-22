@@ -3,6 +3,7 @@
 
 import './animations';
 import './hero-graph';
+import { initPlaygroundGraph, updatePlaygroundGraph, clearPlaygroundGraph, highlightNode } from './playground-graph';
 
 // ── WASM types ──────────────────────────────────────────────────────────────
 
@@ -304,6 +305,9 @@ async function init() {
   let railPoints: number[] = [];
   let railSelectedIndex = 0;
   let entitySortMode: "recent" | "alpha" = "recent";
+
+  // ── Init Cytoscape knowledge graph ─────────────────────────────────────────
+  initPlaygroundGraph("playground-graph");
 
   function isActiveFact(f: WasmFact): boolean {
     return f.valid_to === null && f.expired_at === null;
@@ -687,6 +691,7 @@ async function init() {
     exportBtn.disabled = facts.length === 0;
     renderEntityCards();
     updateRail();
+    updatePlaygroundGraph(allFacts);
     if (facts.length === 0) {
       showEmpty("No facts found.");
     } else {
@@ -918,6 +923,7 @@ async function init() {
     showEmpty("No facts yet.<br>Click a <strong>TRY</strong> chip or run the <strong>Time-travel demo</strong> to begin.");
     renderEntityCards();
     updateRail();
+    clearPlaygroundGraph();
   }
 
   clearBtn.addEventListener("click", () => {
@@ -994,6 +1000,9 @@ async function init() {
           streamBody.insertBefore(div, pivotRow);
         }
       }
+
+      // Highlight the queried entity in the knowledge graph
+      highlightNode(entity);
 
       const truncatedNote = facts.length > MAX_RENDER_FACTS
         ? ` Showing first ${MAX_RENDER_FACTS} results.`
