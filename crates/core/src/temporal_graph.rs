@@ -290,12 +290,8 @@ impl TemporalGraph {
     /// The file will be created if it does not exist. The `.kronroe`
     /// extension is conventional but not enforced.
     ///
-    /// This is the default Kronroe storage engine path and now uses the
+    /// This is the default Kronroe storage engine path and uses the
     /// append-log backend.
-    ///
-    /// Existing redb-backed `.kronroe` files are not auto-migrated on this
-    /// path. If you still have one, delete it and recreate it, or use the
-    /// explicit redb open path for internal testing and benchmarks.
     pub fn open(path: &str) -> Result<Self> {
         let storage = KronroeStorage::open(path)?;
         Self::init(storage)
@@ -306,34 +302,10 @@ impl TemporalGraph {
     /// Useful for WASM targets, testing, and ephemeral workloads where
     /// persistence is not needed. Data is lost when the instance is dropped.
     ///
-    /// This is the default in-memory Kronroe storage engine path and now uses
+    /// This is the default in-memory Kronroe storage engine path and uses
     /// the append-log backend.
     pub fn open_in_memory() -> Result<Self> {
         let storage = KronroeStorage::open_in_memory()?;
-        Self::init(storage)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn open_append_log(path: &str) -> Result<Self> {
-        let storage = KronroeStorage::open_append_log(path)?;
-        Self::init(storage)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn open_append_log_in_memory() -> Result<Self> {
-        let storage = KronroeStorage::open_append_log_in_memory()?;
-        Self::init(storage)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn open_redb(path: &str) -> Result<Self> {
-        let storage = KronroeStorage::open_redb(path)?;
-        Self::init(storage)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn open_redb_in_memory() -> Result<Self> {
-        let storage = KronroeStorage::open_redb_in_memory()?;
         Self::init(storage)
     }
 
@@ -341,7 +313,6 @@ impl TemporalGraph {
         let stored_version = storage.initialize_schema()?;
         match stored_version {
             v if v == SCHEMA_VERSION => {}
-            1 => storage.migrate_v1_to_v2()?,
             found => {
                 return Err(KronroeError::SchemaMismatch {
                     found,
@@ -1336,7 +1307,6 @@ impl TemporalGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use storage::{KronroeStorage, StoredFactRecord};
     use tempfile::NamedTempFile;
 
     fn open_temp_db() -> (TemporalGraph, NamedTempFile) {
@@ -1344,22 +1314,6 @@ mod tests {
         let path = file.path().to_str().unwrap().to_string();
         let db = TemporalGraph::open(&path).unwrap();
         (db, file)
-    }
-
-    fn open_temp_redb_db() -> (TemporalGraph, NamedTempFile) {
-        let file = NamedTempFile::new().unwrap();
-        let path = file.path().to_str().unwrap().to_string();
-        let db = TemporalGraph::open_redb(&path).unwrap();
-        (db, file)
-    }
-
-    fn seed_schema_v1_db(
-        path: &str,
-        facts: &[StoredFactRecord],
-        idempotency: &[(&str, &str)],
-        embeddings: &[(&str, &[f32])],
-    ) {
-        KronroeStorage::seed_schema_v1_file(path, facts, idempotency, embeddings).unwrap();
     }
 
     fn dt(s: &str) -> DateTime<Utc> {
@@ -2138,186 +2092,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn schema_version_is_stamped_and_mismatch_is_detected() {
-        let tmp = tempfile::tempdir().unwrap();
-        let path = tmp.path().join("versioned.kronroe");
-        let path_str = path.to_str().unwrap();
-
-        // Create — version should be stamped.
-        let _db = TemporalGraph::open_redb(path_str).unwrap();
-        drop(_db);
-
-        // Reopen — should succeed (version matches).
-        let _db2 = TemporalGraph::open_redb(path_str).unwrap();
-        drop(_db2);
-
-        // Tamper: write a future version to simulate a file written by a newer build.
-        {
-            KronroeStorage::write_schema_version_for_test(path_str, SCHEMA_VERSION + 1).unwrap();
-        }
-
-        // Opening should return SchemaMismatch, not silently corrupt data.
-        match TemporalGraph::open_redb(path_str) {
-            Err(KronroeError::SchemaMismatch { found, expected }) => {
-                assert_eq!(found, SCHEMA_VERSION + 1);
-                assert_eq!(expected, SCHEMA_VERSION);
-            }
-            Ok(_) => panic!("expected SchemaMismatch but open succeeded"),
-            Err(e) => panic!("expected SchemaMismatch but got: {e}"),
-        }
-    }
-
-    #[test]
-    fn opening_schema_v1_db_auto_migrates_fact_ids_and_preserves_idempotency() {
-        let tmp = tempfile::tempdir().unwrap();
-        let path = tmp.path().join("legacy-fact-ids.kronroe");
-        let path_str = path.to_str().unwrap();
-
-        let legacy_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
-        let valid_from = dt("2024-01-01T00:00:00Z");
-        let recorded_at = dt("2024-03-14T12:30:00Z");
-
-        seed_schema_v1_db(
-            path_str,
-            &[StoredFactRecord {
-                id: legacy_id.to_string(),
-                subject: "alice".to_string(),
-                predicate: "works_at".to_string(),
-                object: Value::Text("Acme".to_string()),
-                valid_from,
-                valid_to: None,
-                recorded_at,
-                expired_at: None,
-                confidence: 1.0,
-                source: Some("migration-test".to_string()),
-            }],
-            &[("evt-legacy", legacy_id)],
-            &[],
-        );
-
-        let db = TemporalGraph::open_redb(path_str).unwrap();
-        let facts = db.all_facts_about("alice").unwrap();
-        assert_eq!(facts.len(), 1);
-
-        let canonical_id = facts[0].id.clone();
-        assert!(canonical_id.as_str().starts_with("kf_"));
-        assert_eq!(canonical_id.as_str().len(), 29);
-        assert_ne!(canonical_id.as_str(), legacy_id);
-
-        let by_canonical = db.fact_by_id(&canonical_id).unwrap();
-        assert_eq!(by_canonical.id, canonical_id);
-        assert_eq!(by_canonical.source.as_deref(), Some("migration-test"));
-
-        match db.fact_by_id(legacy_id) {
-            Err(KronroeError::InvalidFactId(id)) => assert_eq!(id, legacy_id),
-            other => panic!("expected InvalidFactId for legacy id after migration, got {other:?}"),
-        }
-
-        let idempotent = db
-            .assert_fact_idempotent("evt-legacy", "alice", "works_at", "Acme", valid_from)
-            .unwrap();
-        assert_eq!(idempotent, canonical_id);
-
-        drop(db);
-
-        let reopened = TemporalGraph::open_redb(path_str).unwrap();
-        let reopened_fact = reopened.fact_by_id(&canonical_id).unwrap();
-        assert_eq!(reopened_fact.id, canonical_id);
-    }
-
-    #[test]
-    fn migrated_databases_require_canonical_ids_for_direct_id_ops() {
-        let tmp = tempfile::tempdir().unwrap();
-        let path = tmp.path().join("legacy-direct-id-ops.kronroe");
-        let path_str = path.to_str().unwrap();
-
-        let legacy_id = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
-        let valid_from = dt("2024-01-01T00:00:00Z");
-        let cutoff = dt("2024-06-01T00:00:00Z");
-
-        seed_schema_v1_db(
-            path_str,
-            &[StoredFactRecord {
-                id: legacy_id.to_string(),
-                subject: "alice".to_string(),
-                predicate: "works_at".to_string(),
-                object: Value::Text("Acme".to_string()),
-                valid_from,
-                valid_to: None,
-                recorded_at: dt("2024-03-14T12:30:00Z"),
-                expired_at: None,
-                confidence: 1.0,
-                source: None,
-            }],
-            &[],
-            &[],
-        );
-
-        let db = TemporalGraph::open_redb(path_str).unwrap();
-        let canonical_id = db.all_facts_about("alice").unwrap()[0].id.clone();
-
-        match db.invalidate_fact(legacy_id, cutoff) {
-            Err(KronroeError::InvalidFactId(id)) => assert_eq!(id, legacy_id),
-            other => panic!("expected InvalidFactId for legacy invalidate, got {other:?}"),
-        }
-        db.invalidate_fact(&canonical_id, cutoff).unwrap();
-        let invalidated = db.fact_by_id(&canonical_id).unwrap();
-        assert_eq!(invalidated.valid_to, Some(cutoff));
-        assert_eq!(invalidated.expired_at, Some(cutoff));
-
-        match db.correct_fact(legacy_id, "BetaCorp", cutoff) {
-            Err(KronroeError::InvalidFactId(id)) => assert_eq!(id, legacy_id),
-            other => panic!("expected InvalidFactId for legacy correct, got {other:?}"),
-        }
-
-        let replacement = db.correct_fact(&canonical_id, "BetaCorp", cutoff).unwrap();
-        assert!(replacement.as_str().starts_with("kf_"));
-        let replacement_fact = db.fact_by_id(&replacement).unwrap();
-        assert!(matches!(replacement_fact.object, Value::Text(ref text) if text == "BetaCorp"));
-    }
-
-    #[test]
-    #[cfg(feature = "vector")]
-    fn opening_schema_v1_db_migrates_embeddings_and_rebuilds_vector_index() {
-        let tmp = tempfile::tempdir().unwrap();
-        let path = tmp.path().join("legacy-embeddings.kronroe");
-        let path_str = path.to_str().unwrap();
-
-        let legacy_id = "01ARZ3NDEKTSV4RRFFQ69G5FAX";
-        seed_schema_v1_db(
-            path_str,
-            &[StoredFactRecord {
-                id: legacy_id.to_string(),
-                subject: "alice".to_string(),
-                predicate: "interest".to_string(),
-                object: Value::Text("Rust".to_string()),
-                valid_from: dt("2024-01-01T00:00:00Z"),
-                valid_to: None,
-                recorded_at: dt("2024-03-14T12:30:00Z"),
-                expired_at: None,
-                confidence: 1.0,
-                source: None,
-            }],
-            &[],
-            &[(legacy_id, &[1.0, 0.0])],
-        );
-
-        let db = TemporalGraph::open_redb(path_str).unwrap();
-        let migrated = db.all_facts_about("alice").unwrap().remove(0);
-        assert!(migrated.id.as_str().starts_with("kf_"));
-
-        match db.fact_by_id(legacy_id) {
-            Err(KronroeError::InvalidFactId(id)) => assert_eq!(id, legacy_id),
-            other => panic!("expected InvalidFactId for legacy id after migration, got {other:?}"),
-        }
-
-        let results = db.search_by_vector(&[1.0, 0.0], 5, None).unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].0.id, migrated.id);
-        assert!(matches!(&results[0].0.object, Value::Text(text) if text == "Rust"));
-    }
-
     // -- Contradiction detection integration tests ----------------------------
 
     #[cfg(feature = "contradiction")]
@@ -2456,7 +2230,7 @@ mod tests {
 
     #[test]
     fn assert_fact_with_confidence_persists() {
-        let (db, _tmp) = open_temp_redb_db();
+        let (db, _tmp) = open_temp_db();
         let now = Utc::now();
         let id = db
             .assert_fact_with_confidence("alice", "works_at", "Acme", now, 0.7)
@@ -2555,12 +2329,12 @@ mod tests {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
         {
-            let db = TemporalGraph::open_redb(&path).unwrap();
+            let db = TemporalGraph::open(&path).unwrap();
             db.register_predicate_volatility("works_at", PredicateVolatility::new(730.0))
                 .unwrap();
         }
         // Reopen — volatility should survive.
-        let db = TemporalGraph::open_redb(&path).unwrap();
+        let db = TemporalGraph::open(&path).unwrap();
         let fact = db
             .assert_fact("alice", "works_at", "Acme", Utc::now())
             .unwrap();
@@ -2582,11 +2356,11 @@ mod tests {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
         {
-            let db = TemporalGraph::open_redb(&path).unwrap();
+            let db = TemporalGraph::open(&path).unwrap();
             db.register_source_weight("user:owner", SourceWeight::new(1.5))
                 .unwrap();
         }
-        let db = TemporalGraph::open_redb(&path).unwrap();
+        let db = TemporalGraph::open(&path).unwrap();
         let id = db
             .assert_fact_with_source("alice", "works_at", "Acme", Utc::now(), 0.8, "user:owner")
             .unwrap();
@@ -2630,13 +2404,13 @@ mod tests {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
         {
-            let db = TemporalGraph::open_redb(&path).unwrap();
+            let db = TemporalGraph::open(&path).unwrap();
             db.storage
                 .write_volatility_registry_entry("broken", "not-json")
                 .unwrap();
         }
 
-        match TemporalGraph::open_redb(&path) {
+        match TemporalGraph::open(&path) {
             Err(KronroeError::Storage(msg)) => {
                 assert!(msg.contains("invalid volatility registry"));
             }
@@ -2653,13 +2427,13 @@ mod tests {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
         {
-            let db = TemporalGraph::open_redb(&path).unwrap();
+            let db = TemporalGraph::open(&path).unwrap();
             db.storage
                 .write_source_weight_registry_entry("trusted-api", "not-json")
                 .unwrap();
         }
 
-        match TemporalGraph::open_redb(&path) {
+        match TemporalGraph::open(&path) {
             Err(KronroeError::Storage(msg)) => {
                 assert!(msg.contains("invalid source-weight registry"));
             }
@@ -2676,13 +2450,13 @@ mod tests {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
         {
-            let db = TemporalGraph::open_redb(&path).unwrap();
+            let db = TemporalGraph::open(&path).unwrap();
             db.storage
                 .write_predicate_registry_entry("works_at", "not-json")
                 .unwrap();
         }
 
-        match TemporalGraph::open_redb(&path) {
+        match TemporalGraph::open(&path) {
             Err(KronroeError::Storage(msg)) => {
                 assert!(msg.contains("invalid predicate registry"));
             }
@@ -2694,8 +2468,8 @@ mod tests {
     }
 
     #[test]
-    fn append_log_backend_supports_basic_graph_flow() {
-        let db = TemporalGraph::open_append_log_in_memory().unwrap();
+    fn default_backend_supports_basic_graph_flow() {
+        let db = TemporalGraph::open_in_memory().unwrap();
         let now = Utc::now();
 
         let id = db.assert_fact("alice", "works_at", "Acme", now).unwrap();
@@ -2706,20 +2480,20 @@ mod tests {
     }
 
     #[test]
-    fn append_log_backend_supports_idempotent_reopen_flow() {
+    fn default_backend_supports_idempotent_reopen_flow() {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
         let now = Utc::now();
 
         {
-            let db = TemporalGraph::open_append_log(&path).unwrap();
+            let db = TemporalGraph::open(&path).unwrap();
             let id = db
                 .assert_fact_idempotent("evt-append", "alice", "works_at", "Acme", now)
                 .unwrap();
             assert_eq!(db.fact_by_id(&id).unwrap().subject, "alice");
         }
 
-        let reopened = TemporalGraph::open_append_log(&path).unwrap();
+        let reopened = TemporalGraph::open(&path).unwrap();
         let reused = reopened
             .assert_fact_idempotent("evt-append", "alice", "works_at", "Acme", now)
             .unwrap();
@@ -2733,37 +2507,37 @@ mod tests {
 
     #[cfg(feature = "contradiction")]
     #[test]
-    fn append_log_predicate_registry_persists_across_reopen() {
+    fn predicate_registry_persists_across_reopen() {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
 
         {
-            let db = TemporalGraph::open_append_log(&path).unwrap();
+            let db = TemporalGraph::open(&path).unwrap();
             db.register_singleton_predicate("works_at", ConflictPolicy::Warn)
                 .unwrap();
         }
 
-        let reopened = TemporalGraph::open_append_log(&path).unwrap();
+        let reopened = TemporalGraph::open(&path).unwrap();
         assert!(reopened.is_singleton_predicate("works_at").unwrap());
     }
 
     #[cfg(feature = "uncertainty")]
     #[test]
-    fn append_log_uncertainty_registries_persist_across_reopen() {
+    fn uncertainty_registries_persist_across_reopen() {
         use crate::{PredicateVolatility, SourceWeight};
 
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
 
         {
-            let db = TemporalGraph::open_append_log(&path).unwrap();
+            let db = TemporalGraph::open(&path).unwrap();
             db.register_predicate_volatility("works_at", PredicateVolatility::new(730.0))
                 .unwrap();
             db.register_source_weight("user:owner", SourceWeight::new(1.5))
                 .unwrap();
         }
 
-        let reopened = TemporalGraph::open_append_log(&path).unwrap();
+        let reopened = TemporalGraph::open(&path).unwrap();
         let volatility = reopened.predicate_volatility("works_at").unwrap();
         assert_eq!(
             volatility
@@ -2790,14 +2564,14 @@ mod tests {
         let now = Utc::now();
 
         {
-            let db = TemporalGraph::open_append_log(path_str).unwrap();
+            let db = TemporalGraph::open(path_str).unwrap();
             db.assert_fact_with_embedding("alice", "interest", "Rust", now, vec![1.0, 0.0, 0.0])
                 .unwrap();
             db.assert_fact_with_embedding("alice", "interest", "Python", now, vec![0.0, 1.0, 0.0])
                 .unwrap();
         }
 
-        let reopened = TemporalGraph::open_append_log(path_str).unwrap();
+        let reopened = TemporalGraph::open(path_str).unwrap();
         let results = reopened
             .search_by_vector(&[1.0, 0.0, 0.0], 2, None)
             .unwrap();

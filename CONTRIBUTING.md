@@ -143,7 +143,7 @@ Kronroe is split into layered crates:
 ```
 kronroe-agent-memory   ← high-level AgentMemory API
         ↓
-   kronroe (core)      ← TemporalGraph, bi-temporal storage, redb
+   kronroe (core)      ← TemporalGraph, bi-temporal storage, append-log backend
 ```
 
 Future crates (`crates/python/`, `crates/ios/`, etc.) layer on top of `kronroe` core.

@@ -48,7 +48,7 @@ Pure Rust. No C dependencies in the core engine.
 
 | Layer | Crate | Notes |
 |---|---|---|
-| Key-value storage | [`redb`](https://github.com/cberner/redb) | Pure Rust ACID B-tree CoW |
+| Storage engine | `crates/core/src/storage_append_log.rs` | Kronroe append-log backend |
 | Full-text search | Kronroe lexical engine | BM25 + fuzzy matching (`feature: fulltext`) |
 | Vector search | `crates/core/src/vector.rs` | Flat cosine similarity + temporal filtering (`feature: vector`) |
 | Python bindings | `crates/python` | `PyO3` bindings for core + agent memory |

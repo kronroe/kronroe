@@ -256,7 +256,7 @@ pub(crate) fn detect_pairwise(a: &Fact, b: &Fact) -> Option<Contradiction> {
 
 /// In-memory predicate registry that drives contradiction detection.
 ///
-/// Loaded from redb on init, kept in sync by `register_singleton_predicate`.
+/// Loaded from storage on init, kept in sync by `register_singleton_predicate`.
 pub(crate) struct ContradictionDetector {
     registry: HashMap<String, PredicateCardinality>,
     policies: HashMap<String, ConflictPolicy>,

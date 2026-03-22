@@ -5,7 +5,6 @@ use std::time::Duration;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub(crate) enum StorageOperation {
     InitializeSchema,
-    MigrateV1ToV2,
     ScanFacts,
     WriteFact,
     ReplaceFactRow,

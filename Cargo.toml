@@ -18,9 +18,6 @@ authors = ["Rebekah Cole <becky.cole@kindlyroe.com>"]
 repository = "https://github.com/kronroe/kronroe"
 
 [workspace.dependencies]
-# Storage
-redb = "3.1"
-
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -44,7 +41,7 @@ tempfile = "3"
 
 # --- Release profile ---------------------------------------------------
 # Optimise for binary size across all crates.  Kronroe is a library /
-# embedded engine — hot paths are I/O-bound (redb), not CPU-bound, so
+# embedded engine — hot paths are I/O-bound, not CPU-bound, so
 # opt-level "z" is the right trade-off.  LTO + codegen-units=1 give the
 # linker maximum dead-code-elimination visibility.
 #
