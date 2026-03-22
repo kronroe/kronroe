@@ -38,6 +38,11 @@ site/dist/
 site/node_modules/
 site/public/pkg/
 
+# Docs (VitePress) build artifacts
+site/docs/.vitepress/dist/
+site/docs/.vitepress/cache/
+site/docs/node_modules/
+
 # Private ideas / future phases (not for public repo)
 .ideas/
 
