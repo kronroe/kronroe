@@ -69,8 +69,6 @@ kronroe/
 │   ├── wasm/           # kronroe-wasm — WebAssembly bindings (in-memory)
 │   ├── ios/            # kronroe-ios — C FFI staticlib + Swift Package
 │   └── android/        # kronroe-android — JNI cdylib + Kotlin wrapper
-├── packages/
-│   └── kronroe-mcp/    # npm shim — npx kronroe-mcp
 ├── python/
 │   └── kronroe-mcp/    # pip shim — kronroe-mcp CLI entry point
 └── docs/
@@ -97,7 +95,10 @@ Add to your MCP client config:
 }
 ```
 
-The server exposes eight tools: `remember`, `recall`, `recall_scored`, `assemble_context`, `facts_about`, `assert_fact`, `correct_fact`, `invalidate_fact`.
+The native `kronroe-mcp` binary is the supported MCP runtime. The server exposes
+11 tools: `remember`, `recall`, `recall_scored`, `assemble_context`,
+`facts_about`, `assert_fact`, `correct_fact`, `invalidate_fact`,
+`what_changed`, `memory_health`, `recall_for_task`.
 
 ### Python
 
@@ -141,7 +142,7 @@ For stability guarantees and compatibility expectations across features/surfaces
 | Atomic fact + embedding write transaction | `assert_fact_with_embedding` in core | see vector durability/error tests in core suite |
 | Idempotent writes (`assert_fact_idempotent`) | core + agent-memory wrappers | `cargo test -p kronroe idempotent --all-features` |
 | `AgentMemory` API surface (`remember`, `recall`, `recall_scored`, `assemble_context`, confidence + source assertions) | `crates/agent-memory/src/agent_memory.rs` | `cargo test -p kronroe-agent-memory --all-features` |
-| MCP server (11 tools) + npm/pip shims | `crates/mcp-server`, `packages/kronroe-mcp`, `python/kronroe-mcp` | `cargo test -p kronroe-mcp` |
+| MCP server (11 tools) + Python shim | `crates/mcp-server`, `python/kronroe-mcp` | `cargo test -p kronroe-mcp` |
 | Python bindings (`KronroeDb`, `AgentMemory`) | `crates/python/src/python_bindings.rs` | `cargo build -p kronroe-py` + `./crates/python/scripts/run_runtime_smoke.sh` |
 | iOS package artifacts + behavior tests | `crates/ios` | `cargo test -p kronroe-ios` and `./crates/ios/scripts/run-swift-tests.sh` |
 | WASM bindings (in-memory engine, no persistent file backend) | `crates/wasm/src/wasm_bindings.rs` | `cargo build -p kronroe-wasm` |

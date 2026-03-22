@@ -2,6 +2,9 @@
 
 Python CLI wrapper for the Rust `kronroe-mcp` MCP server.
 
+This wrapper is intentionally thin. The supported MCP runtime is the native
+Rust `kronroe-mcp` binary; this package only resolves and launches that binary.
+
 ## Install
 
 ```bash

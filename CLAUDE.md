@@ -29,8 +29,6 @@ kronroe/
 │   ├── mcp-server/     # `kronroe-mcp` binary — stdio MCP server (11 tools)
 │   ├── python/         # `kronroe-py` crate — PyO3 bindings
 │   └── wasm/           # `kronroe-wasm` crate — WebAssembly bindings (browser)
-├── packages/
-│   └── kronroe-mcp/    # npm shim — delegates to `kronroe-mcp` binary on PATH
 ├── python/
 │   └── kronroe-mcp/    # pip shim — `kronroe-mcp` CLI entry point, delegates to binary
 ├── .github/
@@ -247,7 +245,6 @@ Future crates will layer on top.
   - `recall_for_task` (decision-ready recall context scoped to a task)
 - Database path: `KRONROE_MCP_DB_PATH` env var (default: `./kronroe-mcp.kronroe`)
 - Install binary: `cargo install --path crates/mcp-server`
-- **npm shim** (`packages/kronroe-mcp`): `npx kronroe-mcp` — delegates to binary on PATH
 - **pip shim** (`python/kronroe-mcp`): `pip install .` then `kronroe-mcp`; respects
   `KRONROE_MCP_BIN` env var to point at a custom binary location
 - Feature flags: `hybrid` (temporal intent + hybrid recall), `uncertainty` (effective confidence in scores)

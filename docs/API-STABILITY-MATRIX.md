@@ -1,7 +1,7 @@
 # API Stability Matrix and Compatibility Policy
 
-Last updated: 2026-03-19
-Applies to: `kronroe` workspace `0.2.x`
+Last updated: 2026-03-22
+Applies to: `kronroe` workspace `0.3.x`
 
 Kronroe is still early-stage software, but this document defines which surfaces are safe to build against, which are still evolving, and how compatibility changes are handled.
 
@@ -42,7 +42,7 @@ Kronroe is still early-stage software, but this document defines which surfaces 
 
 | API surface | Gate | Level | Notes |
 |---|---|---|---|
-| Tool names and JSON-RPC framing (`remember`, `recall`, `recall_scored`, `assemble_context`, `facts_about`, `assert_fact`, `correct_fact`, `invalidate_fact`, `what_changed`, `memory_health`, `recall_for_task`) | base | `Stable` | Main integration surface for AI agents (11 tools). |
+| Tool names and JSON-RPC framing (`remember`, `recall`, `recall_scored`, `assemble_context`, `facts_about`, `assert_fact`, `correct_fact`, `invalidate_fact`, `what_changed`, `memory_health`, `recall_for_task`) | base | `Stable` | Main integration surface for AI agents (11 tools). Canonical contract note: `docs/STABLE-AGENT-MEMORY-CONTRACT.md`. |
 | Core tool arguments (`query`, `limit`, `fact_id`, etc.) | base | `Stable` | Additive fields may be introduced without breaking existing calls. `fact_id` now uses Kronroe Fact IDs (`kf_...`). |
 | Hybrid recall options (`query_embedding`, `use_hybrid`, temporal intent/operator) | `hybrid` | `Experimental` | Feature-gated and may evolve. |
 | Effective-confidence filtering (`confidence_filter_mode=effective`) | `uncertainty` | `Preview` | Depends on uncertainty model evolution. |
@@ -52,7 +52,7 @@ Kronroe is still early-stage software, but this document defines which surfaces 
 | API surface | Gate | Level | Notes |
 |---|---|---|---|
 | `KronroeDb` and `AgentMemory` class method names | base | `Stable` | Intended for prototyping and production integration. |
-| Core/agent method keyword signatures (for shipped methods) | base | `Stable` | Changes should be additive where possible. `fact_id` values now use Kronroe Fact IDs (`kf_...`). |
+| Core/agent method keyword signatures (for shipped methods) | base | `Stable` | Changes should be additive where possible. `fact_id` values now use Kronroe Fact IDs (`kf_...`). Canonical contract note: `docs/STABLE-AGENT-MEMORY-CONTRACT.md`. |
 | Hybrid controls in `recall_scored` | `hybrid` | `Experimental` | Mirrors experimental hybrid path. |
 | Effective-confidence filtering in `recall_scored` | `uncertainty` | `Preview` | Mirrors preview uncertainty path. |
 | Test/build mode toggles (`python-runtime-tests`) | build/test | `Internal` | Not part of user-facing API contract. |
@@ -61,7 +61,7 @@ Kronroe is still early-stage software, but this document defines which surfaces 
 
 | API surface | Gate | Level | Notes |
 |---|---|---|---|
-| In-memory temporal CRUD/query/invalidate bindings | base (no fulltext) | `Preview` | Usable, but still narrower than native surfaces. |
+| In-memory temporal CRUD/query/invalidate bindings | base (no fulltext) | `Preview` | Usable, but still narrower than native surfaces. Stable overlap with MCP/Python is pinned in `docs/STABLE-AGENT-MEMORY-CONTRACT.md`. |
 
 ### iOS / Android (`crates/ios`, `crates/android`)
 
@@ -86,15 +86,21 @@ Kronroe is still early-stage software, but this document defines which surfaces 
 
 ### 1) Versioning rules
 
-- Kronroe is currently pre-`1.0` (`0.2.x`), so some evolution is expected.
-- For APIs marked `Stable`, patch releases (`0.2.z`) should remain backward compatible.
-- For APIs marked `Stable`, breaking changes may occur only in a new minor line (`0.3`, `0.4`, etc.) and must include migration guidance.
+- Kronroe is currently pre-`1.0` (`0.3.x`), so some evolution is expected.
+- For APIs marked `Stable`, patch releases (`0.3.z`) should remain backward compatible.
+- For APIs marked `Stable`, breaking changes may occur only in a new minor line (`0.4`, `0.5`, etc.) and must include migration guidance.
 
 ### 1a) Fact ID migration note
 
 - `fact_id` is a `Stable` surface, but `0.2.0` introduces the first Kronroe-native Fact ID format: `kf_` + 26 sortable base32 characters.
 - Opening a schema-v1 database auto-migrates stored fact IDs to the new canonical `kf_...` format.
 - Newly returned IDs are always canonical `kf_...` values, and old pre-`0.2.0` IDs are not accepted after migration.
+
+### 1b) MCP packaging note
+
+- `0.3.0` removes the published npm/Node MCP launcher from the supported product surface.
+- The native Rust `kronroe-mcp` binary is now the only supported MCP runtime.
+- The Python `kronroe-mcp` package remains supported as a thin launcher to the native binary.
 
 ### 2) Change management rules
 

@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0",
+  "canonical_surface": "mcp_json",
+  "policy": {
+    "locked_fields_only": true,
+    "additive_only_evolution": true,
+    "fact_id_prefix": "kf_"
+  },
+  "surfaces": {
+    "mcp": [
+      "recall_scored",
+      "assemble_context",
+      "what_changed",
+      "memory_health",
+      "assert_fact",
+      "correct_fact",
+      "invalidate_fact"
+    ],
+    "python": [
+      "recall_scored",
+      "assemble_context",
+      "what_changed",
+      "memory_health",
+      "assert_fact",
+      "correct_fact",
+      "invalidate_fact"
+    ],
+    "wasm": [
+      "recall_scored",
+      "assert_fact",
+      "correct_fact",
+      "invalidate_fact"
+    ]
+  },
+  "methods": {
+    "assert_fact": {
+      "fact_id_prefix": "kf_"
+    },
+    "correct_fact": {
+      "result_field": "new_fact_id",
+      "fact_id_prefix": "kf_"
+    },
+    "invalidate_fact": {
+      "result_field": "fact_id",
+      "fact_id_prefix": "kf_"
+    },
+    "recall_scored": {
+      "required_row_keys": ["fact", "score"],
+      "fact_required_keys": ["id", "subject", "predicate", "object"],
+      "score_required_keys": ["type", "confidence", "effective_confidence"],
+      "allowed_score_types": ["text", "hybrid"]
+    },
+    "assemble_context": {
+      "required_substrings": ["alice", "Acme"]
+    },
+    "what_changed": {
+      "required_report_keys": [
+        "new_facts",
+        "invalidated_facts",
+        "corrections",
+        "confidence_shifts"
+      ],
+      "required_agent_brief_keys": [
+        "schema_version",
+        "decision_mode",
+        "recommended_action_id",
+        "automation_ready"
+      ],
+      "required_error_substring": "since must be RFC3339"
+    },
+    "memory_health": {
+      "required_report_keys": [
+        "total_fact_count",
+        "low_confidence_facts",
+        "stale_high_impact_facts"
+      ],
+      "required_agent_brief_keys": [
+        "schema_version",
+        "decision_mode",
+        "recommended_action_id",
+        "automation_ready"
+      ],
+      "required_error_substring": "low_confidence_threshold"
+    }
+  }
+}

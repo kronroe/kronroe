@@ -13,8 +13,8 @@ on:
       - "crates/mcp-server/**"
       - "crates/python/**"
       - "crates/wasm/**"
-      - "packages/kronroe-mcp/**"
       - "python/kronroe-mcp/**"
+      - "contracts/**"
       - "scripts/wrapper_smoke.py"
       - "scripts/hybrid_stage3_gate.py"
       - "site/**"
@@ -32,8 +32,8 @@ on:
       - "crates/mcp-server/**"
       - "crates/python/**"
       - "crates/wasm/**"
-      - "packages/kronroe-mcp/**"
       - "python/kronroe-mcp/**"
+      - "contracts/**"
       - "scripts/wrapper_smoke.py"
       - "scripts/hybrid_stage3_gate.py"
       - "site/**"
@@ -88,8 +88,8 @@ jobs:
               - 'crates/core/**'
               - 'crates/agent-memory/**'
               - 'crates/mcp-server/**'
-              - 'packages/kronroe-mcp/**'
               - 'python/kronroe-mcp/**'
+              - 'contracts/**'
               - 'scripts/wrapper_smoke.py'
               - 'scripts/hybrid_stage3_gate.py'
               - '.github/workflows/ci.yml'
@@ -241,11 +241,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -257,9 +252,6 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
 
-      - name: Syntax-check npm wrapper
-        run: node --check packages/kronroe-mcp/bin/kronroe-mcp.js
-
       - name: Syntax-check Python wrapper
         run: python3 -c "import ast, sys; ast.parse(open(sys.argv[1]).read())" python/kronroe-mcp/src/kronroe_mcp/cli.py
 
@@ -269,16 +261,12 @@ jobs:
       - name: Prepare wrapper smoke logs
         run: mkdir -p wrapper-smoke-logs
 
-      - name: Hybrid smoke via npm wrapper
-        run: python3 scripts/wrapper_smoke.py --wrapper npm --binary target/debug/kronroe-mcp --summary-out wrapper-smoke-logs/npm-wrapper-smoke.json 2>&1 | tee wrapper-smoke-logs/npm-wrapper-smoke.log
-
       - name: Hybrid smoke via Python wrapper
         run: python3 scripts/wrapper_smoke.py --wrapper python --binary target/debug/kronroe-mcp --summary-out wrapper-smoke-logs/python-wrapper-smoke.json 2>&1 | tee wrapper-smoke-logs/python-wrapper-smoke.log
 
       - name: Stage 3 wrapper gate decision
         run: |
           python3 scripts/hybrid_stage3_gate.py \
-            --input wrapper-smoke-logs/npm-wrapper-smoke.json \
             --input wrapper-smoke-logs/python-wrapper-smoke.json \
             --output wrapper-smoke-logs/stage3-wrapper-gate.json \
             --max-duration-ms 5000 \
