@@ -7,8 +7,8 @@ Status: Historical comparison note
 ## Summary
 
 This note recorded the first side-by-side benchmark comparison between the
-legacy storage backend and the experimental Kronroe append-log backend during
-Phase 3 of the storage replacement.
+legacy storage backend, which is no longer shipped, and the experimental
+Kronroe append-log backend during Phase 3 of the storage replacement.
 
 It existed to answer one question: was the append-log direction materially
 better on real Kronroe workloads before the default backend was switched?
@@ -50,4 +50,5 @@ default.
 
 This is now a historical engineering note. It explains why the project moved
 from “prototype both paths” to “make append-log the default,” but it should not
-be read as an active dual-backend strategy.
+be read as an active dual-backend strategy or as evidence that the legacy
+backend remains supported.

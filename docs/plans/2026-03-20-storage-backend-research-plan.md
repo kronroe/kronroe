@@ -9,7 +9,7 @@ Status: Historical design note
 This note captured the research and design path toward a fully Kronroe-owned
 storage engine and file format.
 
-The plan it described has now largely played out:
+The plan it described has now been completed in the shipped runtime:
 
 1. define a Kronroe storage contract
 2. add observability and benchmark workloads
@@ -76,4 +76,4 @@ dependency replacement work:
 
 This file remains as historical context for why the storage work happened in
 stages. It should not be read as an active proposal to preserve legacy backend
-support.
+support, because the legacy backend removal is now complete.
