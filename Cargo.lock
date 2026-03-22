@@ -320,7 +320,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "getrandom 0.3.4",
@@ -334,7 +334,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe-agent-memory"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -347,7 +347,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe-android"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "jni",
@@ -358,7 +358,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe-ios"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "kronroe",
@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe-mcp"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -380,19 +380,20 @@ dependencies = [
 
 [[package]]
 name = "kronroe-py"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "kronroe",
  "kronroe-agent-memory",
  "pyo3",
  "pyo3-build-config",
+ "serde_json",
  "tempfile",
 ]
 
 [[package]]
 name = "kronroe-wasm"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "getrandom 0.2.17",

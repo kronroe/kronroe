@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-03-22
+
+- Bumped the workspace and published package metadata to `0.3.0`.
+- Locked the stable cross-surface agent-memory contract with shared MCP/Python/WASM fixtures and conformance tests.
+- Removed the npm/Node MCP wrapper from the supported product surface and standardized on the native `kronroe-mcp` binary.
+
 ## 2026-03-19
 
 - Replaced the old third-party full-text engine with the Kronroe lexical engine in core search and hybrid retrieval.

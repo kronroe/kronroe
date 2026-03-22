@@ -1795,6 +1795,31 @@ mod tests {
             .expect("recall tool schema properties should exist")
     }
 
+    fn stable_contract_fixture() -> JsonValue {
+        serde_json::from_str(include_str!("../../../contracts/stable-agent-memory.json"))
+            .expect("stable contract fixture should parse")
+    }
+
+    fn fixture_strings(value: &JsonValue) -> Vec<String> {
+        value
+            .as_array()
+            .expect("fixture value should be an array")
+            .iter()
+            .map(|entry| {
+                entry
+                    .as_str()
+                    .expect("fixture array entry should be a string")
+                    .to_string()
+            })
+            .collect()
+    }
+
+    fn assert_has_keys(value: &JsonValue, keys: &[String]) {
+        for key in keys {
+            assert!(value.get(key).is_some(), "missing required key {key}");
+        }
+    }
+
     #[test]
     fn remember_then_recall_returns_facts() {
         let mut state = temp_state();
@@ -2995,5 +3020,299 @@ mod tests {
         let mut cursor = Cursor::new(Vec::<u8>::new());
         let result = read_message(&mut cursor).unwrap();
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn stable_contract_fact_id_fields_match_fixture() {
+        let fixture = stable_contract_fixture();
+        let fact_prefix = fixture["methods"]["assert_fact"]["fact_id_prefix"]
+            .as_str()
+            .expect("fact_id prefix");
+        let correct_field = fixture["methods"]["correct_fact"]["result_field"]
+            .as_str()
+            .expect("correct result field");
+
+        let mut state = temp_state();
+        let asserted = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme"
+                }
+            })),
+        )
+        .expect("assert_fact");
+        let fact_id = asserted["structuredContent"]["fact_id"]
+            .as_str()
+            .expect("fact_id");
+        assert!(fact_id.starts_with(fact_prefix));
+
+        let corrected = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "correct_fact",
+                "arguments": { "fact_id": fact_id, "new_value": "Globex" }
+            })),
+        )
+        .expect("correct_fact");
+        let new_fact_id = corrected["structuredContent"][correct_field]
+            .as_str()
+            .expect("new_fact_id");
+        assert!(new_fact_id.starts_with(fact_prefix));
+        assert_ne!(new_fact_id, fact_id);
+
+        let invalidated = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "invalidate_fact",
+                "arguments": { "fact_id": new_fact_id }
+            })),
+        )
+        .expect("invalidate_fact");
+        let invalidated_id = invalidated["structuredContent"]["fact_id"]
+            .as_str()
+            .expect("invalidate_fact fact_id");
+        assert_eq!(invalidated_id, new_fact_id);
+    }
+
+    #[test]
+    fn stable_contract_recall_scored_matches_fixture() {
+        let fixture = stable_contract_fixture();
+        let required_row_keys =
+            fixture_strings(&fixture["methods"]["recall_scored"]["required_row_keys"]);
+        let fact_required_keys =
+            fixture_strings(&fixture["methods"]["recall_scored"]["fact_required_keys"]);
+        let score_required_keys =
+            fixture_strings(&fixture["methods"]["recall_scored"]["score_required_keys"]);
+        let allowed_score_types =
+            fixture_strings(&fixture["methods"]["recall_scored"]["allowed_score_types"]);
+
+        let mut state = temp_state();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "remember",
+                "arguments": { "text": "alice works at Acme" }
+            })),
+        )
+        .expect("remember");
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall_scored",
+                "arguments": { "query": "alice", "limit": 10 }
+            })),
+        )
+        .expect("recall_scored");
+        let rows = out["structuredContent"]["results"]
+            .as_array()
+            .expect("results array");
+        assert!(!rows.is_empty());
+        let row = &rows[0];
+        assert_has_keys(row, &required_row_keys);
+        assert_has_keys(&row["fact"], &fact_required_keys);
+        assert_has_keys(&row["score"], &score_required_keys);
+
+        let fact_id = row["fact"]["id"].as_str().expect("fact id");
+        assert!(fact_id.starts_with(
+            fixture["policy"]["fact_id_prefix"]
+                .as_str()
+                .expect("fact_id prefix")
+        ));
+        let score_type = row["score"]["type"].as_str().expect("score type");
+        assert!(allowed_score_types
+            .iter()
+            .any(|allowed| allowed == score_type));
+    }
+
+    #[test]
+    fn stable_contract_assemble_context_matches_fixture() {
+        let fixture = stable_contract_fixture();
+        let required_substrings =
+            fixture_strings(&fixture["methods"]["assemble_context"]["required_substrings"]);
+
+        let mut state = temp_state();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "remember",
+                "arguments": { "text": "alice works at Acme" }
+            })),
+        )
+        .expect("remember");
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assemble_context",
+                "arguments": { "query": "Where does alice work?", "max_tokens": 64 }
+            })),
+        )
+        .expect("assemble_context");
+
+        let context = out["structuredContent"]["context"]
+            .as_str()
+            .expect("context string")
+            .to_lowercase();
+        for needle in required_substrings {
+            assert!(
+                context.contains(&needle.to_lowercase()),
+                "context should contain {needle}"
+            );
+        }
+    }
+
+    #[test]
+    fn stable_contract_what_changed_matches_fixture() {
+        let fixture = stable_contract_fixture();
+        let report_keys =
+            fixture_strings(&fixture["methods"]["what_changed"]["required_report_keys"]);
+        let brief_keys =
+            fixture_strings(&fixture["methods"]["what_changed"]["required_agent_brief_keys"]);
+        let error_substring = fixture["methods"]["what_changed"]["required_error_substring"]
+            .as_str()
+            .expect("what_changed error substring");
+
+        let mut state = temp_state();
+        let first = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme"
+                }
+            })),
+        )
+        .expect("assert_fact");
+        let first_id = first["structuredContent"]["fact_id"]
+            .as_str()
+            .expect("first fact_id");
+        let since = Utc::now().to_rfc3339();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "invalidate_fact",
+                "arguments": { "fact_id": first_id }
+            })),
+        )
+        .expect("invalidate_fact");
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Beta Corp",
+                    "confidence": 0.6
+                }
+            })),
+        )
+        .expect("assert replacement");
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "what_changed",
+                "arguments": {
+                    "entity": "alice",
+                    "since": since,
+                    "predicate": "works_at"
+                }
+            })),
+        )
+        .expect("what_changed");
+        assert_has_keys(&out["structuredContent"]["report"], &report_keys);
+        assert_has_keys(&out["structuredContent"]["agent_brief"], &brief_keys);
+
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "what_changed",
+                "arguments": { "entity": "alice", "since": "not-a-date" }
+            })),
+        )
+        .expect_err("invalid since should fail")
+        .to_string();
+        assert!(err.contains(error_substring));
+    }
+
+    #[test]
+    fn stable_contract_memory_health_matches_fixture() {
+        let fixture = stable_contract_fixture();
+        let report_keys =
+            fixture_strings(&fixture["methods"]["memory_health"]["required_report_keys"]);
+        let brief_keys =
+            fixture_strings(&fixture["methods"]["memory_health"]["required_agent_brief_keys"]);
+        let error_substring = fixture["methods"]["memory_health"]["required_error_substring"]
+            .as_str()
+            .expect("memory_health error substring");
+        let old = (Utc::now() - chrono::Duration::days(200)).to_rfc3339();
+
+        let mut state = temp_state();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "nickname",
+                    "object": "Bex",
+                    "confidence": 0.4,
+                    "valid_from": old
+                }
+            })),
+        )
+        .expect("assert nickname");
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "email",
+                    "object": "alice@example.com",
+                    "confidence": 0.9,
+                    "valid_from": old
+                }
+            })),
+        )
+        .expect("assert email");
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "memory_health",
+                "arguments": {
+                    "entity": "alice",
+                    "low_confidence_threshold": 0.7,
+                    "stale_after_days": 90
+                }
+            })),
+        )
+        .expect("memory_health");
+        assert_has_keys(&out["structuredContent"]["report"], &report_keys);
+        assert_has_keys(&out["structuredContent"]["agent_brief"], &brief_keys);
+
+        let err = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "memory_health",
+                "arguments": {
+                    "entity": "alice",
+                    "low_confidence_threshold": 1.5,
+                    "stale_after_days": 90
+                }
+            })),
+        )
+        .expect_err("invalid threshold should fail")
+        .to_string();
+        assert!(err.contains(error_substring));
     }
 }

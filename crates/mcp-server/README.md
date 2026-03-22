@@ -51,5 +51,5 @@ export KRONROE_MCP_DB_PATH=/path/to/memory.kronroe
 
 ## Distribution wrappers
 
-- npm wrapper (`npx kronroe-mcp`): `packages/kronroe-mcp/`
+- Native binary (`kronroe-mcp`): supported MCP runtime
 - Python wrapper (`pip install kronroe-mcp`): `python/kronroe-mcp/`

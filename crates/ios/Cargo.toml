@@ -18,6 +18,6 @@ path = "src/ffi.rs"
 crate-type = ["staticlib"]
 
 [dependencies]
-kronroe = { version = "0.2.0", path = "../core", default-features = false }
+kronroe = { version = "0.3.0", path = "../core", default-features = false }
 chrono = { workspace = true }
 serde_json = { workspace = true }

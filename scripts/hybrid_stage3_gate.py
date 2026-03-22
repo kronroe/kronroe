@@ -48,7 +48,7 @@ def main() -> int:
     input_paths = [Path(raw).resolve() for raw in args.input]
     summaries = [_load_summary(path) for path in input_paths]
 
-    required_wrappers = {"npm", "python"}
+    required_wrappers = {"python"}
     seen_wrappers = {
         item.get("wrapper")
         for item in summaries

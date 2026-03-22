@@ -44,8 +44,6 @@ def _read_message(stdout: BinaryIO) -> dict:
 
 
 def _wrapper_command(wrapper: str, tmp: Path) -> list[str]:
-    if wrapper == "npm":
-        return [str(tmp / "npm-wrapper" / "node_modules" / ".bin" / "kronroe-mcp")]
     if wrapper == "python":
         scripts_dir = "Scripts" if os.name == "nt" else "bin"
         return [str(tmp / "python-wrapper-venv" / scripts_dir / "kronroe-mcp")]
@@ -99,31 +97,6 @@ def _find_build_python() -> str:
     raise RuntimeError("could not find a Python interpreter with setuptools available")
 
 
-def _prepare_npm_wrapper(tmp: Path) -> None:
-    install_dir = tmp / "npm-wrapper"
-    install_dir.mkdir(parents=True, exist_ok=True)
-    env = _installer_env(tmp)
-    _run_checked(
-        [
-            "npm",
-            "pack",
-            str(REPO_ROOT / "packages" / "kronroe-mcp"),
-            "--pack-destination",
-            str(tmp),
-        ],
-        cwd=REPO_ROOT,
-        env=env,
-    )
-    tarballs = sorted(tmp.glob("kronroe-mcp-*.tgz"))
-    if not tarballs:
-        raise RuntimeError("npm pack did not produce a kronroe-mcp tarball")
-    _run_checked(
-        ["npm", "install", "--no-package-lock", "--no-save", str(tarballs[-1])],
-        cwd=install_dir,
-        env=env,
-    )
-
-
 def _prepare_python_wrapper(tmp: Path) -> None:
     venv_dir = tmp / "python-wrapper-venv"
     scripts_dir = venv_dir / ("Scripts" if os.name == "nt" else "bin")
@@ -168,13 +141,9 @@ def _prepare_python_wrapper(tmp: Path) -> None:
 
 
 def _prepare_wrapper_install(wrapper: str, tmp: Path) -> None:
-    if wrapper == "npm":
-        _prepare_npm_wrapper(tmp)
-        return
-    if wrapper == "python":
-        _prepare_python_wrapper(tmp)
-        return
-    raise ValueError(f"unsupported wrapper: {wrapper}")
+    if wrapper != "python":
+        raise ValueError(f"unsupported wrapper: {wrapper}")
+    _prepare_python_wrapper(tmp)
 
 
 def _run_smoke(wrapper: str, binary: Path) -> None:
@@ -290,7 +259,7 @@ def main() -> int:
     parser.add_argument(
         "--wrapper",
         required=True,
-        choices=["npm", "python"],
+        choices=["python"],
         help="Wrapper surface to verify.",
     )
     parser.add_argument(
