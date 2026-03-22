@@ -915,10 +915,7 @@ impl KronroeStorage {
                 Ok(())
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => {
-                let _ = (fact, embedding);
-                Err(Self::unsupported_backend("vector embedding writes"))
-            }
+            StorageEngine::AppendLog(backend) => backend.write_fact_with_embedding(fact, embedding),
         };
         self.record(
             StorageOperation::WriteFactWithEmbedding,
@@ -969,7 +966,7 @@ impl KronroeStorage {
                 Ok(rows)
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => Ok(Vec::new()),
+            StorageEngine::AppendLog(backend) => backend.embedding_rows(),
         };
         self.record(
             StorageOperation::EmbeddingRows,
@@ -1000,7 +997,7 @@ impl KronroeStorage {
                 Ok(rows)
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => Ok(Vec::new()),
+            StorageEngine::AppendLog(backend) => Ok(backend.load_predicate_registry_entries()),
         };
         self.record(
             StorageOperation::LoadPredicateRegistryEntries,
@@ -1029,9 +1026,8 @@ impl KronroeStorage {
                 Ok(())
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => {
-                let _ = (predicate, encoded);
-                Err(Self::unsupported_backend("predicate registry persistence"))
+            StorageEngine::AppendLog(backend) => {
+                backend.write_predicate_registry_entry(predicate, encoded)
             }
         };
         self.record(
@@ -1062,7 +1058,7 @@ impl KronroeStorage {
                 Ok(rows)
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => Ok(Vec::new()),
+            StorageEngine::AppendLog(backend) => Ok(backend.load_volatility_registry_entries()),
         };
         self.record(
             StorageOperation::LoadVolatilityRegistryEntries,
@@ -1092,7 +1088,7 @@ impl KronroeStorage {
                 Ok(rows)
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => Ok(Vec::new()),
+            StorageEngine::AppendLog(backend) => Ok(backend.load_source_weight_registry_entries()),
         };
         self.record(
             StorageOperation::LoadSourceWeightRegistryEntries,
@@ -1121,9 +1117,8 @@ impl KronroeStorage {
                 Ok(())
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => {
-                let _ = (predicate, encoded);
-                Err(Self::unsupported_backend("volatility registry persistence"))
+            StorageEngine::AppendLog(backend) => {
+                backend.write_volatility_registry_entry(predicate, encoded)
             }
         };
         self.record(
@@ -1153,11 +1148,8 @@ impl KronroeStorage {
                 Ok(())
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => {
-                let _ = (source, encoded);
-                Err(Self::unsupported_backend(
-                    "source-weight registry persistence",
-                ))
+            StorageEngine::AppendLog(backend) => {
+                backend.write_source_weight_registry_entry(source, encoded)
             }
         };
         self.record(
@@ -1624,17 +1616,34 @@ mod tests {
 
     #[cfg(feature = "vector")]
     #[test]
-    fn append_log_embedding_write_is_explicitly_unsupported() {
+    fn append_log_embedding_write_preserves_existing_rows_on_dim_error() {
         let storage = KronroeStorage::open_append_log_in_memory().unwrap();
         assert_eq!(storage.initialize_schema().unwrap(), SCHEMA_VERSION);
 
-        let fact = build_fact("alice", "interest", "Rust");
+        let first = build_fact("alice", "interest", "Rust");
+        storage
+            .write_fact_with_embedding(&first, &[1.0, 0.0, 0.0])
+            .unwrap();
+
+        let second = build_fact("alice", "interest", "Python");
         let error = storage
-            .write_fact_with_embedding(&fact, &[1.0, 0.0, 0.0])
+            .write_fact_with_embedding(&second, &[0.0, 1.0])
             .unwrap_err();
-        assert!(matches!(error, KronroeError::Storage(_)));
-        assert!(error
-            .to_string()
-            .contains("experimental append-log backend"));
+        assert!(matches!(error, KronroeError::InvalidEmbedding(_)));
+
+        let scanned = storage.scan_facts("alice:interest:").unwrap();
+        assert_eq!(
+            scanned.len(),
+            1,
+            "failed append-log embedding write must not add fact row"
+        );
+
+        let embeddings = storage.embedding_rows().unwrap();
+        assert_eq!(
+            embeddings.len(),
+            1,
+            "failed append-log embedding write must not add bytes"
+        );
+        assert_eq!(embeddings[0].0, first.id);
     }
 }

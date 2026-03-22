@@ -2705,22 +2705,84 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn append_log_predicate_registry_persists_across_reopen() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+
+        {
+            let db = TemporalGraph::open_append_log(&path).unwrap();
+            db.register_singleton_predicate("works_at", ConflictPolicy::Warn)
+                .unwrap();
+        }
+
+        let reopened = TemporalGraph::open_append_log(&path).unwrap();
+        assert!(reopened.is_singleton_predicate("works_at").unwrap());
+    }
+
+    #[cfg(feature = "uncertainty")]
+    #[test]
+    fn append_log_uncertainty_registries_persist_across_reopen() {
+        use crate::{PredicateVolatility, SourceWeight};
+
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+
+        {
+            let db = TemporalGraph::open_append_log(&path).unwrap();
+            db.register_predicate_volatility("works_at", PredicateVolatility::new(730.0))
+                .unwrap();
+            db.register_source_weight("user:owner", SourceWeight::new(1.5))
+                .unwrap();
+        }
+
+        let reopened = TemporalGraph::open_append_log(&path).unwrap();
+        let volatility = reopened.predicate_volatility("works_at").unwrap();
+        assert_eq!(
+            volatility
+                .expect("volatility should persist across append-log reopen")
+                .half_life_days,
+            730.0
+        );
+
+        let source_weight = reopened.source_weight("user:owner").unwrap();
+        assert_eq!(
+            source_weight
+                .expect("source weight should persist across append-log reopen")
+                .weight,
+            1.5
+        );
+    }
+
     #[cfg(feature = "vector")]
     #[test]
-    fn append_log_backend_rejects_embedding_writes() {
-        let db = TemporalGraph::open_append_log_in_memory().unwrap();
-        let error = db
-            .assert_fact_with_embedding(
-                "alice",
-                "interest",
-                "Rust",
-                Utc::now(),
-                vec![1.0, 0.0, 0.0],
-            )
-            .unwrap_err();
-        assert!(matches!(error, KronroeError::Storage(_)));
-        assert!(error
-            .to_string()
-            .contains("experimental append-log backend"));
+    fn append_log_vector_index_survives_reopen() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("append-log-vectors.kronroe");
+        let path_str = path.to_str().unwrap();
+        let now = Utc::now();
+
+        {
+            let db = TemporalGraph::open_append_log(path_str).unwrap();
+            db.assert_fact_with_embedding("alice", "interest", "Rust", now, vec![1.0, 0.0, 0.0])
+                .unwrap();
+            db.assert_fact_with_embedding("alice", "interest", "Python", now, vec![0.0, 1.0, 0.0])
+                .unwrap();
+        }
+
+        let reopened = TemporalGraph::open_append_log(path_str).unwrap();
+        let results = reopened
+            .search_by_vector(&[1.0, 0.0, 0.0], 2, None)
+            .unwrap();
+        assert_eq!(
+            results.len(),
+            2,
+            "both append-log embeddings must survive reopen"
+        );
+        assert!(
+            matches!(&results[0].0.object, Value::Text(s) if s == "Rust"),
+            "most similar append-log fact after reopen should be Rust"
+        );
     }
 }

@@ -17,6 +17,21 @@ enum AppendLogRecord {
     SchemaVersion {
         version: u64,
     },
+    #[cfg(feature = "contradiction")]
+    UpsertPredicateRegistryEntry {
+        predicate: String,
+        encoded: String,
+    },
+    #[cfg(feature = "uncertainty")]
+    UpsertVolatilityRegistryEntry {
+        predicate: String,
+        encoded: String,
+    },
+    #[cfg(feature = "uncertainty")]
+    UpsertSourceWeightRegistryEntry {
+        source: String,
+        encoded: String,
+    },
     UpsertFact {
         key: String,
         fact: Fact,
@@ -25,6 +40,12 @@ enum AppendLogRecord {
         key: String,
         fact: Fact,
         idempotency_key: String,
+    },
+    #[cfg(feature = "vector")]
+    UpsertFactWithEmbedding {
+        key: String,
+        fact: Fact,
+        embedding: Vec<f32>,
     },
     ReplaceFact {
         key: String,
@@ -36,6 +57,16 @@ enum AppendLogRecord {
 struct AppendLogState {
     header_present: bool,
     schema_version: Option<u64>,
+    #[cfg(feature = "contradiction")]
+    predicate_registry: BTreeMap<String, String>,
+    #[cfg(feature = "uncertainty")]
+    volatility_registry: BTreeMap<String, String>,
+    #[cfg(feature = "uncertainty")]
+    source_weight_registry: BTreeMap<String, String>,
+    #[cfg(feature = "vector")]
+    embedding_dim: Option<usize>,
+    #[cfg(feature = "vector")]
+    embeddings: BTreeMap<String, Vec<f32>>,
     facts: BTreeMap<String, Fact>,
     fact_key_by_id: BTreeMap<String, String>,
     facts_by_subject_predicate: BTreeMap<String, BTreeSet<String>>,
@@ -121,6 +152,13 @@ impl AppendLogState {
         self.insert_fact_index(&key, &fact);
     }
 
+    #[cfg(feature = "vector")]
+    fn apply_embedding_upsert(&mut self, fact_id: &FactId, embedding: Vec<f32>) {
+        self.embedding_dim.get_or_insert(embedding.len());
+        self.embeddings
+            .insert(fact_id.as_str().to_string(), embedding);
+    }
+
     fn apply_record(&mut self, record: AppendLogRecord) {
         match record {
             AppendLogRecord::Header { magic } => {
@@ -128,6 +166,18 @@ impl AppendLogState {
             }
             AppendLogRecord::SchemaVersion { version } => {
                 self.schema_version = Some(version);
+            }
+            #[cfg(feature = "contradiction")]
+            AppendLogRecord::UpsertPredicateRegistryEntry { predicate, encoded } => {
+                self.predicate_registry.insert(predicate, encoded);
+            }
+            #[cfg(feature = "uncertainty")]
+            AppendLogRecord::UpsertVolatilityRegistryEntry { predicate, encoded } => {
+                self.volatility_registry.insert(predicate, encoded);
+            }
+            #[cfg(feature = "uncertainty")]
+            AppendLogRecord::UpsertSourceWeightRegistryEntry { source, encoded } => {
+                self.source_weight_registry.insert(source, encoded);
             }
             AppendLogRecord::UpsertFact { key, fact }
             | AppendLogRecord::ReplaceFact { key, fact } => {
@@ -140,6 +190,15 @@ impl AppendLogState {
             } => {
                 self.idempotency
                     .insert(idempotency_key, fact.id.as_str().to_string());
+                self.apply_fact_upsert(key, fact);
+            }
+            #[cfg(feature = "vector")]
+            AppendLogRecord::UpsertFactWithEmbedding {
+                key,
+                fact,
+                embedding,
+            } => {
+                self.apply_embedding_upsert(&fact.id, embedding);
                 self.apply_fact_upsert(key, fact);
             }
         }
@@ -274,6 +333,84 @@ impl AppendLogBackend {
                 Ok(SCHEMA_VERSION)
             }
         }
+    }
+
+    #[cfg(feature = "contradiction")]
+    pub(crate) fn load_predicate_registry_entries(&self) -> Vec<(String, String)> {
+        let state = self.state.lock().unwrap();
+        state
+            .predicate_registry
+            .iter()
+            .map(|(predicate, encoded)| (predicate.clone(), encoded.clone()))
+            .collect()
+    }
+
+    #[cfg(feature = "contradiction")]
+    pub(crate) fn write_predicate_registry_entry(
+        &self,
+        predicate: &str,
+        encoded: &str,
+    ) -> Result<()> {
+        let record = AppendLogRecord::UpsertPredicateRegistryEntry {
+            predicate: predicate.to_string(),
+            encoded: encoded.to_string(),
+        };
+        let mut state = self.state.lock().unwrap();
+        self.append_record(&record)?;
+        state.apply_record(record);
+        Ok(())
+    }
+
+    #[cfg(feature = "uncertainty")]
+    pub(crate) fn load_volatility_registry_entries(&self) -> Vec<(String, String)> {
+        let state = self.state.lock().unwrap();
+        state
+            .volatility_registry
+            .iter()
+            .map(|(predicate, encoded)| (predicate.clone(), encoded.clone()))
+            .collect()
+    }
+
+    #[cfg(feature = "uncertainty")]
+    pub(crate) fn load_source_weight_registry_entries(&self) -> Vec<(String, String)> {
+        let state = self.state.lock().unwrap();
+        state
+            .source_weight_registry
+            .iter()
+            .map(|(source, encoded)| (source.clone(), encoded.clone()))
+            .collect()
+    }
+
+    #[cfg(feature = "uncertainty")]
+    pub(crate) fn write_volatility_registry_entry(
+        &self,
+        predicate: &str,
+        encoded: &str,
+    ) -> Result<()> {
+        let record = AppendLogRecord::UpsertVolatilityRegistryEntry {
+            predicate: predicate.to_string(),
+            encoded: encoded.to_string(),
+        };
+        let mut state = self.state.lock().unwrap();
+        self.append_record(&record)?;
+        state.apply_record(record);
+        Ok(())
+    }
+
+    #[cfg(feature = "uncertainty")]
+    pub(crate) fn write_source_weight_registry_entry(
+        &self,
+        source: &str,
+        encoded: &str,
+    ) -> Result<()> {
+        let record = AppendLogRecord::UpsertSourceWeightRegistryEntry {
+            source: source.to_string(),
+            encoded: encoded.to_string(),
+        };
+        let mut state = self.state.lock().unwrap();
+        self.append_record(&record)?;
+        state.apply_record(record);
+        Ok(())
     }
 
     pub(crate) fn scan_facts(&self, prefix: &str) -> (Vec<StoredFactRow>, usize) {
@@ -438,6 +575,53 @@ impl AppendLogBackend {
         self.append_record(&record)?;
         state.apply_record(record);
         Ok(fact.id.clone())
+    }
+
+    #[cfg(feature = "vector")]
+    pub(crate) fn write_fact_with_embedding(&self, fact: &Fact, embedding: &[f32]) -> Result<()> {
+        if embedding.is_empty() {
+            return Err(KronroeError::InvalidEmbedding(
+                "embedding must not be empty".into(),
+            ));
+        }
+
+        let mut state = self.state.lock().unwrap();
+        if let Some(expected_dim) = state.embedding_dim {
+            if embedding.len() != expected_dim {
+                return Err(KronroeError::InvalidEmbedding(format!(
+                    "embedding dimension mismatch: expected {expected_dim}, got {}",
+                    embedding.len()
+                )));
+            }
+        }
+
+        let key = fact_row_key(&fact.subject, &fact.predicate, &fact.id);
+        let record = AppendLogRecord::UpsertFactWithEmbedding {
+            key,
+            fact: fact.clone(),
+            embedding: embedding.to_vec(),
+        };
+        self.append_record(&record)?;
+        state.apply_record(record);
+        Ok(())
+    }
+
+    #[cfg(feature = "vector")]
+    pub(crate) fn embedding_rows(&self) -> Result<Vec<(FactId, Vec<f32>)>> {
+        let state = self.state.lock().unwrap();
+        state
+            .embeddings
+            .iter()
+            .map(|(fact_id, embedding)| {
+                FactId::parse(fact_id)
+                    .map(|id| (id, embedding.clone()))
+                    .map_err(|error| {
+                        KronroeError::Storage(format!(
+                            "corrupt append-log embedding fact id `{fact_id}`: {error}"
+                        ))
+                    })
+            })
+            .collect()
     }
 
     #[cfg(feature = "contradiction")]
