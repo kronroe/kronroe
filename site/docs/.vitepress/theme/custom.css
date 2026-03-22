@@ -114,6 +114,8 @@ body {
   font-size: 1.5rem;
   border-top: 1px solid var(--vp-c-border);
   padding-top: 1.5rem;
+  border-left: 3px solid #E87D4A;
+  padding-left: 0.75rem;
 }
 
 .vp-doc p,
@@ -176,11 +178,13 @@ body {
   display: none !important;
 }
 
-/* Site title — white on espresso */
-.VPNavBar .title {
-  color: #FFFFFF !important;
-  font-weight: 700 !important;
+/* Logo sizing — match live site header (64px tall logo) */
+.VPNavBar .logo {
+  height: 36px !important;
+  width: auto !important;
 }
+
+/* siteTitle is false in config, so .title only contains the logo img */
 
 /* Nav menu links — light on dark, matching live site header-nav */
 .VPNavBarMenu a.VPNavBarMenuLink,

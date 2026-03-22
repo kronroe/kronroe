@@ -4,6 +4,7 @@ export default defineConfig({
   title: 'Kronroe',
   description: 'Embedded bi-temporal graph database — documentation',
   base: '/docs/',
+  appearance: false,
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/docs/favicon.svg' }],
@@ -13,8 +14,8 @@ export default defineConfig({
   ],
 
   themeConfig: {
-    logo: '/logo.svg',
-    siteTitle: 'Kronroe',
+    logo: { src: '/logo.svg', alt: 'Kronroe' },
+    siteTitle: false,
 
     nav: [
       { text: 'Guide', link: '/getting-started/what-is-kronroe' },

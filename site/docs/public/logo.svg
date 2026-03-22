@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" width="420" height="120">
+  <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@700&amp;display=swap');</style>
+  </defs>
+  <!-- Valid timeline (solid rail) -->
+  <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
+  <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="136" cy="38" r="14" fill="none" stroke="#8BBF20" stroke-width="3.5"/>
+  <circle cx="136" cy="38" r="5" fill="#8BBF20"/>
+  <!-- Recorded timeline (dashed rail) -->
+  <circle cx="48" cy="82" r="16" fill="#E87D4A"/>
+  <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5"/>
+  <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
+  <circle cx="136" cy="82" r="5" fill="#7C5CFC"/>
+  <!-- Wordmark: "Kron" white + "roe" copper — exact match to live site header -->
+  <text x="168" y="75"
+    font-family="'Quicksand',system-ui,sans-serif"
+    font-size="52" font-weight="700" letter-spacing="-1"
+    fill="#FFFFFF">Kron</text>
+  <text x="282" y="75"
+    font-family="'Quicksand',system-ui,sans-serif"
+    font-size="52" font-weight="700" letter-spacing="-1"
+    fill="#E87D4A">roe</text>
+</svg>
