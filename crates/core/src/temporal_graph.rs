@@ -534,8 +534,12 @@ impl TemporalGraph {
     ///
     /// A fact is currently valid if both `valid_to` and `expired_at` are `None`.
     pub fn current_facts(&self, subject: &str, predicate: &str) -> Result<Vec<Fact>> {
-        let prefix = format!("{}:{}:", subject, predicate);
-        self.scan_prefix(&prefix, |f| f.is_currently_valid())
+        Ok(self
+            .storage
+            .current_facts(subject, predicate)?
+            .into_iter()
+            .map(|row| row.fact)
+            .collect())
     }
 
     /// Get all facts valid at a given point in time for `(subject, predicate)`.
@@ -543,8 +547,12 @@ impl TemporalGraph {
     /// Uses the **valid time** axis: queries when something was true in the
     /// world, regardless of when it was recorded.
     pub fn facts_at(&self, subject: &str, predicate: &str, at: DateTime<Utc>) -> Result<Vec<Fact>> {
-        let prefix = format!("{}:{}:", subject, predicate);
-        self.scan_prefix(&prefix, |f| f.was_valid_at(at))
+        Ok(self
+            .storage
+            .facts_at(subject, predicate, at)?
+            .into_iter()
+            .map(|row| row.fact)
+            .collect())
     }
 
     /// Get every fact ever recorded for an entity, across all predicates.
@@ -625,11 +633,7 @@ impl TemporalGraph {
     /// returned by `facts_at()` for timestamps before `at`.
     pub fn invalidate_fact(&self, fact_id: impl AsRef<str>, at: DateTime<Utc>) -> Result<()> {
         let fact_id = self.resolve_fact_id_input(fact_id.as_ref())?;
-        let found = self
-            .storage
-            .scan_facts("")?
-            .into_iter()
-            .find(|row| row.fact.id == fact_id);
+        let found = self.storage.fact_by_id(&fact_id)?;
 
         match found {
             Some(row) => {
@@ -651,15 +655,10 @@ impl TemporalGraph {
     /// Phase 0 implementation performs a linear scan.
     pub fn fact_by_id(&self, fact_id: impl AsRef<str>) -> Result<Fact> {
         let fact_id = self.resolve_fact_id_input(fact_id.as_ref())?;
-        for row in self.storage.scan_facts("")? {
-            if row.fact.id == fact_id {
-                return Ok(row.fact);
-            }
-        }
-        Err(KronroeError::NotFound(format!(
-            "fact id {}",
-            fact_id.as_str()
-        )))
+        self.storage
+            .fact_by_id(&fact_id)?
+            .map(|row| row.fact)
+            .ok_or_else(|| KronroeError::NotFound(format!("fact id {}", fact_id.as_str())))
     }
 
     /// Correct a fact by id while preserving history.

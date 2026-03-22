@@ -134,7 +134,7 @@ enum StorageEngine {
     Redb(Database),
     #[cfg(any(test, feature = "storage-append-log"))]
     #[allow(dead_code)]
-    AppendLog(AppendLogBackend),
+    AppendLog(Box<AppendLogBackend>),
 }
 
 impl KronroeStorage {
@@ -181,7 +181,7 @@ impl KronroeStorage {
     #[allow(dead_code)]
     pub(crate) fn open_append_log(path: &str) -> Result<Self> {
         Ok(Self {
-            engine: StorageEngine::AppendLog(AppendLogBackend::open(path)?),
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open(path)?)),
             observer: noop_observer(),
         })
     }
@@ -190,7 +190,7 @@ impl KronroeStorage {
     #[allow(dead_code)]
     pub(crate) fn open_append_log_in_memory() -> Result<Self> {
         Ok(Self {
-            engine: StorageEngine::AppendLog(AppendLogBackend::open_in_memory()),
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open_in_memory())),
             observer: noop_observer(),
         })
     }
@@ -202,7 +202,7 @@ impl KronroeStorage {
         observer: Arc<dyn StorageObserver>,
     ) -> Result<Self> {
         Ok(Self {
-            engine: StorageEngine::AppendLog(AppendLogBackend::open(path)?),
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open(path)?)),
             observer,
         })
     }
@@ -213,7 +213,7 @@ impl KronroeStorage {
         observer: Arc<dyn StorageObserver>,
     ) -> Result<Self> {
         Ok(Self {
-            engine: StorageEngine::AppendLog(AppendLogBackend::open_in_memory()),
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open_in_memory())),
             observer,
         })
     }
@@ -504,6 +504,146 @@ impl KronroeStorage {
             #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => {
                 let (rows, rows_scanned) = backend.scan_facts(prefix);
+                Ok((rows, rows_scanned))
+            }
+        };
+        self.record(
+            StorageOperation::ScanFacts,
+            started_at,
+            result
+                .as_ref()
+                .map(|(_rows, rows_scanned)| *rows_scanned)
+                .unwrap_or(0),
+            result.is_ok(),
+        );
+        result.map(|(rows, _rows_scanned)| rows)
+    }
+
+    pub(crate) fn fact_by_id(&self, fact_id: &FactId) -> Result<Option<StoredFactRow>> {
+        let started_at = storage_now();
+        let result = match &self.engine {
+            StorageEngine::Redb(db) => (|| -> Result<(Option<StoredFactRow>, usize)> {
+                let read_txn = db.begin_read()?;
+                let table = read_txn.open_table(FACTS)?;
+                let mut rows_scanned = 0usize;
+
+                for entry in table.iter()? {
+                    rows_scanned += 1;
+                    let (k, v) = entry?;
+                    let fact: Fact = serde_json::from_str(v.value())?;
+                    if fact.id == *fact_id {
+                        return Ok((
+                            Some(StoredFactRow {
+                                key: k.value().to_string(),
+                                fact,
+                            }),
+                            rows_scanned,
+                        ));
+                    }
+                }
+
+                Ok((None, rows_scanned))
+            })(),
+            #[cfg(any(test, feature = "storage-append-log"))]
+            StorageEngine::AppendLog(backend) => {
+                let (row, rows_scanned) = backend.fact_by_id(fact_id);
+                Ok((row, rows_scanned))
+            }
+        };
+        self.record(
+            StorageOperation::ScanFacts,
+            started_at,
+            result
+                .as_ref()
+                .map(|(_row, rows_scanned)| *rows_scanned)
+                .unwrap_or(0),
+            result.is_ok(),
+        );
+        result.map(|(row, _rows_scanned)| row)
+    }
+
+    pub(crate) fn current_facts(
+        &self,
+        subject: &str,
+        predicate: &str,
+    ) -> Result<Vec<StoredFactRow>> {
+        let started_at = storage_now();
+        let prefix = format!("{subject}:{predicate}:");
+        let result = match &self.engine {
+            StorageEngine::Redb(db) => (|| -> Result<(Vec<StoredFactRow>, usize)> {
+                let read_txn = db.begin_read()?;
+                let table = read_txn.open_table(FACTS)?;
+                let mut rows = Vec::new();
+                let mut rows_scanned = 0usize;
+
+                for entry in table.iter()? {
+                    rows_scanned += 1;
+                    let (k, v) = entry?;
+                    if k.value().starts_with(prefix.as_str()) {
+                        let fact: Fact = serde_json::from_str(v.value())?;
+                        if fact.is_currently_valid() {
+                            rows.push(StoredFactRow {
+                                key: k.value().to_string(),
+                                fact,
+                            });
+                        }
+                    }
+                }
+
+                Ok((rows, rows_scanned))
+            })(),
+            #[cfg(any(test, feature = "storage-append-log"))]
+            StorageEngine::AppendLog(backend) => {
+                let (rows, rows_scanned) = backend.current_facts(subject, predicate);
+                Ok((rows, rows_scanned))
+            }
+        };
+        self.record(
+            StorageOperation::ScanFacts,
+            started_at,
+            result
+                .as_ref()
+                .map(|(_rows, rows_scanned)| *rows_scanned)
+                .unwrap_or(0),
+            result.is_ok(),
+        );
+        result.map(|(rows, _rows_scanned)| rows)
+    }
+
+    pub(crate) fn facts_at(
+        &self,
+        subject: &str,
+        predicate: &str,
+        at: DateTime<Utc>,
+    ) -> Result<Vec<StoredFactRow>> {
+        let started_at = storage_now();
+        let prefix = format!("{subject}:{predicate}:");
+        let result = match &self.engine {
+            StorageEngine::Redb(db) => (|| -> Result<(Vec<StoredFactRow>, usize)> {
+                let read_txn = db.begin_read()?;
+                let table = read_txn.open_table(FACTS)?;
+                let mut rows = Vec::new();
+                let mut rows_scanned = 0usize;
+
+                for entry in table.iter()? {
+                    rows_scanned += 1;
+                    let (k, v) = entry?;
+                    if k.value().starts_with(prefix.as_str()) {
+                        let fact: Fact = serde_json::from_str(v.value())?;
+                        if fact.was_valid_at(at) {
+                            rows.push(StoredFactRow {
+                                key: k.value().to_string(),
+                                fact,
+                            });
+                        }
+                    }
+                }
+
+                Ok((rows, rows_scanned))
+            })(),
+            #[cfg(any(test, feature = "storage-append-log"))]
+            StorageEngine::AppendLog(backend) => {
+                let (rows, rows_scanned) = backend.facts_at(subject, predicate, at);
                 Ok((rows, rows_scanned))
             }
         };
@@ -1315,6 +1455,84 @@ mod tests {
     }
 
     #[test]
+    fn append_log_fact_by_id_uses_exact_lookup_index() {
+        let observer = Arc::new(RecordingObserver::default());
+        let storage =
+            KronroeStorage::open_append_log_in_memory_with_observer(observer.clone()).unwrap();
+        assert_eq!(storage.initialize_schema().unwrap(), SCHEMA_VERSION);
+
+        let alice = build_fact("alice", "works_at", "Acme");
+        let alice_id = alice.id.clone();
+        storage.write_fact(&alice).unwrap();
+        storage
+            .write_fact(&build_fact("bob", "works_at", "BetaCorp"))
+            .unwrap();
+
+        let row = storage
+            .fact_by_id(&alice_id)
+            .unwrap()
+            .expect("fact should exist");
+        assert_eq!(row.fact.subject, "alice");
+
+        let events = observer.events.lock().unwrap();
+        let scan_event = events
+            .iter()
+            .find(|event| event.operation == StorageOperation::ScanFacts)
+            .expect("scan event should be recorded");
+        assert_eq!(scan_event.rows_scanned, 1);
+    }
+
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn append_log_contradiction_write_scans_only_transaction_active_candidates() {
+        let observer = Arc::new(RecordingObserver::default());
+        let storage =
+            KronroeStorage::open_append_log_in_memory_with_observer(observer.clone()).unwrap();
+        assert_eq!(storage.initialize_schema().unwrap(), SCHEMA_VERSION);
+
+        let base = Utc::now();
+        for i in 0..5 {
+            let mut fact = build_fact("timeline", "role", format!("role-{i}"));
+            fact.valid_from = base + chrono::Duration::hours(i);
+            fact.recorded_at = fact.valid_from;
+            if i < 4 {
+                fact.expired_at = Some(base + chrono::Duration::hours(i + 1));
+            }
+            storage.write_fact(&fact).unwrap();
+        }
+
+        let incoming = build_fact("timeline", "role", "candidate");
+        let contradictions = storage
+            .write_fact_with_contradiction_check("timeline", "role", &incoming, false, |facts| {
+                assert_eq!(
+                    facts.len(),
+                    1,
+                    "only the live transaction row should be checked"
+                );
+                Ok(vec![Contradiction {
+                    existing_fact_id: facts[0].id.to_string(),
+                    conflicting_fact_id: incoming.id.to_string(),
+                    subject: "timeline".into(),
+                    predicate: "role".into(),
+                    overlap_start: incoming.valid_from,
+                    overlap_end: None,
+                    severity: crate::ConflictSeverity::High,
+                    confidence_delta: 0.0,
+                    suggested_resolution: crate::SuggestedResolution::ManualReview,
+                }])
+            })
+            .unwrap();
+        assert_eq!(contradictions.len(), 1);
+
+        let events = observer.events.lock().unwrap();
+        let event = events
+            .iter()
+            .find(|event| event.operation == StorageOperation::ContradictionCheckedWrite)
+            .expect("contradiction event should be recorded");
+        assert_eq!(event.rows_scanned, 1);
+    }
+
+    #[test]
     fn append_log_partial_prefix_still_reports_full_scan_when_not_indexed() {
         let observer = Arc::new(RecordingObserver::default());
         let storage =
@@ -1337,6 +1555,71 @@ mod tests {
             .find(|event| event.operation == StorageOperation::ScanFacts)
             .expect("scan event should be recorded");
         assert_eq!(scan_event.rows_scanned, 2);
+    }
+
+    #[test]
+    fn append_log_current_facts_reports_only_live_candidate_rows() {
+        let observer = Arc::new(RecordingObserver::default());
+        let storage =
+            KronroeStorage::open_append_log_in_memory_with_observer(observer.clone()).unwrap();
+        assert_eq!(storage.initialize_schema().unwrap(), SCHEMA_VERSION);
+
+        let mut historical = build_fact("alice", "works_at", "Acme");
+        historical.valid_to = Some(Utc::now());
+        historical.expired_at = Some(Utc::now());
+        storage.write_fact(&historical).unwrap();
+
+        let current = build_fact("alice", "works_at", "TechCorp");
+        storage.write_fact(&current).unwrap();
+        storage
+            .write_fact(&build_fact("bob", "works_at", "BetaCorp"))
+            .unwrap();
+
+        let rows = storage.current_facts("alice", "works_at").unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].fact.object.to_string(), "TechCorp");
+
+        let events = observer.events.lock().unwrap();
+        let scan_event = events
+            .iter()
+            .find(|event| event.operation == StorageOperation::ScanFacts)
+            .expect("scan event should be recorded");
+        assert_eq!(scan_event.rows_scanned, 1);
+    }
+
+    #[test]
+    fn append_log_facts_at_scans_only_chain_prefix_before_query_time() {
+        let observer = Arc::new(RecordingObserver::default());
+        let storage =
+            KronroeStorage::open_append_log_in_memory_with_observer(observer.clone()).unwrap();
+        assert_eq!(storage.initialize_schema().unwrap(), SCHEMA_VERSION);
+
+        let base = Utc::now();
+        let mut ids = Vec::new();
+        for i in 0..5 {
+            let mut fact = build_fact("timeline", "role", format!("role-{i}"));
+            fact.valid_from = base + chrono::Duration::hours(i);
+            fact.recorded_at = fact.valid_from;
+            if i < 4 {
+                fact.valid_to = Some(base + chrono::Duration::hours(i + 1));
+                fact.expired_at = Some(base + chrono::Duration::hours(i + 1));
+            }
+            ids.push(fact.id.clone());
+            storage.write_fact(&fact).unwrap();
+        }
+
+        let rows = storage
+            .facts_at("timeline", "role", base + chrono::Duration::hours(2))
+            .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].fact.id, ids[2]);
+
+        let events = observer.events.lock().unwrap();
+        let scan_event = events
+            .iter()
+            .find(|event| event.operation == StorageOperation::ScanFacts)
+            .expect("scan event should be recorded");
+        assert_eq!(scan_event.rows_scanned, 3);
     }
 
     #[cfg(feature = "vector")]
