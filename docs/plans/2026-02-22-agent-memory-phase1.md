@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust stable, Kronroe lexical engine (feature: fulltext), flat cosine vector index (feature: vector), PyO3/maturin — **no C++ required**.
 
-**Historical note:** This phase plan captured the original full-text implementation. Detailed task instructions below are retained as historical context.
+**Historical note:** This phase plan captured the original full-text implementation. Detailed task instructions below are retained as historical context only and should not be treated as current storage-engine guidance.
 
 ---
 
@@ -43,8 +43,9 @@ git push -u origin feature/agent-memory-phase1
 
 ## How the storage layer worked at the time (brief)
 
-The original implementation used an embedded transactional storage layer. Key
-patterns you would have seen:
+The original implementation used an earlier embedded transactional storage
+layer. The snippet below is legacy context, not a description of the current
+append-log backend. Key patterns you would have seen:
 
 ```rust
 // Open a table in a read transaction
