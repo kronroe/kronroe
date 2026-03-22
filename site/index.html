@@ -2,13 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QC2EK11KHY"></script>
+    <!-- Google tag (gtag.js) — deferred until after first paint -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
       gtag('config', 'G-QC2EK11KHY');
+      (window.requestIdleCallback || setTimeout)(function(){
+        var s = document.createElement('script');
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-QC2EK11KHY';
+        document.head.appendChild(s);
+      });
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Track not just what's true — but when it became true, and when you recorded it. Kronroe is an embedded bi-temporal property graph database. Pure Rust, zero server, runs in your browser via WebAssembly." />
@@ -81,14 +85,25 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/favicon/favicon-192x192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/favicon/favicon-512x512.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <script type="module" src="/src/main.ts"></script>
     <style>
       @font-face {
+        font-family: 'Quicksand';
+        src: url('/fonts/quicksand-var-latin.woff2') format('woff2');
+        font-weight: 500 700;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'JetBrains Mono';
+        src: url('/fonts/jetbrainsmono-var-latin.woff2') format('woff2');
+        font-weight: 400 600;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
         font-family: 'Virgil';
-        src: url('https://excalidraw.com/Virgil.woff2') format('woff2');
+        src: url('/fonts/virgil.woff2') format('woff2');
         font-display: swap;
       }
 
@@ -132,7 +147,7 @@
         --orange-border:  rgba(192, 72, 0, 0.20);
         --text:     #2A1D12;
         --text-mid: rgba(26, 21, 16, 0.65);
-        --text-dim: rgba(26, 21, 16, 0.36);
+        --text-dim: rgba(26, 21, 16, 0.46);
         --green: #2E7D4F;
         --red:   #C53030;
         --body:    "Quicksand", system-ui, sans-serif;
@@ -339,8 +354,9 @@
         content: '';
         position: absolute;
         top: 0;
-        left: -100%;
+        left: 0;
         width: 60%;
+        will-change: transform;
         height: 100%;
         background: linear-gradient(
           90deg,
@@ -352,8 +368,8 @@
         animation-delay: 1.5s;
       }
       @keyframes shiny-sweep {
-        0% { left: -100%; }
-        40%, 100% { left: 200%; }
+        0% { transform: translateX(-260%); }
+        40%, 100% { transform: translateX(430%); }
       }
 
       /* ── Announce pill — ANIMATED GRADIENT BORDER ── */
@@ -460,8 +476,8 @@
       .install-sep { font-family: var(--hand); font-size: 0.85rem; color: var(--text-dim); }
       .hero-cta { display: flex; gap: 0.75rem; margin-top: 1.25rem; }
       .hero-btn { display: inline-flex; align-items: center; text-decoration: none; padding: 0.55rem 1.25rem; font-size: 0.85rem; border-radius: 8px; font-family: var(--body); font-weight: var(--w-label); transition: all 0.1s; }
-      a.btn-primary { background: var(--violet); color: #fff; border: 1.5px solid var(--espresso); }
-      a.btn-primary:hover { background: #8d6ffd; }
+      a.btn-primary { background: #6B4AE8; color: #fff; border: 1.5px solid var(--espresso); }
+      a.btn-primary:hover { background: #7C5CFC; }
       a.btn-ghost { background: transparent; border: 1.5px solid rgba(26,21,16,0.40); color: var(--text); }
       a.btn-ghost:hover { border-color: var(--espresso); background: rgba(26,21,16,0.05); color: var(--text); }
 
@@ -513,15 +529,17 @@
         content: '';
         position: absolute;
         top: 0; bottom: 0;
+        left: -180px;
         width: 180px;
         background: linear-gradient(90deg, transparent 0%, rgba(124,92,252,0.32) 40%, rgba(255,255,255,0.28) 50%, rgba(124,92,252,0.32) 60%, transparent 100%);
         animation: trust-beam-sweep 8s ease-in-out infinite;
         pointer-events: none;
         z-index: 1;
+        will-change: transform;
       }
       @keyframes trust-beam-sweep {
-        0%   { left: -180px; }
-        100% { left: 100%; }
+        0%   { transform: translateX(0); }
+        100% { transform: translateX(calc(100vw + 180px)); }
       }
       @keyframes trust-scroll {
         from { transform: translateX(0); }
@@ -1134,12 +1152,12 @@
       .type-at-row select { width: auto; flex-shrink: 0; }
       .at-hint { font-family: var(--hand); font-size: 0.72rem; color: var(--copper); letter-spacing: 0; }
       button { cursor: pointer; font-family: var(--body); font-size: 0.78rem; font-weight: var(--w-label); border: none; border-radius: 8px; padding: 0.45rem 0.875rem; white-space: nowrap; transition: all 0.1s; letter-spacing: 0; }
-      .btn-primary { background: var(--violet); color: #fff; border: 1.5px solid var(--espresso); }
-      .btn-primary:hover { background: #8d6ffd; }
+      .btn-primary { background: #6B4AE8; color: #fff; border: 1.5px solid var(--espresso); }
+      .btn-primary:hover { background: #7C5CFC; }
       .btn-primary:focus-visible { outline-color: color-mix(in srgb, #fff 35%, var(--violet)); }
       .btn-primary:active { opacity: 0.88; }
-      .btn-copper { background: var(--copper); border-color: var(--espresso); }
-      .btn-copper:hover { background: #ed9468; }
+      .btn-copper { background: #C66A3A; border-color: var(--espresso); }
+      .btn-copper:hover { background: var(--copper); }
       .btn-copper:focus-visible { outline-color: color-mix(in srgb, #fff 35%, var(--copper)); }
       .btn-ghost { background: transparent; border: 1.5px solid rgba(26,21,16,0.18); color: var(--text-mid); }
       .btn-ghost:hover { border-color: var(--text-mid); color: var(--text); }
@@ -1253,8 +1271,8 @@
       .loading-logo { opacity: 0; animation: loading-fade-in 0.5s ease forwards; }
       @keyframes loading-fade-in { to { opacity: 1; } }
       .loading-track { width: 140px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
-      .loading-fill { height: 100%; background: linear-gradient(90deg, var(--violet), var(--orchid)); border-radius: 1px; animation: track 1.4s ease-in-out infinite alternate; }
-      @keyframes track { from { width: 8%; margin-left: 0; } to { width: 55%; margin-left: 45%; } }
+      .loading-fill { height: 100%; width: 55%; background: linear-gradient(90deg, var(--violet), var(--orchid)); border-radius: 1px; animation: track 1.4s ease-in-out infinite alternate; transform-origin: left; will-change: transform; }
+      @keyframes track { from { transform: scaleX(0.15) translateX(0); } to { transform: scaleX(1) translateX(82%); } }
       .loading-label { font-family: var(--body); font-size: 0.68rem; color: var(--text-dim); letter-spacing: 0.04em; }
 
       /* ── Section intro prose ── */
@@ -1335,7 +1353,7 @@
       .footer-right { display: flex; gap: 1.5rem; }
       .footer-right a { color: var(--text-dim); text-decoration: none; transition: color 0.12s; font-size: 0.82rem; }
       .footer-right a:hover { color: var(--text-mid); }
-      .version-badge { font-family: var(--mono); font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.35rem; border-radius: 3px; background: var(--lime-bg); border: 1px solid var(--lime-border); color: var(--lime); }
+      .version-badge { font-family: var(--mono); font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.35rem; border-radius: 3px; background: var(--lime-bg); border: 1px solid var(--lime-border); color: #466D00; }
 
       /* ── Footer CTA ── */
       .footer-cta {
@@ -1440,8 +1458,8 @@
       .install-chip:nth-child(2) { animation-delay: -1.3s; }
       .install-chip:nth-child(3) { animation-delay: -2.6s; }
       @keyframes chip-glow {
-        0%, 100% { box-shadow: 0 0 6px rgba(124,92,252,0.0), 0 0 0 rgba(180,92,252,0.0); }
-        50% { box-shadow: 0 0 10px rgba(124,92,252,0.18), 0 0 20px rgba(180,92,252,0.08); }
+        0%, 100% { opacity: 0.85; }
+        50% { opacity: 1; }
       }
       .install-chip:hover {
         background: rgba(255,255,255,0.10);

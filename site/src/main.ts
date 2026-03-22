@@ -1132,4 +1132,27 @@ async function init() {
   }
 }
 
-init();
+// Defer WASM loading until the playground section is near the viewport,
+// so above-the-fold content paints without waiting for the 181 KiB WASM file.
+(function deferInit() {
+  const playground = document.getElementById("playground");
+  if (!playground) { init(); return; }
+
+  let started = false;
+  function startOnce() {
+    if (started) return;
+    started = true;
+    io.disconnect();
+    init();
+  }
+
+  const io = new IntersectionObserver(
+    (entries) => { if (entries[0].isIntersecting) startOnce(); },
+    { rootMargin: "200px" },
+  );
+  io.observe(playground);
+
+  // Fallback: if user hasn't scrolled after 4s, start loading anyway
+  // so the playground is ready when they get there.
+  setTimeout(startOnce, 4000);
+})();
