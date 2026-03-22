@@ -17,6 +17,21 @@ enum AppendLogRecord {
     SchemaVersion {
         version: u64,
     },
+    #[cfg(feature = "contradiction")]
+    UpsertPredicateRegistryEntry {
+        predicate: String,
+        encoded: String,
+    },
+    #[cfg(feature = "uncertainty")]
+    UpsertVolatilityRegistryEntry {
+        predicate: String,
+        encoded: String,
+    },
+    #[cfg(feature = "uncertainty")]
+    UpsertSourceWeightRegistryEntry {
+        source: String,
+        encoded: String,
+    },
     UpsertFact {
         key: String,
         fact: Fact,
@@ -36,6 +51,12 @@ enum AppendLogRecord {
 struct AppendLogState {
     header_present: bool,
     schema_version: Option<u64>,
+    #[cfg(feature = "contradiction")]
+    predicate_registry: BTreeMap<String, String>,
+    #[cfg(feature = "uncertainty")]
+    volatility_registry: BTreeMap<String, String>,
+    #[cfg(feature = "uncertainty")]
+    source_weight_registry: BTreeMap<String, String>,
     facts: BTreeMap<String, Fact>,
     fact_key_by_id: BTreeMap<String, String>,
     facts_by_subject_predicate: BTreeMap<String, BTreeSet<String>>,
@@ -128,6 +149,18 @@ impl AppendLogState {
             }
             AppendLogRecord::SchemaVersion { version } => {
                 self.schema_version = Some(version);
+            }
+            #[cfg(feature = "contradiction")]
+            AppendLogRecord::UpsertPredicateRegistryEntry { predicate, encoded } => {
+                self.predicate_registry.insert(predicate, encoded);
+            }
+            #[cfg(feature = "uncertainty")]
+            AppendLogRecord::UpsertVolatilityRegistryEntry { predicate, encoded } => {
+                self.volatility_registry.insert(predicate, encoded);
+            }
+            #[cfg(feature = "uncertainty")]
+            AppendLogRecord::UpsertSourceWeightRegistryEntry { source, encoded } => {
+                self.source_weight_registry.insert(source, encoded);
             }
             AppendLogRecord::UpsertFact { key, fact }
             | AppendLogRecord::ReplaceFact { key, fact } => {
@@ -274,6 +307,84 @@ impl AppendLogBackend {
                 Ok(SCHEMA_VERSION)
             }
         }
+    }
+
+    #[cfg(feature = "contradiction")]
+    pub(crate) fn load_predicate_registry_entries(&self) -> Vec<(String, String)> {
+        let state = self.state.lock().unwrap();
+        state
+            .predicate_registry
+            .iter()
+            .map(|(predicate, encoded)| (predicate.clone(), encoded.clone()))
+            .collect()
+    }
+
+    #[cfg(feature = "contradiction")]
+    pub(crate) fn write_predicate_registry_entry(
+        &self,
+        predicate: &str,
+        encoded: &str,
+    ) -> Result<()> {
+        let record = AppendLogRecord::UpsertPredicateRegistryEntry {
+            predicate: predicate.to_string(),
+            encoded: encoded.to_string(),
+        };
+        let mut state = self.state.lock().unwrap();
+        self.append_record(&record)?;
+        state.apply_record(record);
+        Ok(())
+    }
+
+    #[cfg(feature = "uncertainty")]
+    pub(crate) fn load_volatility_registry_entries(&self) -> Vec<(String, String)> {
+        let state = self.state.lock().unwrap();
+        state
+            .volatility_registry
+            .iter()
+            .map(|(predicate, encoded)| (predicate.clone(), encoded.clone()))
+            .collect()
+    }
+
+    #[cfg(feature = "uncertainty")]
+    pub(crate) fn load_source_weight_registry_entries(&self) -> Vec<(String, String)> {
+        let state = self.state.lock().unwrap();
+        state
+            .source_weight_registry
+            .iter()
+            .map(|(source, encoded)| (source.clone(), encoded.clone()))
+            .collect()
+    }
+
+    #[cfg(feature = "uncertainty")]
+    pub(crate) fn write_volatility_registry_entry(
+        &self,
+        predicate: &str,
+        encoded: &str,
+    ) -> Result<()> {
+        let record = AppendLogRecord::UpsertVolatilityRegistryEntry {
+            predicate: predicate.to_string(),
+            encoded: encoded.to_string(),
+        };
+        let mut state = self.state.lock().unwrap();
+        self.append_record(&record)?;
+        state.apply_record(record);
+        Ok(())
+    }
+
+    #[cfg(feature = "uncertainty")]
+    pub(crate) fn write_source_weight_registry_entry(
+        &self,
+        source: &str,
+        encoded: &str,
+    ) -> Result<()> {
+        let record = AppendLogRecord::UpsertSourceWeightRegistryEntry {
+            source: source.to_string(),
+            encoded: encoded.to_string(),
+        };
+        let mut state = self.state.lock().unwrap();
+        self.append_record(&record)?;
+        state.apply_record(record);
+        Ok(())
     }
 
     pub(crate) fn scan_facts(&self, prefix: &str) -> (Vec<StoredFactRow>, usize) {

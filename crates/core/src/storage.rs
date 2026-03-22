@@ -1000,7 +1000,7 @@ impl KronroeStorage {
                 Ok(rows)
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => Ok(Vec::new()),
+            StorageEngine::AppendLog(backend) => Ok(backend.load_predicate_registry_entries()),
         };
         self.record(
             StorageOperation::LoadPredicateRegistryEntries,
@@ -1029,9 +1029,8 @@ impl KronroeStorage {
                 Ok(())
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => {
-                let _ = (predicate, encoded);
-                Err(Self::unsupported_backend("predicate registry persistence"))
+            StorageEngine::AppendLog(backend) => {
+                backend.write_predicate_registry_entry(predicate, encoded)
             }
         };
         self.record(
@@ -1062,7 +1061,7 @@ impl KronroeStorage {
                 Ok(rows)
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => Ok(Vec::new()),
+            StorageEngine::AppendLog(backend) => Ok(backend.load_volatility_registry_entries()),
         };
         self.record(
             StorageOperation::LoadVolatilityRegistryEntries,
@@ -1092,7 +1091,7 @@ impl KronroeStorage {
                 Ok(rows)
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => Ok(Vec::new()),
+            StorageEngine::AppendLog(backend) => Ok(backend.load_source_weight_registry_entries()),
         };
         self.record(
             StorageOperation::LoadSourceWeightRegistryEntries,
@@ -1121,9 +1120,8 @@ impl KronroeStorage {
                 Ok(())
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => {
-                let _ = (predicate, encoded);
-                Err(Self::unsupported_backend("volatility registry persistence"))
+            StorageEngine::AppendLog(backend) => {
+                backend.write_volatility_registry_entry(predicate, encoded)
             }
         };
         self.record(
@@ -1153,11 +1151,8 @@ impl KronroeStorage {
                 Ok(())
             })(),
             #[cfg(any(test, feature = "storage-append-log"))]
-            StorageEngine::AppendLog(_) => {
-                let _ = (source, encoded);
-                Err(Self::unsupported_backend(
-                    "source-weight registry persistence",
-                ))
+            StorageEngine::AppendLog(backend) => {
+                backend.write_source_weight_registry_entry(source, encoded)
             }
         };
         self.record(

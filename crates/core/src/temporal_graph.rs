@@ -2705,6 +2705,56 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "contradiction")]
+    #[test]
+    fn append_log_predicate_registry_persists_across_reopen() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+
+        {
+            let db = TemporalGraph::open_append_log(&path).unwrap();
+            db.register_singleton_predicate("works_at", ConflictPolicy::Warn)
+                .unwrap();
+        }
+
+        let reopened = TemporalGraph::open_append_log(&path).unwrap();
+        assert!(reopened.is_singleton_predicate("works_at").unwrap());
+    }
+
+    #[cfg(feature = "uncertainty")]
+    #[test]
+    fn append_log_uncertainty_registries_persist_across_reopen() {
+        use crate::{PredicateVolatility, SourceWeight};
+
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+
+        {
+            let db = TemporalGraph::open_append_log(&path).unwrap();
+            db.register_predicate_volatility("works_at", PredicateVolatility::new(730.0))
+                .unwrap();
+            db.register_source_weight("user:owner", SourceWeight::new(1.5))
+                .unwrap();
+        }
+
+        let reopened = TemporalGraph::open_append_log(&path).unwrap();
+        let volatility = reopened.predicate_volatility("works_at").unwrap();
+        assert_eq!(
+            volatility
+                .expect("volatility should persist across append-log reopen")
+                .half_life_days,
+            730.0
+        );
+
+        let source_weight = reopened.source_weight("user:owner").unwrap();
+        assert_eq!(
+            source_weight
+                .expect("source weight should persist across append-log reopen")
+                .weight,
+            1.5
+        );
+    }
+
     #[cfg(feature = "vector")]
     #[test]
     fn append_log_backend_rejects_embedding_writes() {
