@@ -6,12 +6,24 @@
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-QC2EK11KHY', { send_page_view: false });
-      gtag('event', 'page_view');
+      window.__kronroePageViewSent = false;
+      function sendPageViewOnce() {
+        if (window.__kronroePageViewSent) return;
+        window.__kronroePageViewSent = true;
+        gtag('event', 'page_view', {
+          page_location: window.location.href,
+          page_title: document.title,
+        });
+      }
       (window.requestIdleCallback || setTimeout)(function(){
         var s = document.createElement('script');
         s.src = 'https://www.googletagmanager.com/gtag/js?id=G-QC2EK11KHY';
+        s.async = true;
+        s.onload = function () {
+          gtag('js', new Date());
+          gtag('config', 'G-QC2EK11KHY', { send_page_view: false });
+          sendPageViewOnce();
+        };
         document.head.appendChild(s);
       });
     </script>
@@ -485,7 +497,12 @@
       /* ── Scroll reveals — progressive enhancement ── */
       /* Elements are visible by default. The JS adds `animations-ready` to <html>
          which opts them into the fade-up transition. This prevents blank page if
-         the script is delayed or blocked by CSP. */
+         the script is delayed or blocked by CSP.
+         The `reveal-fallback` animation is a safety net for environments where
+         IntersectionObserver never fires (AI browser tools, headless crawlers,
+         some browser extensions). After 1.5s the content becomes visible even
+         without the observer — real users will have scrolled by then and the
+         normal `.revealed` transition takes precedence. */
       .animations-ready .reveal-on-scroll {
         opacity: 0;
         transform: translateY(28px);

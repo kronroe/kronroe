@@ -39,6 +39,17 @@ const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)
       io.observe(el);
     });
   });
+
+  // Fallback: if IntersectionObserver never fires (AI browser tools, headless
+  // crawlers, some extensions), reveal all content after 2 seconds so the page
+  // is never blank. Real users will have scrolled by then and the normal
+  // observer-driven reveals take precedence.
+  setTimeout(() => {
+    const anyRevealed = document.querySelector('.reveal-on-scroll.revealed');
+    if (!anyRevealed) {
+      items.forEach((el) => el.classList.add('revealed'));
+    }
+  }, 2000);
 })();
 
 // ── 3D tilt on use-case cards ─────────────────────────────────────────────────
