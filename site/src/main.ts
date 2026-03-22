@@ -3,7 +3,7 @@
 
 import './animations';
 import './hero-graph';
-import { initPlaygroundGraph, updatePlaygroundGraph, clearPlaygroundGraph, highlightNode } from './playground-graph';
+import { initPlaygroundGraph, updatePlaygroundGraph, clearPlaygroundGraph, highlightNode, highlightFact } from './playground-graph';
 
 // ── WASM types ──────────────────────────────────────────────────────────────
 
