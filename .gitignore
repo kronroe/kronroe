@@ -58,5 +58,10 @@ python/kronroe-mcp/src/kronroe_mcp.egg-info/
 /logo2/
 /word mark/
 
-# Brand assets — local only, not for public repo
-design/brand/
+# Brand assets & design — local only, not for public repo
+/design/
+
+# Marketing & strategy docs — local only
+/COPPER-REBALANCING-PLAN.md
+/MARKETING-AND-LICENSING-PLAN.md
+/kronroe-linkedin-avatar-official-cream-600w.png
