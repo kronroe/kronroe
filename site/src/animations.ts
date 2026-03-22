@@ -123,12 +123,30 @@ if (!prefersReducedMotion) {
     { threshold: 0.4 },
   );
 
-  document.querySelectorAll<HTMLElement>('.stat-item[data-target]').forEach((el) => {
+  const statItems = document.querySelectorAll<HTMLElement>('.stat-item[data-target]');
+  statItems.forEach((el) => {
     // HTML has real values for a11y/no-JS; reset to 0 visually when JS runs
     const countEl = el.querySelector<HTMLElement>('.stat-count');
     if (countEl) countEl.textContent = '0';
     io.observe(el);
   });
+
+  // Fallback: if IntersectionObserver never fires (AI browser tools, headless
+  // crawlers), show the final stat values after 2 seconds.
+  setTimeout(() => {
+    statItems.forEach((el) => {
+      const target = parseInt(el.dataset.target ?? '0', 10);
+      const countEl = el.querySelector<HTMLElement>('.stat-count');
+      if (countEl && countEl.textContent === '0' && target) {
+        countEl.textContent = String(target);
+        const ringFill = el.querySelector<SVGCircleElement>('.stat-ring-fill');
+        if (ringFill) {
+          const circumference = 2 * Math.PI * (ringFill.r?.baseVal?.value ?? 54);
+          ringFill.style.strokeDashoffset = String(circumference * (1 - Math.min(target / 100, 1)));
+        }
+      }
+    });
+  }, 2000);
 })();
 
 // ── Tracing beam — scroll-following glow on lifecycle steps ──────────────────
