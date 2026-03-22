@@ -278,7 +278,7 @@ Future crates will layer on top.
 - **Temporal queries** use a two-stage pipeline: Stage 1 prunes to top-14 by semantic score,
   Stage 2 filters infeasible facts and reranks by semantic + intent-weighted temporal signal
 - **Eval provenance:** promoted from `.ideas/evals/hybrid_eval_runner/` after 11 benchmark
-  passes — product gate passed with +19% semantic lift, +77% time-slice lift, <2% latency
+  passes — product gate passed with +17% semantic lift, +47% time-slice lift (Mar 2026 rerun on KronroeTimestamp)
 - **`agent-memory` integration:** `recall()` with `hybrid` feature uses `search_hybrid` automatically
 
 ### Contradiction Detection Notes (`crates/core`, feature: `contradiction`)
