@@ -27,6 +27,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # IDs / entropy
 getrandom = "0.3"
+libc = "0.2"
 
 # Error handling
 thiserror = "1"

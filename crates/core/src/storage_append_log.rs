@@ -2,10 +2,14 @@ use crate::storage::{fact_row_key, StoredFactRow, SCHEMA_VERSION};
 use crate::{Fact, FactId, KronroeError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+#[cfg(not(target_arch = "wasm32"))]
+use std::fs::OpenOptions;
+use std::fs::{self, File};
+use std::io::Write;
+#[cfg(not(target_arch = "wasm32"))]
+use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 const APPEND_LOG_MAGIC: &str = "kronroe-append-log-v1";
 
@@ -53,6 +57,11 @@ enum AppendLogRecord {
     },
 }
 
+/// Authoritative append-log replay state.
+///
+/// Record order is the source of truth. Every index here is derived by replaying
+/// that record stream, and replacement-style state is resolved by "latest record
+/// wins" semantics.
 #[derive(Default)]
 struct AppendLogState {
     header_present: bool,
@@ -205,10 +214,118 @@ impl AppendLogState {
     }
 }
 
-#[allow(dead_code)]
 enum AppendLogMode {
     InMemory,
-    OnDisk(PathBuf),
+    #[cfg(not(target_arch = "wasm32"))]
+    OnDisk {
+        path: PathBuf,
+        _guard: AppendLogWriteGuard,
+    },
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+struct AppendLogWriteGuard {
+    path: PathBuf,
+    _process_guard: ProcessOpenGuard,
+    _lock_guard: LockFileGuard,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+struct ProcessOpenGuard {
+    path: PathBuf,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+struct LockFileGuard {
+    path: PathBuf,
+    file: File,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn append_log_open_paths() -> &'static Mutex<BTreeSet<PathBuf>> {
+    static OPEN_PATHS: OnceLock<Mutex<BTreeSet<PathBuf>>> = OnceLock::new();
+    OPEN_PATHS.get_or_init(|| Mutex::new(BTreeSet::new()))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl ProcessOpenGuard {
+    fn acquire(path: &Path) -> Result<Self> {
+        let mut open_paths = append_log_open_paths().lock().unwrap();
+        if !open_paths.insert(path.to_path_buf()) {
+            return Err(KronroeError::Storage(format!(
+                "append-log database is already open for write in this process: {}",
+                path.display()
+            )));
+        }
+        Ok(Self {
+            path: path.to_path_buf(),
+        })
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Drop for ProcessOpenGuard {
+    fn drop(&mut self) {
+        append_log_open_paths().lock().unwrap().remove(&self.path);
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl LockFileGuard {
+    fn acquire(path: &Path) -> Result<Self> {
+        let file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(path)
+            .map_err(|error| {
+                KronroeError::Storage(format!(
+                    "append-log lock open failed for {}: {error}",
+                    path.display()
+                ))
+            })?;
+        let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+        if rc != 0 {
+            let error = std::io::Error::last_os_error();
+            return Err(KronroeError::Storage(format!(
+                "append-log is already open for write by another process: {} ({error})",
+                path.display()
+            )));
+        }
+        Ok(Self {
+            path: path.to_path_buf(),
+            file,
+        })
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Drop for LockFileGuard {
+    fn drop(&mut self) {
+        let _ = unsafe { libc::flock(self.file.as_raw_fd(), libc::LOCK_UN) };
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl AppendLogWriteGuard {
+    fn acquire(path: &Path) -> Result<Self> {
+        let normalized_path = normalize_storage_path(path)?;
+        let process_guard = ProcessOpenGuard::acquire(&normalized_path)?;
+        let lock_path = append_log_lock_path(&normalized_path);
+        let lock_guard = match LockFileGuard::acquire(&lock_path) {
+            Ok(guard) => guard,
+            Err(error) => {
+                drop(process_guard);
+                return Err(error);
+            }
+        };
+        Ok(Self {
+            path: normalized_path,
+            _process_guard: process_guard,
+            _lock_guard: lock_guard,
+        })
+    }
 }
 
 pub(crate) struct AppendLogBackend {
@@ -216,19 +333,30 @@ pub(crate) struct AppendLogBackend {
     state: Mutex<AppendLogState>,
 }
 
-#[allow(dead_code)]
 impl AppendLogBackend {
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn open(path: &str) -> Result<Self> {
-        let path = PathBuf::from(path);
+        let guard = AppendLogWriteGuard::acquire(Path::new(path))?;
+        let path = guard.path.clone();
         let state = if path.exists() {
             Self::load_state_from_path(&path)?
         } else {
             AppendLogState::default()
         };
         Ok(Self {
-            mode: AppendLogMode::OnDisk(path),
+            mode: AppendLogMode::OnDisk {
+                path,
+                _guard: guard,
+            },
             state: Mutex::new(state),
         })
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn open(path: &str) -> Result<Self> {
+        Err(KronroeError::Storage(format!(
+            "on-disk append-log storage is not supported on wasm32 (`{path}`)"
+        )))
     }
 
     pub(crate) fn open_in_memory() -> Self {
@@ -238,79 +366,124 @@ impl AppendLogBackend {
         }
     }
 
-    fn load_state_from_path(path: &Path) -> Result<AppendLogState> {
-        let file = fs::File::open(path)
-            .map_err(|error| KronroeError::Storage(format!("append-log open failed: {error}")))?;
-        let reader = BufReader::new(file);
-        let mut state = AppendLogState::default();
-        let mut first_record = true;
-        for (idx, line) in reader.lines().enumerate() {
-            let line = line.map_err(|error| {
-                if first_record {
-                    KronroeError::Storage(format!(
-                        "storage backend mismatch: {} is not a Kronroe append-log file ({error})",
-                        path.display()
-                    ))
-                } else {
-                    KronroeError::Storage(format!(
-                        "append-log read failed at line {} in {}: {error}",
-                        idx + 1,
-                        path.display()
-                    ))
-                }
-            })?;
-            if line.trim().is_empty() {
-                continue;
-            }
-            let record: AppendLogRecord = serde_json::from_str(&line).map_err(|error| {
-                if first_record {
-                    KronroeError::Storage(format!(
-                        "storage backend mismatch: {} is not a Kronroe append-log file (missing header `{APPEND_LOG_MAGIC}`)",
-                        path.display()
-                    ))
-                } else {
-                    KronroeError::Storage(format!(
-                        "invalid append-log record at line {} in {}: {error}",
-                        idx + 1,
-                        path.display()
-                    ))
-                }
-            })?;
-            if first_record {
-                match &record {
-                    AppendLogRecord::Header { magic } if magic == APPEND_LOG_MAGIC => {}
-                    _ => {
-                        return Err(KronroeError::Storage(format!(
-                            "storage backend mismatch: {} is not a Kronroe append-log file (missing header `{APPEND_LOG_MAGIC}`)",
-                            path.display()
-                        )));
-                    }
-                }
-                first_record = false;
-            }
-            state.apply_record(record);
-        }
-        Ok(state)
-    }
-
     fn append_record(&self, record: &AppendLogRecord) -> Result<()> {
-        if let AppendLogMode::OnDisk(path) = &self.mode {
-            let mut file = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)
-                .map_err(|error| {
-                    KronroeError::Storage(format!("append-log open for append failed: {error}"))
-                })?;
-            serde_json::to_writer(&mut file, record)?;
-            file.write_all(b"\n").map_err(|error| {
-                KronroeError::Storage(format!("append-log newline write failed: {error}"))
-            })?;
-            file.sync_all().map_err(|error| {
-                KronroeError::Storage(format!("append-log sync failed: {error}"))
-            })?;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if let AppendLogMode::OnDisk { path, .. } = &self.mode {
+                return Self::append_record_to_path(path, record);
+            }
         }
         Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn append_record_to_path(path: &Path, record: &AppendLogRecord) -> Result<()> {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|error| {
+                KronroeError::Storage(format!(
+                    "append-log open for append failed for {}: {error}",
+                    path.display()
+                ))
+            })?;
+        Self::write_record_line(&mut file, record)?;
+        file.sync_all().map_err(|error| {
+            KronroeError::Storage(format!(
+                "append-log sync failed for {}: {error}",
+                path.display()
+            ))
+        })?;
+        Ok(())
+    }
+
+    fn write_record_line(writer: &mut impl Write, record: &AppendLogRecord) -> Result<()> {
+        serde_json::to_writer(&mut *writer, record)?;
+        writer.write_all(b"\n").map_err(|error| {
+            KronroeError::Storage(format!("append-log newline write failed: {error}"))
+        })?;
+        Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn load_state_from_path(path: &Path) -> Result<AppendLogState> {
+        let bytes = fs::read(path).map_err(|error| {
+            KronroeError::Storage(format!(
+                "append-log open failed for {}: {error}",
+                path.display()
+            ))
+        })?;
+        if bytes.is_empty() {
+            return Ok(AppendLogState::default());
+        }
+
+        let ends_with_newline = bytes.last().copied() == Some(b'\n');
+        let segments: Vec<&[u8]> = bytes.split(|byte| *byte == b'\n').collect();
+        let mut state = AppendLogState::default();
+        let mut saw_valid_record = false;
+
+        for (index, segment) in segments.iter().enumerate() {
+            let line_number = index + 1;
+            let trimmed = trim_ascii_whitespace(segment);
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            let is_last_segment = index + 1 == segments.len();
+            let parsed = serde_json::from_slice::<AppendLogRecord>(trimmed);
+            let record = match parsed {
+                Ok(record) => record,
+                Err(error) => {
+                    if saw_valid_record && is_last_segment && !ends_with_newline {
+                        return Ok(state);
+                    }
+                    if !saw_valid_record {
+                        return Err(append_log_backend_mismatch(
+                            path,
+                            format!("missing header `{APPEND_LOG_MAGIC}` ({error})"),
+                        ));
+                    }
+                    return Err(append_log_corruption(
+                        path,
+                        line_number,
+                        format!("invalid append-log record: {error}"),
+                    ));
+                }
+            };
+
+            if !saw_valid_record {
+                match &record {
+                    AppendLogRecord::Header { magic } if magic == APPEND_LOG_MAGIC => {}
+                    AppendLogRecord::Header { magic } => {
+                        return Err(append_log_backend_mismatch(
+                            path,
+                            format!("wrong header `{magic}`, expected `{APPEND_LOG_MAGIC}`"),
+                        ));
+                    }
+                    _ => {
+                        return Err(append_log_backend_mismatch(
+                            path,
+                            format!("missing header `{APPEND_LOG_MAGIC}`"),
+                        ));
+                    }
+                }
+            }
+
+            if let AppendLogRecord::SchemaVersion { version } = &record {
+                if *version != SCHEMA_VERSION {
+                    return Err(KronroeError::SchemaMismatch {
+                        found: *version,
+                        expected: SCHEMA_VERSION,
+                    });
+                }
+            }
+
+            saw_valid_record = true;
+            state.apply_record(record);
+        }
+
+        Ok(state)
     }
 
     pub(crate) fn initialize_schema(&self) -> Result<u64> {
@@ -333,6 +506,50 @@ impl AppendLogBackend {
                 Ok(SCHEMA_VERSION)
             }
         }
+    }
+
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn compact(&self) -> Result<()> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let AppendLogMode::OnDisk { path, .. } = &self.mode {
+            let state = self.state.lock().unwrap();
+            let temp_path = append_log_temp_path(path);
+            let write_result = Self::write_compacted_state(&temp_path, &state);
+            if let Err(error) = write_result {
+                let _ = fs::remove_file(&temp_path);
+                return Err(error);
+            }
+            fs::rename(&temp_path, path).map_err(|error| {
+                KronroeError::Storage(format!(
+                    "append-log compaction replace failed for {}: {error}",
+                    path.display()
+                ))
+            })?;
+            sync_parent_directory(path)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg_attr(not(test), allow(dead_code))]
+    fn write_compacted_state(path: &Path, state: &AppendLogState) -> Result<()> {
+        let records = compaction_records(state)?;
+        let mut file = File::create(path).map_err(|error| {
+            KronroeError::Storage(format!(
+                "append-log compaction create failed for {}: {error}",
+                path.display()
+            ))
+        })?;
+        for record in records {
+            Self::write_record_line(&mut file, &record)?;
+        }
+        file.sync_all().map_err(|error| {
+            KronroeError::Storage(format!(
+                "append-log compaction sync failed for {}: {error}",
+                path.display()
+            ))
+        })?;
+        Ok(())
     }
 
     #[cfg(feature = "contradiction")]
@@ -673,4 +890,178 @@ impl AppendLogBackend {
         state.apply_record(record);
         Ok((contradictions, rows_scanned))
     }
+}
+
+fn trim_ascii_whitespace(bytes: &[u8]) -> &[u8] {
+    let start = bytes
+        .iter()
+        .position(|byte| !byte.is_ascii_whitespace())
+        .unwrap_or(bytes.len());
+    let end = bytes
+        .iter()
+        .rposition(|byte| !byte.is_ascii_whitespace())
+        .map(|index| index + 1)
+        .unwrap_or(start);
+    &bytes[start..end]
+}
+
+fn append_log_corruption(path: &Path, line_number: usize, detail: String) -> KronroeError {
+    KronroeError::Storage(format!(
+        "append-log corruption in {} at line {}: {}",
+        path.display(),
+        line_number,
+        detail
+    ))
+}
+
+fn append_log_backend_mismatch(path: &Path, detail: String) -> KronroeError {
+    KronroeError::Storage(format!(
+        "storage backend mismatch for {}: {}",
+        path.display(),
+        detail
+    ))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(not(test), allow(dead_code))]
+fn append_log_temp_path(path: &Path) -> PathBuf {
+    let file_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "append-log".to_string());
+    path.with_file_name(format!("{file_name}.compact.tmp"))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn append_log_lock_path(path: &Path) -> PathBuf {
+    let file_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "append-log".to_string());
+    path.with_file_name(format!("{file_name}.lock"))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn normalize_storage_path(path: &Path) -> Result<PathBuf> {
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map_err(|error| {
+                KronroeError::Storage(format!("failed to resolve current directory: {error}"))
+            })?
+            .join(path)
+    };
+
+    if absolute.exists() {
+        return absolute.canonicalize().map_err(|error| {
+            KronroeError::Storage(format!(
+                "failed to canonicalize append-log path {}: {error}",
+                absolute.display()
+            ))
+        });
+    }
+
+    let parent = absolute.parent().unwrap_or_else(|| Path::new("."));
+    let canonical_parent = parent.canonicalize().map_err(|error| {
+        KronroeError::Storage(format!(
+            "append-log parent directory does not exist for {}: {error}",
+            absolute.display()
+        ))
+    })?;
+    Ok(match absolute.file_name() {
+        Some(file_name) => canonical_parent.join(file_name),
+        None => canonical_parent,
+    })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(not(test), allow(dead_code))]
+fn sync_parent_directory(path: &Path) -> Result<()> {
+    let Some(parent) = path.parent() else {
+        return Ok(());
+    };
+    let directory = File::open(parent).map_err(|error| {
+        KronroeError::Storage(format!(
+            "append-log directory sync open failed for {}: {error}",
+            parent.display()
+        ))
+    })?;
+    directory.sync_all().map_err(|error| {
+        KronroeError::Storage(format!(
+            "append-log directory sync failed for {}: {error}",
+            parent.display()
+        ))
+    })
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+fn compaction_records(state: &AppendLogState) -> Result<Vec<AppendLogRecord>> {
+    let mut records = Vec::new();
+    records.push(AppendLogRecord::Header {
+        magic: APPEND_LOG_MAGIC.to_string(),
+    });
+    records.push(AppendLogRecord::SchemaVersion {
+        version: state.schema_version.unwrap_or(SCHEMA_VERSION),
+    });
+
+    #[cfg(feature = "contradiction")]
+    for (predicate, encoded) in &state.predicate_registry {
+        records.push(AppendLogRecord::UpsertPredicateRegistryEntry {
+            predicate: predicate.clone(),
+            encoded: encoded.clone(),
+        });
+    }
+
+    #[cfg(feature = "uncertainty")]
+    for (predicate, encoded) in &state.volatility_registry {
+        records.push(AppendLogRecord::UpsertVolatilityRegistryEntry {
+            predicate: predicate.clone(),
+            encoded: encoded.clone(),
+        });
+    }
+
+    #[cfg(feature = "uncertainty")]
+    for (source, encoded) in &state.source_weight_registry {
+        records.push(AppendLogRecord::UpsertSourceWeightRegistryEntry {
+            source: source.clone(),
+            encoded: encoded.clone(),
+        });
+    }
+
+    for (key, fact) in &state.facts {
+        #[cfg(feature = "vector")]
+        if let Some(embedding) = state.embeddings.get(fact.id.as_str()) {
+            records.push(AppendLogRecord::UpsertFactWithEmbedding {
+                key: key.clone(),
+                fact: fact.clone(),
+                embedding: embedding.clone(),
+            });
+            continue;
+        }
+        records.push(AppendLogRecord::UpsertFact {
+            key: key.clone(),
+            fact: fact.clone(),
+        });
+    }
+
+    for (idempotency_key, fact_id) in &state.idempotency {
+        let Some(fact_key) = state.fact_key_by_id.get(fact_id) else {
+            return Err(KronroeError::Storage(format!(
+                "append-log compaction failed: missing fact key for idempotency fact id `{fact_id}`"
+            )));
+        };
+        let Some(fact) = state.facts.get(fact_key) else {
+            return Err(KronroeError::Storage(format!(
+                "append-log compaction failed: missing fact row for idempotency fact id `{fact_id}`"
+            )));
+        };
+        records.push(AppendLogRecord::UpsertFactAndIdempotency {
+            key: fact_key.clone(),
+            fact: fact.clone(),
+            idempotency_key: idempotency_key.clone(),
+        });
+    }
+
+    Ok(records)
 }

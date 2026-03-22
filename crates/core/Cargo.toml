@@ -29,6 +29,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
 getrandom = { workspace = true }
+libc = { workspace = true }
 thiserror = { workspace = true }
 
 # WASM needs js-sys for wall-clock time (SystemTime::now() is unsupported on
