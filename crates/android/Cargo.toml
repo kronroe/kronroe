@@ -20,7 +20,6 @@ crate-type = ["cdylib", "lib"]
 [dependencies]
 kronroe = { version = "0.3.0", path = "../core", default-features = false }
 jni = { workspace = true }
-chrono = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]

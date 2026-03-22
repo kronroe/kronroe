@@ -11,13 +11,14 @@
 //! # Quick start
 //!
 //! ```rust,no_run
-//! use kronroe::TemporalGraph;
-//! use chrono::Utc;
+//! use kronroe::{KronroeTimestamp, TemporalGraph};
 //!
 //! let db = TemporalGraph::open("my-graph.kronroe").unwrap();
 //!
 //! // Assert a fact
-//! let id = db.assert_fact("alice", "works_at", "Acme", Utc::now()).unwrap();
+//! let id = db
+//!     .assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
+//!     .unwrap();
 //!
 //! // Query current state
 //! let facts = db.current_facts("alice", "works_at").unwrap();
@@ -28,6 +29,7 @@
 //! ```
 
 mod fact_id;
+mod kronroe_time;
 #[cfg(feature = "fulltext")]
 mod lexical;
 mod storage;
@@ -55,8 +57,10 @@ mod uncertainty;
 #[cfg(feature = "uncertainty")]
 pub use uncertainty::{EffectiveConfidence, PredicateVolatility, SourceWeight};
 
-use chrono::{DateTime, Utc};
 pub use fact_id::{FactId, FactIdParseError};
+pub use kronroe_time::{
+    default_clock, FixedClock, KronroeClock, KronroeSpan, KronroeTimestamp, SystemClock,
+};
 use serde::{Deserialize, Serialize};
 #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
 use std::cmp::Ordering;
@@ -177,13 +181,13 @@ pub struct Fact {
     /// What is true.
     pub object: Value,
     /// When this became true in the world (valid time start).
-    pub valid_from: DateTime<Utc>,
+    pub valid_from: KronroeTimestamp,
     /// When this stopped being true in the world. `None` = still true.
-    pub valid_to: Option<DateTime<Utc>>,
+    pub valid_to: Option<KronroeTimestamp>,
     /// When this was written to the database (transaction time start).
-    pub recorded_at: DateTime<Utc>,
+    pub recorded_at: KronroeTimestamp,
     /// When we learned it was no longer true. `None` = still believed true.
-    pub expired_at: Option<DateTime<Utc>>,
+    pub expired_at: Option<KronroeTimestamp>,
     /// Confidence in this fact \[0.0, 1.0\].
     pub confidence: f32,
     /// Where this fact came from (conversation ID, document ID, etc.).
@@ -196,7 +200,7 @@ impl Fact {
         subject: impl Into<String>,
         predicate: impl Into<String>,
         object: impl Into<Value>,
-        valid_from: DateTime<Utc>,
+        valid_from: KronroeTimestamp,
     ) -> Self {
         Self {
             id: FactId::new(),
@@ -205,7 +209,7 @@ impl Fact {
             object: object.into(),
             valid_from,
             valid_to: None,
-            recorded_at: Utc::now(),
+            recorded_at: KronroeTimestamp::now_utc(),
             expired_at: None,
             confidence: 1.0,
             source: None,
@@ -243,7 +247,7 @@ impl Fact {
     }
 
     /// Was this fact valid at the given point in time (valid time axis)?
-    pub fn was_valid_at(&self, at: DateTime<Utc>) -> bool {
+    pub fn was_valid_at(&self, at: KronroeTimestamp) -> bool {
         self.valid_from <= at
             && self.valid_to.is_none_or(|t| t > at)
             && self.expired_at.is_none_or(|t| t > at)
@@ -260,11 +264,11 @@ impl Fact {
 /// # Example
 ///
 /// ```rust,no_run
-/// use kronroe::TemporalGraph;
-/// use chrono::Utc;
+/// use kronroe::{KronroeTimestamp, TemporalGraph};
 ///
 /// let db = TemporalGraph::open("my-graph.kronroe").unwrap();
-/// db.assert_fact("alice", "works_at", "Acme", Utc::now()).unwrap();
+/// db.assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
+///     .unwrap();
 /// let current = db.current_facts("alice", "works_at").unwrap();
 /// assert_eq!(current.len(), 1);
 /// ```
@@ -399,7 +403,7 @@ impl TemporalGraph {
         subject: &str,
         predicate: &str,
         object: Value,
-        valid_from: DateTime<Utc>,
+        valid_from: KronroeTimestamp,
         confidence: f32,
         source: Option<&str>,
     ) -> Result<Fact> {
@@ -435,7 +439,7 @@ impl TemporalGraph {
         subject: &str,
         predicate: &str,
         object: impl Into<Value>,
-        valid_from: DateTime<Utc>,
+        valid_from: KronroeTimestamp,
     ) -> Result<FactId> {
         let fact = Self::build_fact(subject, predicate, object.into(), valid_from, 1.0, None)?;
         let fact_id = fact.id.clone();
@@ -454,7 +458,7 @@ impl TemporalGraph {
         subject: &str,
         predicate: &str,
         object: impl Into<Value>,
-        valid_from: DateTime<Utc>,
+        valid_from: KronroeTimestamp,
         confidence: f32,
     ) -> Result<FactId> {
         let fact = Self::build_fact(
@@ -482,7 +486,7 @@ impl TemporalGraph {
         subject: &str,
         predicate: &str,
         object: impl Into<Value>,
-        valid_from: DateTime<Utc>,
+        valid_from: KronroeTimestamp,
         confidence: f32,
         source: &str,
     ) -> Result<FactId> {
@@ -510,7 +514,7 @@ impl TemporalGraph {
         subject: &str,
         predicate: &str,
         object: impl Into<Value>,
-        valid_from: DateTime<Utc>,
+        valid_from: KronroeTimestamp,
     ) -> Result<FactId> {
         if let Some(existing_id) = self.storage.get_idempotency(idempotency_key)? {
             return Ok(existing_id);
@@ -537,7 +541,12 @@ impl TemporalGraph {
     ///
     /// Uses the **valid time** axis: queries when something was true in the
     /// world, regardless of when it was recorded.
-    pub fn facts_at(&self, subject: &str, predicate: &str, at: DateTime<Utc>) -> Result<Vec<Fact>> {
+    pub fn facts_at(
+        &self,
+        subject: &str,
+        predicate: &str,
+        at: KronroeTimestamp,
+    ) -> Result<Vec<Fact>> {
         Ok(self
             .storage
             .facts_at(subject, predicate, at)?
@@ -622,7 +631,7 @@ impl TemporalGraph {
     /// The fact is not deleted — its history is preserved. After invalidation,
     /// the fact will no longer appear in `current_facts()` but will still be
     /// returned by `facts_at()` for timestamps before `at`.
-    pub fn invalidate_fact(&self, fact_id: impl AsRef<str>, at: DateTime<Utc>) -> Result<()> {
+    pub fn invalidate_fact(&self, fact_id: impl AsRef<str>, at: KronroeTimestamp) -> Result<()> {
         let fact_id = self.resolve_fact_id_input(fact_id.as_ref())?;
         let found = self.storage.fact_by_id(&fact_id)?;
 
@@ -660,7 +669,7 @@ impl TemporalGraph {
         &self,
         fact_id: impl AsRef<str>,
         new_value: impl Into<Value>,
-        at: DateTime<Utc>,
+        at: KronroeTimestamp,
     ) -> Result<FactId> {
         let fact_id = fact_id.as_ref();
         let old = self.fact_by_id(fact_id)?;
@@ -836,7 +845,7 @@ impl TemporalGraph {
         subject: &str,
         predicate: &str,
         object: impl Into<Value>,
-        valid_from: DateTime<Utc>,
+        valid_from: KronroeTimestamp,
     ) -> Result<(FactId, Vec<Contradiction>)> {
         let object = object.into();
 
@@ -902,7 +911,7 @@ impl TemporalGraph {
         subject: &str,
         predicate: &str,
         object: impl Into<Value>,
-        valid_from: DateTime<Utc>,
+        valid_from: KronroeTimestamp,
         embedding: Vec<f32>,
     ) -> Result<FactId> {
         if embedding.is_empty() {
@@ -947,7 +956,7 @@ impl TemporalGraph {
         &self,
         query: &[f32],
         k: usize,
-        at: Option<DateTime<Utc>>,
+        at: Option<KronroeTimestamp>,
     ) -> Result<Vec<(Fact, f32)>> {
         use std::collections::{HashMap, HashSet};
 
@@ -1025,7 +1034,7 @@ impl TemporalGraph {
         &self,
         query: &[f32],
         limit: usize,
-        at: Option<DateTime<Utc>>,
+        at: Option<KronroeTimestamp>,
     ) -> Result<Vec<(FactId, usize)>> {
         if limit == 0 {
             return Ok(Vec::new());
@@ -1056,7 +1065,7 @@ impl TemporalGraph {
         text_query: &str,
         vector_query: &[f32],
         params: HybridSearchParams,
-        at: Option<DateTime<Utc>>,
+        at: Option<KronroeTimestamp>,
     ) -> Result<Vec<(Fact, HybridScoreBreakdown)>> {
         // ── Validation ──────────────────────────────────────────────────
         if params.k == 0 {
@@ -1290,7 +1299,7 @@ impl TemporalGraph {
     pub fn effective_confidence(
         &self,
         fact: &Fact,
-        at: DateTime<Utc>,
+        at: KronroeTimestamp,
     ) -> Result<uncertainty::EffectiveConfidence> {
         let engine = self
             .uncertainty_engine
@@ -1317,7 +1326,7 @@ mod tests {
         (db, file)
     }
 
-    fn dt(s: &str) -> DateTime<Utc> {
+    fn dt(s: &str) -> KronroeTimestamp {
         s.parse().unwrap()
     }
 
@@ -1351,7 +1360,7 @@ mod tests {
     #[test]
     fn assert_and_retrieve_current_fact() {
         let (db, _tmp) = open_temp_db();
-        db.assert_fact("alice", "works_at", "Acme", Utc::now())
+        db.assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
             .unwrap();
 
         let facts = db.current_facts("alice", "works_at").unwrap();
@@ -1367,7 +1376,7 @@ mod tests {
     #[test]
     fn idempotent_assert_same_key_returns_same_fact_id() {
         let (db, _tmp) = open_temp_db();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         let first = db
             .assert_fact_idempotent("evt-123", "alice", "works_at", "Acme", now)
@@ -1384,7 +1393,7 @@ mod tests {
     #[test]
     fn idempotent_assert_different_keys_create_different_facts() {
         let (db, _tmp) = open_temp_db();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         let first = db
             .assert_fact_idempotent("evt-aaa", "alice", "works_at", "Acme", now)
@@ -1406,7 +1415,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("idempotency-reopen.kronroe");
         let path_str = path.to_str().unwrap();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         let first_id = {
             let db = TemporalGraph::open(path_str).unwrap();
@@ -1492,7 +1501,7 @@ mod tests {
     #[test]
     fn all_facts_about_entity() {
         let (db, _tmp) = open_temp_db();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         db.assert_fact("alice", "works_at", "Acme", now).unwrap();
         db.assert_fact("alice", "has_role", "Engineer", now)
@@ -1514,7 +1523,7 @@ mod tests {
     #[test]
     fn value_types() {
         let (db, _tmp) = open_temp_db();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         db.assert_fact("alice", "confidence_score", 0.95_f64, now)
             .unwrap();
@@ -1562,7 +1571,7 @@ mod tests {
     #[cfg(feature = "vector")]
     fn vector_search_returns_most_similar_current_facts() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         // Three facts with distinct embedding directions.
         // Query [1,0,0] should rank id0 first.
@@ -1587,9 +1596,9 @@ mod tests {
     #[cfg(feature = "vector")]
     fn vector_search_respects_temporal_filter() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        let jan = "2024-01-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap();
-        let jul = "2024-07-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap();
-        let mar = "2024-03-01T00:00:00Z".parse::<DateTime<Utc>>().unwrap();
+        let jan = "2024-01-01T00:00:00Z".parse::<KronroeTimestamp>().unwrap();
+        let jul = "2024-07-01T00:00:00Z".parse::<KronroeTimestamp>().unwrap();
+        let mar = "2024-03-01T00:00:00Z".parse::<KronroeTimestamp>().unwrap();
 
         // Fact valid from Jan, invalidated at Jul.
         let id_old = db
@@ -1618,7 +1627,7 @@ mod tests {
     fn vector_search_returns_empty_when_no_embeddings() {
         let db = TemporalGraph::open_in_memory().unwrap();
         // Assert a plain fact (no embedding).
-        db.assert_fact("alice", "works_at", "Acme", Utc::now())
+        db.assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
             .unwrap();
         let results = db.search_by_vector(&[1.0, 0.0], 5, None).unwrap();
         assert!(results.is_empty());
@@ -1628,7 +1637,7 @@ mod tests {
     #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
     fn hybrid_search_breakdown_sums_correctly() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        let t = Utc::now();
+        let t = KronroeTimestamp::now_utc();
         db.assert_fact_with_embedding(
             "alice",
             "bio",
@@ -1670,8 +1679,14 @@ mod tests {
     #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
     fn hybrid_search_rejects_zero_rank_constant() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        db.assert_fact_with_embedding("alice", "bio", "Rust", Utc::now(), vec![1.0, 0.0])
-            .unwrap();
+        db.assert_fact_with_embedding(
+            "alice",
+            "bio",
+            "Rust",
+            KronroeTimestamp::now_utc(),
+            vec![1.0, 0.0],
+        )
+        .unwrap();
 
         let bad = HybridSearchParams {
             rank_constant: 0,
@@ -1688,7 +1703,7 @@ mod tests {
     #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
     fn search_hybrid_returns_reranked_results() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        let t = Utc::now();
+        let t = KronroeTimestamp::now_utc();
         db.assert_fact_with_embedding(
             "alice",
             "bio",
@@ -1799,7 +1814,7 @@ mod tests {
     ))]
     fn search_ranked_matches_search_scored_order() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         db.assert_fact("alice", "works_at", "Acme Corp", now)
             .unwrap();
@@ -1880,7 +1895,7 @@ mod tests {
     #[cfg(feature = "fulltext")]
     fn search_returns_expected_facts() {
         let (db, _tmp) = open_temp_db();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         db.assert_fact("alice", "works_at", "Acme", now).unwrap();
         db.assert_fact("alice", "has_alias", "ally", now).unwrap();
@@ -1899,7 +1914,7 @@ mod tests {
     #[cfg(feature = "fulltext")]
     fn search_supports_fuzzy_typo_matching() {
         let (db, _tmp) = open_temp_db();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         db.assert_fact("alice", "works_at", "Acme", now).unwrap();
         db.assert_fact("alice", "has_alias", "ally", now).unwrap();
@@ -1915,7 +1930,7 @@ mod tests {
     #[cfg(feature = "fulltext")]
     fn search_supports_alias_matching() {
         let (db, _tmp) = open_temp_db();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         db.assert_fact("alice", "works_at", "Acme", now).unwrap();
         db.assert_fact("alice", "has_alias", "ally", now).unwrap();
@@ -1933,7 +1948,7 @@ mod tests {
     #[cfg(feature = "fulltext")]
     fn search_orders_exact_ties_by_fact_id() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         let first = db.assert_fact("alice", "tag", "rust", now).unwrap();
         let second = db.assert_fact("bob", "tag", "rust", now).unwrap();
@@ -1960,7 +1975,7 @@ mod tests {
     #[cfg(feature = "fulltext")]
     fn search_and_search_scored_same_ordering() {
         let (db, _tmp) = open_temp_db();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         db.assert_fact("alice", "works_at", "Acme Corp", now)
             .unwrap();
@@ -2008,7 +2023,13 @@ mod tests {
     #[cfg(feature = "vector")]
     fn vector_empty_embedding_returns_error() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        let result = db.assert_fact_with_embedding("alice", "interest", "Rust", Utc::now(), vec![]);
+        let result = db.assert_fact_with_embedding(
+            "alice",
+            "interest",
+            "Rust",
+            KronroeTimestamp::now_utc(),
+            vec![],
+        );
         assert!(
             matches!(result, Err(KronroeError::InvalidEmbedding(_))),
             "empty embedding must return InvalidEmbedding, not panic"
@@ -2019,7 +2040,7 @@ mod tests {
     #[cfg(feature = "vector")]
     fn vector_dim_mismatch_returns_error() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         // Establish dim = 3.
         db.assert_fact_with_embedding("alice", "interest", "Rust", now, vec![1.0, 0.0, 0.0])
@@ -2043,7 +2064,7 @@ mod tests {
     #[cfg(feature = "vector")]
     fn vector_search_wrong_query_dim_returns_error() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         // Insert a dim-3 embedding to establish the index dimension.
         db.assert_fact_with_embedding("alice", "interest", "Rust", now, vec![1.0, 0.0, 0.0])
@@ -2065,7 +2086,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("durability.kronroe");
         let path_str = path.to_str().unwrap();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         // Write two embeddings, then drop the database.
         {
@@ -2090,7 +2111,7 @@ mod tests {
     fn invalidate_nonexistent_fact_returns_not_found() {
         let (db, _tmp) = open_temp_db();
         let bogus_id = FactId::new();
-        let result = db.invalidate_fact(&bogus_id, Utc::now());
+        let result = db.invalidate_fact(&bogus_id, KronroeTimestamp::now_utc());
         assert!(
             result.is_err(),
             "invalidating a nonexistent fact should fail"
@@ -2129,8 +2150,8 @@ mod tests {
         db.register_singleton_predicate("works_at", ConflictPolicy::Warn)
             .unwrap();
 
-        let t1 = Utc::now() - chrono::Duration::days(365);
-        let t2 = Utc::now() - chrono::Duration::days(30);
+        let t1 = KronroeTimestamp::now_utc() - KronroeSpan::days(365);
+        let t2 = KronroeTimestamp::now_utc() - KronroeSpan::days(30);
         db.assert_fact("alice", "works_at", "Acme", t1).unwrap();
         db.assert_fact("alice", "works_at", "Beta Corp", t2)
             .unwrap();
@@ -2146,7 +2167,7 @@ mod tests {
     fn no_contradiction_for_unregistered_predicate() {
         let db = TemporalGraph::open_in_memory().unwrap();
         // "speaks_language" not registered → defaults to multi-valued
-        let t = Utc::now();
+        let t = KronroeTimestamp::now_utc();
         db.assert_fact("alice", "speaks_language", "English", t)
             .unwrap();
         db.assert_fact("alice", "speaks_language", "French", t)
@@ -2165,11 +2186,16 @@ mod tests {
         db.register_singleton_predicate("works_at", ConflictPolicy::Warn)
             .unwrap();
 
-        let t1 = Utc::now() - chrono::Duration::days(30);
+        let t1 = KronroeTimestamp::now_utc() - KronroeSpan::days(30);
         db.assert_fact("alice", "works_at", "Acme", t1).unwrap();
 
         let (fact_id, contradictions) = db
-            .assert_fact_checked("alice", "works_at", "Beta Corp", Utc::now())
+            .assert_fact_checked(
+                "alice",
+                "works_at",
+                "Beta Corp",
+                KronroeTimestamp::now_utc(),
+            )
             .unwrap();
         assert!(!fact_id.as_str().is_empty(), "fact should be stored");
         assert_eq!(contradictions.len(), 1, "should detect one contradiction");
@@ -2194,10 +2220,11 @@ mod tests {
         db.register_singleton_predicate("lives_in", ConflictPolicy::Reject)
             .unwrap();
 
-        let t1 = Utc::now() - chrono::Duration::days(30);
+        let t1 = KronroeTimestamp::now_utc() - KronroeSpan::days(30);
         db.assert_fact("alice", "lives_in", "London", t1).unwrap();
 
-        let result = db.assert_fact_checked("alice", "lives_in", "Paris", Utc::now());
+        let result =
+            db.assert_fact_checked("alice", "lives_in", "Paris", KronroeTimestamp::now_utc());
         assert!(result.is_err(), "should be rejected");
         assert!(matches!(
             result.unwrap_err(),
@@ -2219,8 +2246,8 @@ mod tests {
         db.register_singleton_predicate("lives_in", ConflictPolicy::Warn)
             .unwrap();
 
-        let t1 = Utc::now() - chrono::Duration::days(365);
-        let t2 = Utc::now() - chrono::Duration::days(30);
+        let t1 = KronroeTimestamp::now_utc() - KronroeSpan::days(365);
+        let t2 = KronroeTimestamp::now_utc() - KronroeSpan::days(30);
 
         // Alice has contradictions on works_at.
         db.assert_fact("alice", "works_at", "Acme", t1).unwrap();
@@ -2245,7 +2272,7 @@ mod tests {
 
     #[test]
     fn fact_with_confidence_clamps() {
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
         let too_high = Fact::new("s", "p", "v", now).with_confidence(1.5);
         assert!((too_high.confidence - 1.0).abs() < f32::EPSILON);
 
@@ -2259,7 +2286,7 @@ mod tests {
     #[test]
     fn assert_fact_with_confidence_persists() {
         let (db, _tmp) = open_temp_db();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
         let id = db
             .assert_fact_with_confidence("alice", "works_at", "Acme", now, 0.7)
             .unwrap();
@@ -2274,7 +2301,7 @@ mod tests {
     #[test]
     fn assert_fact_with_confidence_rejects_non_finite() {
         let (db, _tmp) = open_temp_db();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         for confidence in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
             let err = db.assert_fact_with_confidence("alice", "works_at", "Acme", now, confidence);
@@ -2292,7 +2319,7 @@ mod tests {
     fn assert_fact_default_confidence() {
         let (db, _tmp) = open_temp_db();
         let id = db
-            .assert_fact("alice", "works_at", "Acme", Utc::now())
+            .assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
             .unwrap();
         let fact = db.fact_by_id(&id).unwrap();
         assert!(
@@ -2304,7 +2331,8 @@ mod tests {
 
     #[test]
     fn fact_with_source_builder() {
-        let fact = Fact::new("alice", "works_at", "Acme", Utc::now()).with_source("user:rebekah");
+        let fact = Fact::new("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
+            .with_source("user:rebekah");
         assert_eq!(fact.source.as_deref(), Some("user:rebekah"));
     }
 
@@ -2312,7 +2340,14 @@ mod tests {
     fn assert_fact_with_source_round_trip() {
         let (db, _tmp) = open_temp_db();
         let id = db
-            .assert_fact_with_source("alice", "works_at", "Acme", Utc::now(), 0.9, "api:openai")
+            .assert_fact_with_source(
+                "alice",
+                "works_at",
+                "Acme",
+                KronroeTimestamp::now_utc(),
+                0.9,
+                "api:openai",
+            )
             .unwrap();
         let fact = db.fact_by_id(&id).unwrap();
         assert_eq!(fact.source.as_deref(), Some("api:openai"));
@@ -2323,7 +2358,7 @@ mod tests {
     fn assert_fact_default_source_is_none() {
         let (db, _tmp) = open_temp_db();
         let id = db
-            .assert_fact("alice", "works_at", "Acme", Utc::now())
+            .assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
             .unwrap();
         let fact = db.fact_by_id(&id).unwrap();
         assert!(fact.source.is_none(), "default source should be None");
@@ -2364,10 +2399,12 @@ mod tests {
         // Reopen — volatility should survive.
         let db = TemporalGraph::open(&path).unwrap();
         let fact = db
-            .assert_fact("alice", "works_at", "Acme", Utc::now())
+            .assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
             .unwrap();
         let f = db.fact_by_id(&fact).unwrap();
-        let eff = db.effective_confidence(&f, Utc::now()).unwrap();
+        let eff = db
+            .effective_confidence(&f, KronroeTimestamp::now_utc())
+            .unwrap();
         // Fresh fact + 730d half-life → decay ≈ 1.0
         assert!(
             eff.age_decay > 0.99,
@@ -2390,10 +2427,19 @@ mod tests {
         }
         let db = TemporalGraph::open(&path).unwrap();
         let id = db
-            .assert_fact_with_source("alice", "works_at", "Acme", Utc::now(), 0.8, "user:owner")
+            .assert_fact_with_source(
+                "alice",
+                "works_at",
+                "Acme",
+                KronroeTimestamp::now_utc(),
+                0.8,
+                "user:owner",
+            )
             .unwrap();
         let f = db.fact_by_id(&id).unwrap();
-        let eff = db.effective_confidence(&f, Utc::now()).unwrap();
+        let eff = db
+            .effective_confidence(&f, KronroeTimestamp::now_utc())
+            .unwrap();
         // 0.8 * 1.0 (fresh) * 1.5 = 1.2, clamped to 1.0
         assert!(
             (eff.value - 1.0).abs() < 1e-6,
@@ -2412,12 +2458,14 @@ mod tests {
         db.register_predicate_volatility("works_at", PredicateVolatility::new(365.0))
             .unwrap();
         // Fact from 1 year ago.
-        let one_year_ago = Utc::now() - chrono::Duration::days(365);
+        let one_year_ago = KronroeTimestamp::now_utc() - KronroeSpan::days(365);
         let id = db
             .assert_fact("alice", "works_at", "Acme", one_year_ago)
             .unwrap();
         let f = db.fact_by_id(&id).unwrap();
-        let eff = db.effective_confidence(&f, Utc::now()).unwrap();
+        let eff = db
+            .effective_confidence(&f, KronroeTimestamp::now_utc())
+            .unwrap();
         // At exactly one half-life: decay ≈ 0.5, base = 1.0 → effective ≈ 0.5
         assert!(
             (eff.value - 0.5).abs() < 0.02,
@@ -2498,7 +2546,7 @@ mod tests {
     #[test]
     fn default_backend_supports_basic_graph_flow() {
         let db = TemporalGraph::open_in_memory().unwrap();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         let id = db.assert_fact("alice", "works_at", "Acme", now).unwrap();
         let current = db.current_facts("alice", "works_at").unwrap();
@@ -2511,7 +2559,7 @@ mod tests {
     fn default_backend_supports_idempotent_reopen_flow() {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         {
             let db = TemporalGraph::open(&path).unwrap();
@@ -2589,7 +2637,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("append-log-vectors.kronroe");
         let path_str = path.to_str().unwrap();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         {
             let db = TemporalGraph::open(path_str).unwrap();
@@ -2618,7 +2666,7 @@ mod tests {
     fn append_log_reopen_survives_truncated_final_newline() {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
         let fact_id = {
             let db = TemporalGraph::open(&path).unwrap();
             db.assert_fact("alice", "works_at", "Acme", now).unwrap()
@@ -2645,7 +2693,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("recovery-tail.kronroe");
         let path_str = path.to_str().unwrap();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         let fact_id = {
             let db = TemporalGraph::open(path_str).unwrap();
@@ -2678,7 +2726,7 @@ mod tests {
         let path = tmp.path().to_str().unwrap().to_string();
         {
             let db = TemporalGraph::open(&path).unwrap();
-            db.assert_fact("alice", "works_at", "Acme", Utc::now())
+            db.assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
                 .unwrap();
         }
 
@@ -2742,7 +2790,7 @@ mod tests {
             let db = TemporalGraph::open(&path).unwrap();
             let mut fact_id = db.assert_fact("alice", "works_at", "Acme", jan).unwrap();
             for month in 1..12 {
-                let at = jan + chrono::Duration::days(month * 30);
+                let at = jan + KronroeSpan::days(month * 30);
                 db.invalidate_fact(&fact_id, at).unwrap();
                 fact_id = db
                     .assert_fact("alice", "works_at", format!("Company-{month}"), at)
@@ -2883,7 +2931,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("compaction-vectors.kronroe");
         let path_str = path.to_str().unwrap();
-        let now = Utc::now();
+        let now = KronroeTimestamp::now_utc();
 
         {
             let db = TemporalGraph::open(path_str).unwrap();
@@ -2954,7 +3002,7 @@ mod tests {
         let db1 = TemporalGraph::open_in_memory().unwrap();
         let db2 = TemporalGraph::open_in_memory().unwrap();
 
-        db1.assert_fact("alice", "works_at", "Acme", Utc::now())
+        db1.assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
             .unwrap();
         assert_eq!(db1.current_facts("alice", "works_at").unwrap().len(), 1);
         assert_eq!(db2.current_facts("alice", "works_at").unwrap().len(), 0);

@@ -11,8 +11,7 @@
 //!
 //! All math is pure Rust, zero external dependencies, works on every target.
 
-use crate::Fact;
-use chrono::{DateTime, Utc};
+use crate::{Fact, KronroeTimestamp};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 
@@ -256,13 +255,13 @@ pub fn age_decay(age_days: f64, half_life_days: f64) -> f32 {
 ///
 /// - `volatility`: looked up from the predicate registry. `None` = stable.
 /// - `source_weight`: looked up from the source registry. `None` = 1.0.
-/// - `t`: the point in time to evaluate at. Typically `Utc::now()`.
+/// - `t`: the point in time to evaluate at. Typically `KronroeTimestamp::now_utc()`.
 ///
 /// Age is measured from `fact.valid_from` (when it became true in the world),
 /// not `fact.recorded_at` (when we stored it).
 pub fn compute_effective_confidence(
     fact: &Fact,
-    t: DateTime<Utc>,
+    t: KronroeTimestamp,
     volatility: Option<&PredicateVolatility>,
     source_weight: Option<&SourceWeight>,
 ) -> EffectiveConfidence {
@@ -327,7 +326,7 @@ impl UncertaintyEngine {
     pub(crate) fn effective_confidence(
         &self,
         fact: &Fact,
-        t: DateTime<Utc>,
+        t: KronroeTimestamp,
     ) -> EffectiveConfidence {
         let vol = self.volatility_for(&fact.predicate);
         let sw = fact
@@ -345,10 +344,9 @@ impl UncertaintyEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FactId, Value};
-    use chrono::TimeZone;
+    use crate::{FactId, KronroeSpan, Value};
 
-    fn make_fact(predicate: &str, valid_from: DateTime<Utc>, confidence: f32) -> Fact {
+    fn make_fact(predicate: &str, valid_from: KronroeTimestamp, confidence: f32) -> Fact {
         Fact {
             id: FactId::new(),
             subject: "alice".to_string(),
@@ -356,7 +354,7 @@ mod tests {
             object: Value::Text("Acme".to_string()),
             valid_from,
             valid_to: None,
-            recorded_at: Utc::now(),
+            recorded_at: KronroeTimestamp::now_utc(),
             expired_at: None,
             confidence,
             source: None,
@@ -401,8 +399,8 @@ mod tests {
 
     #[test]
     fn effective_confidence_multiplicative() {
-        let t = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
-        let valid_from = t - chrono::Duration::days(365);
+        let t = KronroeTimestamp::from_utc_components(2026, 1, 1, 0, 0, 0, 0).unwrap();
+        let valid_from = t - KronroeSpan::days(365);
         let fact = make_fact("works_at", valid_from, 0.8);
         let vol = PredicateVolatility::new(365.0);
         let sw = SourceWeight::new(1.0);
@@ -420,7 +418,7 @@ mod tests {
 
     #[test]
     fn effective_confidence_clamped() {
-        let t = Utc::now();
+        let t = KronroeTimestamp::now_utc();
         let fact = make_fact("works_at", t, 0.9); // fresh
         let sw = SourceWeight::new(2.0); // max authority boost
         let eff = compute_effective_confidence(&fact, t, None, Some(&sw));
@@ -434,7 +432,7 @@ mod tests {
 
     #[test]
     fn effective_confidence_defaults() {
-        let t = Utc::now();
+        let t = KronroeTimestamp::now_utc();
         let fact = make_fact("works_at", t, 0.7);
         let eff = compute_effective_confidence(&fact, t, None, None);
         // No volatility (no decay), no source weight (1.0) → base confidence
@@ -456,8 +454,8 @@ mod tests {
         assert!(engine.source_weight_for("user:owner").is_some());
         assert!(engine.source_weight_for("unknown").is_none());
 
-        let t = Utc::now();
-        let mut fact = make_fact("works_at", t - chrono::Duration::days(730), 1.0);
+        let t = KronroeTimestamp::now_utc();
+        let mut fact = make_fact("works_at", t - KronroeSpan::days(730), 1.0);
         fact.source = Some("user:owner".to_string());
         let eff = engine.effective_confidence(&fact, t);
         // base=1.0, decay≈0.5 (at half-life), source=1.5 → 1.0*0.5*1.5=0.75

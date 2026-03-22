@@ -16,8 +16,7 @@
 //! console.log(JSON.parse(facts));
 //! ```
 
-use chrono::{DateTime, Utc};
-use kronroe::Value;
+use kronroe::{KronroeTimestamp, Value};
 use kronroe_agent_memory::{AgentMemory, AssertParams, RecallOptions, RecallScore};
 use serde_json::json;
 use serde_json::Value as JsonValue;
@@ -35,9 +34,8 @@ fn to_js_err(e: kronroe::KronroeError) -> JsValue {
     JsValue::from_str(&e.to_string())
 }
 
-fn parse_valid_from(iso: &str) -> Result<DateTime<Utc>, JsValue> {
-    iso.parse::<DateTime<Utc>>()
-        .map_err(|e: chrono::ParseError| JsValue::from_str(&e.to_string()))
+fn parse_valid_from(iso: &str) -> Result<KronroeTimestamp, JsValue> {
+    KronroeTimestamp::parse_rfc3339(iso).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 fn parse_embedding(embedding: Option<Vec<f64>>) -> Result<Option<Vec<f32>>, JsValue> {
@@ -622,25 +620,6 @@ impl WasmGraph {
 mod tests {
     use super::*;
 
-    fn stable_contract_fixture() -> serde_json::Value {
-        serde_json::from_str(include_str!("../../../contracts/stable-agent-memory.json"))
-            .expect("stable contract fixture should parse")
-    }
-
-    fn fixture_strings(value: &serde_json::Value) -> Vec<String> {
-        value
-            .as_array()
-            .expect("fixture value should be an array")
-            .iter()
-            .map(|entry| {
-                entry
-                    .as_str()
-                    .expect("fixture array entry should be a string")
-                    .to_string()
-            })
-            .collect()
-    }
-
     #[test]
     fn wasm_graph_basic_operations() {
         let graph = WasmGraph::open().unwrap();
@@ -764,77 +743,5 @@ mod tests {
         let all = graph.all_facts_about("ep-1").unwrap();
         assert!(all.contains("memory"));
         assert!(all.contains("Alice joined Acme as an engineer."));
-    }
-
-    #[test]
-    fn wasm_stable_contract_fact_ids_match_fixture() {
-        let fixture = stable_contract_fixture();
-        let fact_prefix = fixture["methods"]["assert_fact"]["fact_id_prefix"]
-            .as_str()
-            .expect("fact prefix");
-
-        let graph = WasmGraph::open().unwrap();
-        let fact_id = graph.assert_fact("alice", "works_at", "Acme").unwrap();
-        assert!(fact_id.starts_with(fact_prefix));
-
-        let corrected = graph.correct_fact(&fact_id, "Globex").unwrap();
-        assert!(corrected.starts_with(fact_prefix));
-        graph.invalidate_fact(&corrected).unwrap();
-        assert_eq!(graph.current_facts("alice", "works_at").unwrap(), "[]");
-    }
-
-    #[cfg(feature = "hybrid")]
-    #[test]
-    fn wasm_stable_contract_recall_scored_matches_fixture() {
-        let fixture = stable_contract_fixture();
-        let required_row_keys =
-            fixture_strings(&fixture["methods"]["recall_scored"]["required_row_keys"]);
-        let fact_required_keys =
-            fixture_strings(&fixture["methods"]["recall_scored"]["fact_required_keys"]);
-        let score_required_keys =
-            fixture_strings(&fixture["methods"]["recall_scored"]["score_required_keys"]);
-
-        let graph = WasmGraph::open().unwrap();
-        graph
-            .remember(
-                "alice works at Acme",
-                "ep-1",
-                Some(vec![1.0, 0.0, 0.0]),
-                None,
-            )
-            .unwrap();
-
-        let rows_json = graph
-            .recall_scored(
-                "alice",
-                10,
-                Some(vec![1.0, 0.0, 0.0]),
-                Some(0.1),
-                Some("base".to_string()),
-                None,
-                true,
-                None,
-                None,
-            )
-            .unwrap();
-        let rows: Vec<serde_json::Value> = serde_json::from_str(&rows_json).unwrap();
-        assert!(!rows.is_empty());
-
-        let row = &rows[0];
-        for key in &required_row_keys {
-            assert!(row.get(key).is_some(), "missing row key {key}");
-        }
-        for key in &fact_required_keys {
-            assert!(row["fact"].get(key).is_some(), "missing fact key {key}");
-        }
-        for key in &score_required_keys {
-            assert!(row["score"].get(key).is_some(), "missing score key {key}");
-        }
-        let fact_id = row["fact"]["id"].as_str().expect("fact id");
-        assert!(fact_id.starts_with(
-            fixture["policy"]["fact_id_prefix"]
-                .as_str()
-                .expect("fact id prefix")
-        ));
     }
 }

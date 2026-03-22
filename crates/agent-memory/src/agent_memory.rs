@@ -17,7 +17,7 @@
 //! let facts = memory.facts_about("alice").unwrap();
 //!
 //! // Query what we knew at a point in time
-//! let past: chrono::DateTime<chrono::Utc> = "2024-03-01T00:00:00Z".parse().unwrap();
+//! let past: kronroe::KronroeTimestamp = "2024-03-01T00:00:00Z".parse().unwrap();
 //! let then = memory.facts_about_at("alice", "works_at", past).unwrap();
 //! ```
 //!
@@ -28,10 +28,9 @@
 //! - `recall(query, query_embedding, limit)` — retrieve matching facts
 //! - `assemble_context(query, query_embedding, max_tokens)` — build LLM context
 
-use chrono::{DateTime, Utc};
 #[cfg(feature = "contradiction")]
 use kronroe::{ConflictPolicy, Contradiction};
-use kronroe::{Fact, FactId, TemporalGraph, Value};
+use kronroe::{Fact, FactId, KronroeSpan, KronroeTimestamp, TemporalGraph, Value};
 #[cfg(feature = "hybrid")]
 use kronroe::{HybridScoreBreakdown, HybridSearchParams, TemporalIntent, TemporalOperator};
 use std::collections::HashSet;
@@ -343,7 +342,7 @@ pub struct AgentMemory {
 
 #[derive(Debug, Clone)]
 pub struct AssertParams {
-    pub valid_from: DateTime<Utc>,
+    pub valid_from: KronroeTimestamp,
 }
 
 /// A paired correction event linking the invalidated fact and its replacement.
@@ -366,7 +365,7 @@ pub struct ConfidenceShift {
 #[derive(Debug, Clone)]
 pub struct WhatChangedReport {
     pub entity: String,
-    pub since: DateTime<Utc>,
+    pub since: KronroeTimestamp,
     pub predicate_filter: Option<String>,
     pub new_facts: Vec<Fact>,
     pub invalidated_facts: Vec<Fact>,
@@ -378,7 +377,7 @@ pub struct WhatChangedReport {
 #[derive(Debug, Clone)]
 pub struct MemoryHealthReport {
     pub entity: String,
-    pub generated_at: DateTime<Utc>,
+    pub generated_at: KronroeTimestamp,
     pub predicate_filter: Option<String>,
     pub total_fact_count: usize,
     pub active_fact_count: usize,
@@ -393,7 +392,7 @@ pub struct MemoryHealthReport {
 pub struct RecallForTaskReport {
     pub task: String,
     pub subject: Option<String>,
-    pub generated_at: DateTime<Utc>,
+    pub generated_at: KronroeTimestamp,
     pub horizon_days: i64,
     pub query_used: String,
     pub key_facts: Vec<Fact>,
@@ -452,7 +451,7 @@ impl AgentMemory {
         object: impl Into<Value>,
     ) -> Result<FactId> {
         self.graph
-            .assert_fact(subject, predicate, object, Utc::now())
+            .assert_fact(subject, predicate, object, KronroeTimestamp::now_utc())
     }
 
     /// Store a structured fact with idempotent retry semantics.
@@ -466,8 +465,13 @@ impl AgentMemory {
         predicate: &str,
         object: impl Into<Value>,
     ) -> Result<FactId> {
-        self.graph
-            .assert_fact_idempotent(idempotency_key, subject, predicate, object, Utc::now())
+        self.graph.assert_fact_idempotent(
+            idempotency_key,
+            subject,
+            predicate,
+            object,
+            KronroeTimestamp::now_utc(),
+        )
     }
 
     /// Store a structured fact with idempotent retry semantics and explicit timing.
@@ -510,7 +514,7 @@ impl AgentMemory {
         &self,
         entity: &str,
         predicate: &str,
-        at: DateTime<Utc>,
+        at: KronroeTimestamp,
     ) -> Result<Vec<Fact>> {
         self.graph.facts_at(entity, predicate, at)
     }
@@ -527,7 +531,7 @@ impl AgentMemory {
     pub fn what_changed(
         &self,
         entity: &str,
-        since: DateTime<Utc>,
+        since: KronroeTimestamp,
         predicate_filter: Option<&str>,
     ) -> Result<WhatChangedReport> {
         let mut facts = self.graph.all_facts_about(entity)?;
@@ -642,8 +646,8 @@ impl AgentMemory {
             facts.retain(|fact| fact.predicate == predicate);
         }
 
-        let generated_at = Utc::now();
-        let stale_cutoff = generated_at - chrono::Duration::days(stale_days);
+        let generated_at = KronroeTimestamp::now_utc();
+        let stale_cutoff = generated_at - KronroeSpan::days(stale_days);
         let active_facts: Vec<Fact> = facts
             .iter()
             .filter(|fact| fact.is_currently_valid())
@@ -720,7 +724,7 @@ impl AgentMemory {
         &self,
         task: &str,
         subject: Option<&str>,
-        now: Option<DateTime<Utc>>,
+        now: Option<KronroeTimestamp>,
         horizon_days: Option<i64>,
         limit: usize,
         #[cfg(feature = "hybrid")] query_embedding: Option<&[f32]>,
@@ -732,7 +736,7 @@ impl AgentMemory {
             ));
         }
 
-        let generated_at = now.unwrap_or_else(Utc::now);
+        let generated_at = now.unwrap_or_else(KronroeTimestamp::now_utc);
         let horizon_days = horizon_days.unwrap_or(30).max(1);
         let subject = subject.and_then(|raw| {
             let trimmed = raw.trim();
@@ -799,7 +803,7 @@ impl AgentMemory {
             .filter(|fact| fact.confidence < 0.7)
             .count();
 
-        let stale_cutoff = generated_at - chrono::Duration::days(horizon_days);
+        let stale_cutoff = generated_at - KronroeSpan::days(horizon_days);
         let stale_high_impact_count = key_facts
             .iter()
             .filter(|fact| {
@@ -888,13 +892,15 @@ impl AgentMemory {
         fact_id: impl AsRef<str>,
         new_value: impl Into<Value>,
     ) -> Result<FactId> {
-        self.graph.correct_fact(fact_id, new_value, Utc::now())
+        self.graph
+            .correct_fact(fact_id, new_value, KronroeTimestamp::now_utc())
     }
 
     /// Invalidate an existing fact by id, recording the current time as
     /// the transaction end.
     pub fn invalidate_fact(&self, fact_id: impl AsRef<str>) -> Result<()> {
-        self.graph.invalidate_fact(fact_id, Utc::now())
+        self.graph
+            .invalidate_fact(fact_id, KronroeTimestamp::now_utc())
     }
 
     // -----------------------------------------------------------------------
@@ -931,7 +937,7 @@ impl AgentMemory {
         object: impl Into<Value>,
     ) -> Result<(FactId, Vec<Contradiction>)> {
         self.graph
-            .assert_fact_checked(subject, predicate, object, Utc::now())
+            .assert_fact_checked(subject, predicate, object, KronroeTimestamp::now_utc())
     }
 
     /// Audit a subject for contradictions across all registered singletons.
@@ -964,13 +970,17 @@ impl AgentMemory {
                 episode_id,
                 "memory",
                 text.to_string(),
-                Utc::now(),
+                KronroeTimestamp::now_utc(),
                 emb,
             );
         }
 
-        self.graph
-            .assert_fact(episode_id, "memory", text.to_string(), Utc::now())
+        self.graph.assert_fact(
+            episode_id,
+            "memory",
+            text.to_string(),
+            KronroeTimestamp::now_utc(),
+        )
     }
 
     /// Store an unstructured memory episode with idempotent retry semantics.
@@ -987,7 +997,7 @@ impl AgentMemory {
             episode_id,
             "memory",
             text.to_string(),
-            Utc::now(),
+            KronroeTimestamp::now_utc(),
         )
     }
 
@@ -1270,7 +1280,7 @@ impl AgentMemory {
             };
             let line = format!(
                 "[{}] ({}{}) {} · {} · {}\n",
-                fact.valid_from.format("%Y-%m-%d"),
+                fact.valid_from.date_ymd(),
                 score.display_tag(),
                 conf_tag,
                 fact.subject,
@@ -1473,7 +1483,7 @@ impl AgentMemory {
             predicate,
             object,
             AssertParams {
-                valid_from: Utc::now(),
+                valid_from: KronroeTimestamp::now_utc(),
             },
             confidence,
         )
@@ -1516,7 +1526,7 @@ impl AgentMemory {
             predicate,
             object,
             AssertParams {
-                valid_from: Utc::now(),
+                valid_from: KronroeTimestamp::now_utc(),
             },
             confidence,
             source,
@@ -1603,7 +1613,7 @@ impl AgentMemory {
     pub fn effective_confidence_for_fact(
         &self,
         fact: &Fact,
-        at: DateTime<Utc>,
+        at: KronroeTimestamp,
     ) -> Result<Option<f32>> {
         self.graph
             .effective_confidence(fact, at)
@@ -1618,7 +1628,7 @@ impl AgentMemory {
     pub fn effective_confidence_for_fact(
         &self,
         fact: &Fact,
-        at: DateTime<Utc>,
+        at: KronroeTimestamp,
     ) -> Result<Option<f32>> {
         let _ = (fact, at);
         Ok(None)
@@ -1627,7 +1637,7 @@ impl AgentMemory {
     /// Compute effective confidence for a fact, or `None` if the uncertainty
     /// feature is not enabled.
     fn compute_effective_confidence(&self, fact: &Fact) -> Result<Option<f32>> {
-        self.effective_confidence_for_fact(fact, Utc::now())
+        self.effective_confidence_for_fact(fact, KronroeTimestamp::now_utc())
     }
 }
 
@@ -1699,7 +1709,7 @@ mod tests {
     #[test]
     fn test_assert_idempotent_with_params_uses_valid_from() {
         let (mem, _tmp) = open_temp_memory();
-        let valid_from = Utc::now() - chrono::Duration::days(10);
+        let valid_from = KronroeTimestamp::now_utc() - KronroeSpan::days(10);
         let first = mem
             .assert_idempotent_with_params(
                 "evt-param-1",
@@ -1716,7 +1726,7 @@ mod tests {
                 "works_at",
                 "Acme",
                 AssertParams {
-                    valid_from: Utc::now(),
+                    valid_from: KronroeTimestamp::now_utc(),
                 },
             )
             .unwrap();
@@ -1761,7 +1771,7 @@ mod tests {
     #[test]
     fn recall_for_task_returns_subject_focused_report() {
         let (mem, _tmp) = open_temp_memory();
-        let old = Utc::now() - chrono::Duration::days(120);
+        let old = KronroeTimestamp::now_utc() - KronroeSpan::days(120);
         mem.assert_with_confidence_with_params(
             "alice",
             "works_at",
@@ -1982,7 +1992,7 @@ mod tests {
                 .register_singleton_predicate("works_at", ConflictPolicy::Reject)
                 .unwrap();
             graph
-                .assert_fact("alice", "works_at", "Acme", Utc::now())
+                .assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
                 .unwrap();
         }
 
@@ -2679,7 +2689,7 @@ mod tests {
     #[test]
     fn assert_with_confidence_with_params_uses_valid_from() {
         let (mem, _tmp) = open_temp_memory();
-        let valid_from = Utc::now() - chrono::Duration::days(90);
+        let valid_from = KronroeTimestamp::now_utc() - KronroeSpan::days(90);
         mem.assert_with_confidence_with_params(
             "alice",
             "worked_at",
@@ -2698,7 +2708,7 @@ mod tests {
     #[test]
     fn assert_with_source_with_params_uses_valid_from() {
         let (mem, _tmp) = open_temp_memory();
-        let valid_from = Utc::now() - chrono::Duration::days(45);
+        let valid_from = KronroeTimestamp::now_utc() - KronroeSpan::days(45);
         mem.assert_with_source_with_params(
             "alice",
             "works_at",
@@ -2726,12 +2736,12 @@ mod tests {
                 "works_at",
                 "Acme",
                 AssertParams {
-                    valid_from: Utc::now() - chrono::Duration::days(365),
+                    valid_from: KronroeTimestamp::now_utc() - KronroeSpan::days(365),
                 },
             )
             .unwrap();
 
-        let since = Utc::now();
+        let since = KronroeTimestamp::now_utc();
         mem.invalidate_fact(&original_id).unwrap();
 
         let original_fact = mem
@@ -2780,12 +2790,12 @@ mod tests {
                 "works_at",
                 "Acme",
                 AssertParams {
-                    valid_from: Utc::now() - chrono::Duration::days(30),
+                    valid_from: KronroeTimestamp::now_utc() - KronroeSpan::days(30),
                 },
             )
             .unwrap();
 
-        let since = Utc::now();
+        let since = KronroeTimestamp::now_utc();
         mem.invalidate_fact(&original_id).unwrap();
 
         let original_fact = mem
@@ -2797,7 +2807,7 @@ mod tests {
         let expired_at = original_fact
             .expired_at
             .expect("expired_at should be present after invalidation");
-        let jittered_valid_from = expired_at + chrono::Duration::milliseconds(900);
+        let jittered_valid_from = expired_at + KronroeSpan::milliseconds(900);
 
         mem.assert_with_confidence_with_params(
             "alice",
@@ -2829,12 +2839,12 @@ mod tests {
                 "works_at",
                 "Acme",
                 AssertParams {
-                    valid_from: Utc::now() - chrono::Duration::days(30),
+                    valid_from: KronroeTimestamp::now_utc() - KronroeSpan::days(30),
                 },
             )
             .unwrap();
 
-        let since = Utc::now();
+        let since = KronroeTimestamp::now_utc();
         mem.invalidate_fact(&original_id).unwrap();
 
         let original_fact = mem
@@ -2846,7 +2856,7 @@ mod tests {
         let expired_at = original_fact
             .expired_at
             .expect("expired_at should be present after invalidation");
-        let distant_valid_from = expired_at + chrono::Duration::seconds(10);
+        let distant_valid_from = expired_at + KronroeSpan::seconds(10);
 
         mem.assert_with_confidence_with_params(
             "alice",
@@ -2872,7 +2882,7 @@ mod tests {
     #[test]
     fn memory_health_reports_low_confidence_and_stale_high_impact() {
         let (mem, _tmp) = open_temp_memory();
-        let old = Utc::now() - chrono::Duration::days(200);
+        let old = KronroeTimestamp::now_utc() - KronroeSpan::days(200);
 
         mem.assert_with_confidence_with_params(
             "alice",
@@ -2940,13 +2950,13 @@ mod tests {
         let (mem, _tmp) = open_temp_memory();
         // works_at has default 730-day half-life from register_default_volatilities.
         // Assert a fact that's "old" by using the graph directly with a past valid_from.
-        let past = Utc::now() - chrono::Duration::days(730);
+        let past = KronroeTimestamp::now_utc() - KronroeSpan::days(730);
         mem.graph
             .assert_fact("alice", "works_at", "OldCo", past)
             .unwrap();
         // Assert a fresh fact
         mem.graph
-            .assert_fact("alice", "born_in", "London", Utc::now())
+            .assert_fact("alice", "born_in", "London", KronroeTimestamp::now_utc())
             .unwrap();
 
         let old_eff = mem
@@ -2957,7 +2967,7 @@ mod tests {
                     .iter()
                     .find(|f| f.predicate == "works_at")
                     .unwrap(),
-                Utc::now(),
+                KronroeTimestamp::now_utc(),
             )
             .unwrap();
         let fresh_eff = mem
@@ -2968,7 +2978,7 @@ mod tests {
                     .iter()
                     .find(|f| f.predicate == "born_in")
                     .unwrap(),
-                Utc::now(),
+                KronroeTimestamp::now_utc(),
             )
             .unwrap();
 
@@ -3003,11 +3013,11 @@ mod tests {
 
         let alice_eff = mem
             .graph
-            .effective_confidence(&alice_facts[0], Utc::now())
+            .effective_confidence(&alice_facts[0], KronroeTimestamp::now_utc())
             .unwrap();
         let bob_eff = mem
             .graph
-            .effective_confidence(&bob_facts[0], Utc::now())
+            .effective_confidence(&bob_facts[0], KronroeTimestamp::now_utc())
             .unwrap();
 
         assert!(
@@ -3027,7 +3037,7 @@ mod tests {
 
         let fact = mem.facts_about("alice").unwrap().remove(0);
         let eff = mem
-            .effective_confidence_for_fact(&fact, Utc::now())
+            .effective_confidence_for_fact(&fact, KronroeTimestamp::now_utc())
             .unwrap()
             .expect("uncertainty-enabled builds should return effective confidence");
 

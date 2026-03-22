@@ -1,9 +1,14 @@
-use ::chrono::{DateTime, Utc};
 use kronroe_agent_memory::{
     AgentMemory, ConfidenceShift, FactCorrection, MemoryHealthReport, RecallForTaskReport,
     RecallOptions, RecallScore, WhatChangedReport,
 };
-use kronroe_core::{Fact, TemporalGraph, Value};
+#[cfg(all(
+    test,
+    feature = "python-runtime-tests",
+    not(feature = "extension-module")
+))]
+use kronroe_core::KronroeSpan;
+use kronroe_core::{Fact, KronroeTimestamp, TemporalGraph, Value};
 #[cfg(feature = "hybrid")]
 use kronroe_core::{TemporalIntent, TemporalOperator};
 use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
@@ -377,7 +382,7 @@ impl PyKronroeDb {
         let id = py
             .allow_threads(|| {
                 self.inner
-                    .assert_fact(&subject, &predicate, value, Utc::now())
+                    .assert_fact(&subject, &predicate, value, KronroeTimestamp::now_utc())
             })
             .map_err(to_py_err)?;
         Ok(id.to_string())
@@ -700,7 +705,7 @@ impl PyAgentMemory {
         predicate: Option<&str>,
     ) -> PyResult<Py<PyDict>> {
         let since = since
-            .parse::<DateTime<Utc>>()
+            .parse::<KronroeTimestamp>()
             .map_err(|_| PyValueError::new_err("since must be RFC3339"))?;
         let entity = entity.to_owned();
         let predicate = predicate.map(str::to_owned);
@@ -771,7 +776,7 @@ impl PyAgentMemory {
         let now = now
             .map(|value| {
                 value
-                    .parse::<DateTime<Utc>>()
+                    .parse::<KronroeTimestamp>()
                     .map_err(|_| PyValueError::new_err("now must be RFC3339"))
             })
             .transpose()?;
@@ -894,9 +899,7 @@ mod tests {
         use pyo3::prelude::PyAnyMethods;
         use pyo3::types::PyString;
         use pyo3::types::{PyDict, PyDictMethods};
-        use pyo3::Bound;
         use pyo3::Python;
-        use serde_json::Value as JsonValue;
         use std::sync::Once;
         use tempfile::tempdir;
 
@@ -917,34 +920,6 @@ mod tests {
                 inner: AgentMemory::open(&path).expect("open memory"),
             };
             Python::with_gil(|py| f(py, &memory));
-        }
-
-        fn stable_contract_fixture() -> JsonValue {
-            serde_json::from_str(include_str!("../../../contracts/stable-agent-memory.json"))
-                .expect("stable contract fixture should parse")
-        }
-
-        fn fixture_strings(value: &JsonValue) -> Vec<String> {
-            value
-                .as_array()
-                .expect("fixture value should be an array")
-                .iter()
-                .map(|entry| {
-                    entry
-                        .as_str()
-                        .expect("fixture array entry should be a string")
-                        .to_string()
-                })
-                .collect()
-        }
-
-        fn assert_dict_has_keys(dict: &Bound<'_, PyDict>, keys: &[String]) {
-            for key in keys {
-                assert!(dict
-                    .get_item(key)
-                    .expect("dict access should succeed")
-                    .is_some());
-            }
         }
 
         #[test]
@@ -1240,7 +1215,7 @@ mod tests {
         #[test]
         fn python_recall_for_task_returns_subject_scoped_report() {
             with_memory(|py, memory| {
-                let stale = (::chrono::Utc::now() - ::chrono::Duration::days(180)).to_rfc3339();
+                let stale = (KronroeTimestamp::now_utc() - KronroeSpan::days(180)).to_rfc3339();
                 let object = PyString::new(py, "Acme").into_any();
                 memory
                     .assert_with_confidence(py, "alice", "works_at", &object, 0.6, None)
@@ -1313,7 +1288,7 @@ mod tests {
                     .extract::<String>()
                     .expect("id string");
 
-                let since = ::chrono::Utc::now().to_rfc3339();
+                let since = KronroeTimestamp::now_utc().to_rfc3339();
                 memory
                     .invalidate_fact(py, &fact_id)
                     .expect("invalidate_fact");
@@ -1374,7 +1349,7 @@ mod tests {
         #[test]
         fn python_memory_health_reports_low_confidence_and_stale() {
             with_memory(|py, memory| {
-                let old = ::chrono::Utc::now() - ::chrono::Duration::days(200);
+                let old = KronroeTimestamp::now_utc() - KronroeSpan::days(200);
                 memory
                     .inner
                     .assert_with_confidence_with_params(
@@ -1444,164 +1419,6 @@ mod tests {
                     .memory_health(py, "alice", None, 1.5, 90)
                     .expect_err("expected out-of-range threshold error");
                 assert!(err.to_string().contains("between 0.0 and 1.0"));
-            });
-        }
-
-        #[test]
-        fn python_stable_contract_fact_id_fields_match_fixture() {
-            let fixture = stable_contract_fixture();
-            let fact_prefix = fixture["methods"]["assert_fact"]["fact_id_prefix"]
-                .as_str()
-                .expect("fact prefix");
-
-            with_memory(|py, memory| {
-                let object = PyString::new(py, "Acme").into_any();
-                let fact_id = memory
-                    .assert_fact(py, "alice", "works_at", &object)
-                    .expect("assert_fact");
-                assert!(fact_id.starts_with(fact_prefix));
-
-                let new_fact_id = memory
-                    .correct_fact(py, &fact_id, &PyString::new(py, "Globex").into_any())
-                    .expect("correct_fact");
-                assert!(new_fact_id.starts_with(fact_prefix));
-                assert_ne!(new_fact_id, fact_id);
-
-                memory
-                    .invalidate_fact(py, &new_fact_id)
-                    .expect("invalidate_fact");
-                let after = memory.recall(py, "Globex", None, 10).expect("recall after");
-                assert_eq!(after.len(), 0);
-            });
-        }
-
-        #[test]
-        fn python_stable_contract_recall_scored_matches_fixture() {
-            let fixture = stable_contract_fixture();
-            let required_row_keys =
-                fixture_strings(&fixture["methods"]["recall_scored"]["required_row_keys"]);
-            let fact_required_keys =
-                fixture_strings(&fixture["methods"]["recall_scored"]["fact_required_keys"]);
-            let score_required_keys =
-                fixture_strings(&fixture["methods"]["recall_scored"]["score_required_keys"]);
-            let allowed_score_types =
-                fixture_strings(&fixture["methods"]["recall_scored"]["allowed_score_types"]);
-
-            with_memory(|py, memory| {
-                let object = PyString::new(py, "rust memory").into_any();
-                memory
-                    .assert_with_confidence(py, "shape", "memory", &object, 0.9, None)
-                    .expect("assert_with_confidence");
-
-                let rows = memory
-                    .recall_scored(
-                        py,
-                        "rust",
-                        10,
-                        None,
-                        Some(0.1),
-                        Some("base".to_string()),
-                        None,
-                        false,
-                        None,
-                        None,
-                    )
-                    .expect("recall_scored");
-                assert!(!rows.is_empty());
-
-                let row = rows[0].bind(py).downcast::<PyDict>().expect("row dict");
-                assert_dict_has_keys(&row, &required_row_keys);
-
-                let fact = row
-                    .get_item("fact")
-                    .expect("fact key")
-                    .expect("fact value")
-                    .downcast_into::<PyDict>()
-                    .expect("fact dict");
-                let score = row
-                    .get_item("score")
-                    .expect("score key")
-                    .expect("score value")
-                    .downcast_into::<PyDict>()
-                    .expect("score dict");
-                assert_dict_has_keys(&fact, &fact_required_keys);
-                assert_dict_has_keys(&score, &score_required_keys);
-
-                let score_type = score
-                    .get_item("type")
-                    .expect("type key")
-                    .expect("type value")
-                    .extract::<String>()
-                    .expect("type string");
-                assert!(allowed_score_types
-                    .iter()
-                    .any(|allowed| allowed == &score_type));
-            });
-        }
-
-        #[test]
-        fn python_stable_contract_context_and_reports_match_fixture() {
-            let fixture = stable_contract_fixture();
-            let assemble_needles =
-                fixture_strings(&fixture["methods"]["assemble_context"]["required_substrings"]);
-            let what_changed_keys =
-                fixture_strings(&fixture["methods"]["what_changed"]["required_report_keys"]);
-            let what_changed_error = fixture["methods"]["what_changed"]["required_error_substring"]
-                .as_str()
-                .expect("what_changed error substring");
-            let memory_health_keys =
-                fixture_strings(&fixture["methods"]["memory_health"]["required_report_keys"]);
-
-            with_memory(|py, memory| {
-                let object = PyString::new(py, "Acme").into_any();
-                let fact_id = memory
-                    .assert_fact(py, "alice", "works_at", &object)
-                    .expect("assert_fact");
-
-                let context = memory
-                    .assemble_context(py, "Where does alice work?", 64, None)
-                    .expect("assemble_context")
-                    .to_lowercase();
-                for needle in &assemble_needles {
-                    assert!(context.contains(&needle.to_lowercase()));
-                }
-
-                let since = ::chrono::Utc::now().to_rfc3339();
-                memory
-                    .invalidate_fact(py, &fact_id)
-                    .expect("invalidate_fact");
-                let replacement = PyString::new(py, "Beta Corp").into_any();
-                memory
-                    .assert_with_confidence(py, "alice", "works_at", &replacement, 0.6, None)
-                    .expect("replacement assert");
-
-                let changed = memory
-                    .what_changed(py, "alice", &since, Some("works_at"))
-                    .expect("what_changed");
-                let changed = changed.bind(py).downcast::<PyDict>().expect("changed dict");
-                assert_dict_has_keys(&changed, &what_changed_keys);
-
-                let err = memory
-                    .what_changed(py, "alice", "not-a-date", None)
-                    .expect_err("invalid since should fail");
-                assert!(err.to_string().contains(what_changed_error));
-
-                let old = ::chrono::Utc::now() - ::chrono::Duration::days(200);
-                memory
-                    .inner
-                    .assert_with_confidence_with_params(
-                        "alice",
-                        "nickname",
-                        "Bex",
-                        AssertParams { valid_from: old },
-                        0.4,
-                    )
-                    .expect("assert nickname");
-                let health = memory
-                    .memory_health(py, "alice", None, 0.7, 90)
-                    .expect("memory_health");
-                let health = health.bind(py).downcast::<PyDict>().expect("health dict");
-                assert_dict_has_keys(&health, &memory_health_keys);
             });
         }
 

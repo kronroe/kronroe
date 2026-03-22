@@ -1,7 +1,6 @@
 use super::*;
 use crate::storage::KronroeStorage;
 use crate::storage_observability::{StorageEvent, StorageObserver, StorageOperation};
-use chrono::Duration as ChronoDuration;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::fs;
@@ -198,7 +197,7 @@ fn run_assert_heavy_ingestion(config: BenchmarkConfig) -> WorkloadReport {
     let observer = Arc::new(RecordingObserver::default());
     let db = graph_in_memory(observer.clone());
     let started_at = Instant::now();
-    let base = Utc::now();
+    let base = KronroeTimestamp::now_utc();
 
     for i in 0..config.ingest_asserts {
         let subject = format!("entity-{}", i % config.ingest_subjects);
@@ -208,7 +207,7 @@ fn run_assert_heavy_ingestion(config: BenchmarkConfig) -> WorkloadReport {
             subject.as_str(),
             predicate.as_str(),
             object,
-            base + ChronoDuration::milliseconds(i as i64),
+            base + KronroeSpan::milliseconds(i as i64),
         )
         .unwrap();
     }
@@ -234,7 +233,7 @@ fn run_correction_heavy_timeline_churn(config: BenchmarkConfig) -> WorkloadRepor
     let observer = Arc::new(RecordingObserver::default());
     let db = graph_in_memory(observer.clone());
     let started_at = Instant::now();
-    let base = Utc::now();
+    let base = KronroeTimestamp::now_utc();
 
     let mut current_id = db
         .assert_fact("timeline", "works_at", "company-0", base)
@@ -245,7 +244,7 @@ fn run_correction_heavy_timeline_churn(config: BenchmarkConfig) -> WorkloadRepor
             .correct_fact(
                 current_id.as_str(),
                 format!("company-{i}"),
-                base + ChronoDuration::minutes(i as i64),
+                base + KronroeSpan::minutes(i as i64),
             )
             .unwrap();
     }
@@ -255,7 +254,7 @@ fn run_correction_heavy_timeline_churn(config: BenchmarkConfig) -> WorkloadRepor
         .facts_at(
             "timeline",
             "works_at",
-            base + ChronoDuration::minutes((config.churn_corrections / 2) as i64),
+            base + KronroeSpan::minutes((config.churn_corrections / 2) as i64),
         )
         .unwrap();
 
@@ -281,7 +280,7 @@ fn run_current_state_scan(config: BenchmarkConfig) -> WorkloadReport {
     let observer = Arc::new(RecordingObserver::default());
     let db = graph_in_memory(observer.clone());
     let started_at = Instant::now();
-    let base = Utc::now();
+    let base = KronroeTimestamp::now_utc();
 
     for predicate_idx in 0..config.scan_predicates {
         for fact_idx in 0..config.scan_facts_per_predicate {
@@ -289,7 +288,7 @@ fn run_current_state_scan(config: BenchmarkConfig) -> WorkloadReport {
                 "hot-subject",
                 format!("predicate-{predicate_idx}").as_str(),
                 format!("value-{predicate_idx}-{fact_idx}"),
-                base + ChronoDuration::seconds(
+                base + KronroeSpan::seconds(
                     (predicate_idx * config.scan_facts_per_predicate + fact_idx) as i64,
                 ),
             )
@@ -331,7 +330,7 @@ fn run_historical_point_in_time_scan(config: BenchmarkConfig) -> WorkloadReport 
     let observer = Arc::new(RecordingObserver::default());
     let db = graph_in_memory(observer.clone());
     let started_at = Instant::now();
-    let base = Utc::now();
+    let base = KronroeTimestamp::now_utc();
 
     let mut current_id = db.assert_fact("history", "role", "role-0", base).unwrap();
 
@@ -340,13 +339,13 @@ fn run_historical_point_in_time_scan(config: BenchmarkConfig) -> WorkloadReport 
             .correct_fact(
                 current_id.as_str(),
                 format!("role-{i}"),
-                base + ChronoDuration::hours(i as i64),
+                base + KronroeSpan::hours(i as i64),
             )
             .unwrap();
     }
 
     for i in 0..config.historical_queries {
-        let at = base + ChronoDuration::hours((i % config.historical_versions) as i64);
+        let at = base + KronroeSpan::hours((i % config.historical_versions) as i64);
         let facts = db.facts_at("history", "role", at).unwrap();
         assert!(!facts.is_empty());
     }
@@ -372,7 +371,7 @@ fn run_idempotent_retries(config: BenchmarkConfig) -> WorkloadReport {
     let observer = Arc::new(RecordingObserver::default());
     let db = graph_in_memory(observer.clone());
     let started_at = Instant::now();
-    let base = Utc::now();
+    let base = KronroeTimestamp::now_utc();
 
     for key_idx in 0..config.idempotent_unique_keys {
         let idempotency_key = format!("evt-{key_idx}");
@@ -382,7 +381,7 @@ fn run_idempotent_retries(config: BenchmarkConfig) -> WorkloadReport {
                 "session",
                 "note",
                 format!("payload-{key_idx}"),
-                base + ChronoDuration::seconds(key_idx as i64),
+                base + KronroeSpan::seconds(key_idx as i64),
             )
             .unwrap();
 
@@ -393,7 +392,7 @@ fn run_idempotent_retries(config: BenchmarkConfig) -> WorkloadReport {
                     "session",
                     "note",
                     format!("payload-{key_idx}-{duplicate_idx}"),
-                    base + ChronoDuration::seconds((key_idx + duplicate_idx) as i64),
+                    base + KronroeSpan::seconds((key_idx + duplicate_idx) as i64),
                 )
                 .unwrap();
             assert_eq!(duplicate_id, first_id);
@@ -432,13 +431,13 @@ fn run_embedding_reopen(config: BenchmarkConfig) -> WorkloadReport {
     let write_started_at = Instant::now();
     {
         let db = graph_on_disk(db_path.to_str().unwrap(), write_observer.clone());
-        let base = Utc::now();
+        let base = KronroeTimestamp::now_utc();
         for i in 0..config.embedding_facts {
             db.assert_fact_with_embedding(
                 "vector-subject",
                 "interest",
                 format!("topic-{i}"),
-                base + ChronoDuration::seconds(i as i64),
+                base + KronroeSpan::seconds(i as i64),
                 vec![1.0, (i % 7) as f32, (i % 11) as f32],
             )
             .unwrap();
@@ -483,23 +482,19 @@ fn run_mixed_session(_config: BenchmarkConfig) -> WorkloadReport {
     let observer = Arc::new(RecordingObserver::default());
     let db = graph_in_memory(observer.clone());
     let started_at = Instant::now();
-    let base = Utc::now();
+    let base = KronroeTimestamp::now_utc();
 
     let first_id = db
         .assert_fact_idempotent("evt-mixed", "alice", "works_at", "Acme", base)
         .unwrap();
     let corrected_id = db
-        .correct_fact(
-            first_id.as_str(),
-            "BetaCorp",
-            base + ChronoDuration::hours(1),
-        )
+        .correct_fact(first_id.as_str(), "BetaCorp", base + KronroeSpan::hours(1))
         .unwrap();
-    db.invalidate_fact(corrected_id.as_str(), base + ChronoDuration::hours(2))
+    db.invalidate_fact(corrected_id.as_str(), base + KronroeSpan::hours(2))
         .unwrap();
     let current = db.current_facts("alice", "works_at").unwrap();
     let historical = db
-        .facts_at("alice", "works_at", base + ChronoDuration::minutes(30))
+        .facts_at("alice", "works_at", base + KronroeSpan::minutes(30))
         .unwrap();
     let all = db.all_facts_about("alice").unwrap();
 
@@ -535,7 +530,7 @@ fn build_storage_benchmark_report(scale: BenchmarkScale) -> StorageBenchmarkRepo
     workloads.push(run_embedding_reopen(config));
 
     StorageBenchmarkReport {
-        generated_at: Utc::now().to_rfc3339(),
+        generated_at: KronroeTimestamp::now_utc().to_rfc3339_z(),
         scale: scale.as_str(),
         workloads,
     }

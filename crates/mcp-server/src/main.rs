@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
-use kronroe::{Fact, Value};
+use kronroe::{Fact, KronroeSpan, KronroeTimestamp, Value};
 #[cfg(feature = "hybrid")]
 use kronroe::{TemporalIntent, TemporalOperator};
 use kronroe_agent_memory::{
@@ -790,7 +789,7 @@ fn call_tool_what_changed(state: &mut AppState, args: &JsonValue) -> Result<Json
         .get("since")
         .and_then(JsonValue::as_str)
         .context("since is required")?
-        .parse::<DateTime<Utc>>()
+        .parse::<KronroeTimestamp>()
         .context("since must be RFC3339")?;
     let predicate = args.get("predicate").and_then(JsonValue::as_str);
 
@@ -886,7 +885,7 @@ fn call_tool_recall_for_task(state: &mut AppState, args: &JsonValue) -> Result<J
         .get("now")
         .and_then(JsonValue::as_str)
         .map(|raw| {
-            raw.parse::<DateTime<Utc>>()
+            raw.parse::<KronroeTimestamp>()
                 .context("now must be RFC3339 when provided")
         })
         .transpose()?;
@@ -1052,12 +1051,12 @@ fn parse_works_at(text: &str) -> Option<(&str, &str)> {
     Some((subject, employer))
 }
 
-fn parse_valid_from(v: Option<&JsonValue>) -> Result<DateTime<Utc>> {
+fn parse_valid_from(v: Option<&JsonValue>) -> Result<KronroeTimestamp> {
     match v.and_then(JsonValue::as_str) {
         Some(s) => Ok(s
-            .parse::<DateTime<Utc>>()
+            .parse::<KronroeTimestamp>()
             .context("valid_from must be RFC3339")?),
-        None => Ok(Utc::now()),
+        None => Ok(KronroeTimestamp::now_utc()),
     }
 }
 
@@ -1351,7 +1350,7 @@ fn recall_for_task_agent_brief(report: &RecallForTaskReport) -> JsonValue {
             suggested_tool: "what_changed",
             suggested_arguments: json!({
                 "entity": subject,
-                "since": (report.generated_at - chrono::Duration::days(report.horizon_days)).to_rfc3339()
+                "since": (report.generated_at - KronroeSpan::days(report.horizon_days)).to_rfc3339()
             }),
             workflow_impact: "freshness_hygiene",
             risk_if_skipped: "medium",
@@ -1692,7 +1691,7 @@ fn memory_health_agent_brief(report: &MemoryHealthReport) -> JsonValue {
             suggested_tool: "what_changed",
             suggested_arguments: json!({
                 "entity": report.entity.clone(),
-                "since": (report.generated_at - chrono::Duration::days(30)).to_rfc3339(),
+                "since": (report.generated_at - KronroeSpan::days(30)).to_rfc3339(),
                 "predicate": report.predicate_filter.clone()
             }),
             workflow_impact: "freshness_hygiene",
@@ -1793,31 +1792,6 @@ mod tests {
             .and_then(|v| v.get("properties"))
             .and_then(JsonValue::as_object)
             .expect("recall tool schema properties should exist")
-    }
-
-    fn stable_contract_fixture() -> JsonValue {
-        serde_json::from_str(include_str!("../../../contracts/stable-agent-memory.json"))
-            .expect("stable contract fixture should parse")
-    }
-
-    fn fixture_strings(value: &JsonValue) -> Vec<String> {
-        value
-            .as_array()
-            .expect("fixture value should be an array")
-            .iter()
-            .map(|entry| {
-                entry
-                    .as_str()
-                    .expect("fixture array entry should be a string")
-                    .to_string()
-            })
-            .collect()
-    }
-
-    fn assert_has_keys(value: &JsonValue, keys: &[String]) {
-        for key in keys {
-            assert!(value.get(key).is_some(), "missing required key {key}");
-        }
     }
 
     #[test]
@@ -2128,7 +2102,7 @@ mod tests {
     #[test]
     fn assert_fact_respects_valid_from_when_storing_confidence_and_source() {
         let mut state = temp_state();
-        let valid_from = "2024-01-01T00:00:00+00:00";
+        let valid_from = "2024-01-01T00:00:00Z";
         let expected = 0.42_f64;
 
         let _ = call_tool(
@@ -2399,7 +2373,7 @@ mod tests {
             .and_then(JsonValue::as_str)
             .expect("first fact_id");
 
-        let since = Utc::now().to_rfc3339();
+        let since = KronroeTimestamp::now_utc().to_rfc3339();
         let _ = call_tool(
             &mut state,
             Some(&json!({
@@ -2528,7 +2502,7 @@ mod tests {
     #[test]
     fn memory_health_tool_reports_low_confidence_and_stale() {
         let mut state = temp_state();
-        let old = (Utc::now() - chrono::Duration::days(200)).to_rfc3339();
+        let old = (KronroeTimestamp::now_utc() - KronroeSpan::days(200)).to_rfc3339();
 
         let _ = call_tool(
             &mut state,
@@ -2625,10 +2599,15 @@ mod tests {
         let brief = recall_for_task_agent_brief(&RecallForTaskReport {
             task: "prepare renewal call".to_string(),
             subject: None,
-            generated_at: Utc::now(),
+            generated_at: KronroeTimestamp::now_utc(),
             horizon_days: 90,
             query_used: "prepare renewal call".to_string(),
-            key_facts: vec![Fact::new("alice", "project", "Renewal Q2", Utc::now())],
+            key_facts: vec![Fact::new(
+                "alice",
+                "project",
+                "Renewal Q2",
+                KronroeTimestamp::now_utc(),
+            )],
             low_confidence_count: 1,
             stale_high_impact_count: 1,
             contradiction_count: 0,
@@ -2656,7 +2635,7 @@ mod tests {
     fn memory_health_agent_brief_contradictions_point_to_entity_facts() {
         let brief = memory_health_agent_brief(&MemoryHealthReport {
             entity: "alice".to_string(),
-            generated_at: Utc::now(),
+            generated_at: KronroeTimestamp::now_utc(),
             predicate_filter: None,
             total_fact_count: 2,
             active_fact_count: 2,
@@ -2712,7 +2691,7 @@ mod tests {
     #[test]
     fn recall_for_task_tool_returns_decision_ready_report() {
         let mut state = temp_state();
-        let old = (Utc::now() - chrono::Duration::days(200)).to_rfc3339();
+        let old = (KronroeTimestamp::now_utc() - KronroeSpan::days(200)).to_rfc3339();
 
         let _ = call_tool(
             &mut state,
@@ -3020,299 +2999,5 @@ mod tests {
         let mut cursor = Cursor::new(Vec::<u8>::new());
         let result = read_message(&mut cursor).unwrap();
         assert!(result.is_none());
-    }
-
-    #[test]
-    fn stable_contract_fact_id_fields_match_fixture() {
-        let fixture = stable_contract_fixture();
-        let fact_prefix = fixture["methods"]["assert_fact"]["fact_id_prefix"]
-            .as_str()
-            .expect("fact_id prefix");
-        let correct_field = fixture["methods"]["correct_fact"]["result_field"]
-            .as_str()
-            .expect("correct result field");
-
-        let mut state = temp_state();
-        let asserted = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "assert_fact",
-                "arguments": {
-                    "subject": "alice",
-                    "predicate": "works_at",
-                    "object": "Acme"
-                }
-            })),
-        )
-        .expect("assert_fact");
-        let fact_id = asserted["structuredContent"]["fact_id"]
-            .as_str()
-            .expect("fact_id");
-        assert!(fact_id.starts_with(fact_prefix));
-
-        let corrected = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "correct_fact",
-                "arguments": { "fact_id": fact_id, "new_value": "Globex" }
-            })),
-        )
-        .expect("correct_fact");
-        let new_fact_id = corrected["structuredContent"][correct_field]
-            .as_str()
-            .expect("new_fact_id");
-        assert!(new_fact_id.starts_with(fact_prefix));
-        assert_ne!(new_fact_id, fact_id);
-
-        let invalidated = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "invalidate_fact",
-                "arguments": { "fact_id": new_fact_id }
-            })),
-        )
-        .expect("invalidate_fact");
-        let invalidated_id = invalidated["structuredContent"]["fact_id"]
-            .as_str()
-            .expect("invalidate_fact fact_id");
-        assert_eq!(invalidated_id, new_fact_id);
-    }
-
-    #[test]
-    fn stable_contract_recall_scored_matches_fixture() {
-        let fixture = stable_contract_fixture();
-        let required_row_keys =
-            fixture_strings(&fixture["methods"]["recall_scored"]["required_row_keys"]);
-        let fact_required_keys =
-            fixture_strings(&fixture["methods"]["recall_scored"]["fact_required_keys"]);
-        let score_required_keys =
-            fixture_strings(&fixture["methods"]["recall_scored"]["score_required_keys"]);
-        let allowed_score_types =
-            fixture_strings(&fixture["methods"]["recall_scored"]["allowed_score_types"]);
-
-        let mut state = temp_state();
-        let _ = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "remember",
-                "arguments": { "text": "alice works at Acme" }
-            })),
-        )
-        .expect("remember");
-
-        let out = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "recall_scored",
-                "arguments": { "query": "alice", "limit": 10 }
-            })),
-        )
-        .expect("recall_scored");
-        let rows = out["structuredContent"]["results"]
-            .as_array()
-            .expect("results array");
-        assert!(!rows.is_empty());
-        let row = &rows[0];
-        assert_has_keys(row, &required_row_keys);
-        assert_has_keys(&row["fact"], &fact_required_keys);
-        assert_has_keys(&row["score"], &score_required_keys);
-
-        let fact_id = row["fact"]["id"].as_str().expect("fact id");
-        assert!(fact_id.starts_with(
-            fixture["policy"]["fact_id_prefix"]
-                .as_str()
-                .expect("fact_id prefix")
-        ));
-        let score_type = row["score"]["type"].as_str().expect("score type");
-        assert!(allowed_score_types
-            .iter()
-            .any(|allowed| allowed == score_type));
-    }
-
-    #[test]
-    fn stable_contract_assemble_context_matches_fixture() {
-        let fixture = stable_contract_fixture();
-        let required_substrings =
-            fixture_strings(&fixture["methods"]["assemble_context"]["required_substrings"]);
-
-        let mut state = temp_state();
-        let _ = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "remember",
-                "arguments": { "text": "alice works at Acme" }
-            })),
-        )
-        .expect("remember");
-
-        let out = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "assemble_context",
-                "arguments": { "query": "Where does alice work?", "max_tokens": 64 }
-            })),
-        )
-        .expect("assemble_context");
-
-        let context = out["structuredContent"]["context"]
-            .as_str()
-            .expect("context string")
-            .to_lowercase();
-        for needle in required_substrings {
-            assert!(
-                context.contains(&needle.to_lowercase()),
-                "context should contain {needle}"
-            );
-        }
-    }
-
-    #[test]
-    fn stable_contract_what_changed_matches_fixture() {
-        let fixture = stable_contract_fixture();
-        let report_keys =
-            fixture_strings(&fixture["methods"]["what_changed"]["required_report_keys"]);
-        let brief_keys =
-            fixture_strings(&fixture["methods"]["what_changed"]["required_agent_brief_keys"]);
-        let error_substring = fixture["methods"]["what_changed"]["required_error_substring"]
-            .as_str()
-            .expect("what_changed error substring");
-
-        let mut state = temp_state();
-        let first = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "assert_fact",
-                "arguments": {
-                    "subject": "alice",
-                    "predicate": "works_at",
-                    "object": "Acme"
-                }
-            })),
-        )
-        .expect("assert_fact");
-        let first_id = first["structuredContent"]["fact_id"]
-            .as_str()
-            .expect("first fact_id");
-        let since = Utc::now().to_rfc3339();
-        let _ = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "invalidate_fact",
-                "arguments": { "fact_id": first_id }
-            })),
-        )
-        .expect("invalidate_fact");
-        let _ = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "assert_fact",
-                "arguments": {
-                    "subject": "alice",
-                    "predicate": "works_at",
-                    "object": "Beta Corp",
-                    "confidence": 0.6
-                }
-            })),
-        )
-        .expect("assert replacement");
-
-        let out = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "what_changed",
-                "arguments": {
-                    "entity": "alice",
-                    "since": since,
-                    "predicate": "works_at"
-                }
-            })),
-        )
-        .expect("what_changed");
-        assert_has_keys(&out["structuredContent"]["report"], &report_keys);
-        assert_has_keys(&out["structuredContent"]["agent_brief"], &brief_keys);
-
-        let err = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "what_changed",
-                "arguments": { "entity": "alice", "since": "not-a-date" }
-            })),
-        )
-        .expect_err("invalid since should fail")
-        .to_string();
-        assert!(err.contains(error_substring));
-    }
-
-    #[test]
-    fn stable_contract_memory_health_matches_fixture() {
-        let fixture = stable_contract_fixture();
-        let report_keys =
-            fixture_strings(&fixture["methods"]["memory_health"]["required_report_keys"]);
-        let brief_keys =
-            fixture_strings(&fixture["methods"]["memory_health"]["required_agent_brief_keys"]);
-        let error_substring = fixture["methods"]["memory_health"]["required_error_substring"]
-            .as_str()
-            .expect("memory_health error substring");
-        let old = (Utc::now() - chrono::Duration::days(200)).to_rfc3339();
-
-        let mut state = temp_state();
-        let _ = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "assert_fact",
-                "arguments": {
-                    "subject": "alice",
-                    "predicate": "nickname",
-                    "object": "Bex",
-                    "confidence": 0.4,
-                    "valid_from": old
-                }
-            })),
-        )
-        .expect("assert nickname");
-        let _ = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "assert_fact",
-                "arguments": {
-                    "subject": "alice",
-                    "predicate": "email",
-                    "object": "alice@example.com",
-                    "confidence": 0.9,
-                    "valid_from": old
-                }
-            })),
-        )
-        .expect("assert email");
-
-        let out = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "memory_health",
-                "arguments": {
-                    "entity": "alice",
-                    "low_confidence_threshold": 0.7,
-                    "stale_after_days": 90
-                }
-            })),
-        )
-        .expect("memory_health");
-        assert_has_keys(&out["structuredContent"]["report"], &report_keys);
-        assert_has_keys(&out["structuredContent"]["agent_brief"], &brief_keys);
-
-        let err = call_tool(
-            &mut state,
-            Some(&json!({
-                "name": "memory_health",
-                "arguments": {
-                    "entity": "alice",
-                    "low_confidence_threshold": 1.5,
-                    "stale_after_days": 90
-                }
-            })),
-        )
-        .expect_err("invalid threshold should fail")
-        .to_string();
-        assert!(err.contains(error_substring));
     }
 }

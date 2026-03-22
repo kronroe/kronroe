@@ -4,8 +4,7 @@ use crate::storage_append_log::AppendLogBackend;
 use crate::storage_observability::{
     noop_observer, StorageEvent, StorageObserver, StorageOperation,
 };
-use crate::{Fact, FactId, Result};
-use chrono::{DateTime, Utc};
+use crate::{Fact, FactId, KronroeTimestamp, Result};
 use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
@@ -154,7 +153,7 @@ impl KronroeStorage {
         &self,
         subject: &str,
         predicate: &str,
-        at: DateTime<Utc>,
+        at: KronroeTimestamp,
     ) -> Result<Vec<StoredFactRow>> {
         let started_at = storage_now();
         let (rows, rows_scanned) = self.backend.facts_at(subject, predicate, at);
@@ -373,11 +372,11 @@ impl KronroeStorage {
 mod tests {
     use super::*;
     use crate::storage_observability::{StorageEvent, StorageObserver, StorageOperation};
-    use crate::{KronroeError, Value};
+    use crate::{KronroeError, KronroeSpan, Value};
     use std::sync::{Arc, Mutex};
 
     fn build_fact(subject: &str, predicate: &str, object: impl Into<Value>) -> Fact {
-        Fact::new(subject, predicate, object, Utc::now())
+        Fact::new(subject, predicate, object, KronroeTimestamp::now_utc())
     }
 
     #[derive(Default)]
@@ -501,7 +500,7 @@ mod tests {
 
         let mut corrected = fact.clone();
         corrected.object = Value::Text("TechCorp".into());
-        corrected.expired_at = Some(Utc::now());
+        corrected.expired_at = Some(KronroeTimestamp::now_utc());
         storage.replace_fact_row(&key, &corrected).unwrap();
 
         let scanned = storage.scan_facts("alice:works_at:").unwrap();
@@ -619,13 +618,13 @@ mod tests {
         let storage = KronroeStorage::open_in_memory_with_observer(observer.clone()).unwrap();
         assert_eq!(storage.initialize_schema().unwrap(), SCHEMA_VERSION);
 
-        let base = Utc::now();
+        let base = KronroeTimestamp::now_utc();
         for i in 0..5 {
             let mut fact = build_fact("timeline", "role", format!("role-{i}"));
-            fact.valid_from = base + chrono::Duration::hours(i);
+            fact.valid_from = base + KronroeSpan::hours(i);
             fact.recorded_at = fact.valid_from;
             if i < 4 {
-                fact.expired_at = Some(base + chrono::Duration::hours(i + 1));
+                fact.expired_at = Some(base + KronroeSpan::hours(i + 1));
             }
             storage.write_fact(&fact).unwrap();
         }
@@ -692,8 +691,8 @@ mod tests {
         assert_eq!(storage.initialize_schema().unwrap(), SCHEMA_VERSION);
 
         let mut historical = build_fact("alice", "works_at", "Acme");
-        historical.valid_to = Some(Utc::now());
-        historical.expired_at = Some(Utc::now());
+        historical.valid_to = Some(KronroeTimestamp::now_utc());
+        historical.expired_at = Some(KronroeTimestamp::now_utc());
         storage.write_fact(&historical).unwrap();
 
         let current = build_fact("alice", "works_at", "TechCorp");
@@ -720,22 +719,22 @@ mod tests {
         let storage = KronroeStorage::open_in_memory_with_observer(observer.clone()).unwrap();
         assert_eq!(storage.initialize_schema().unwrap(), SCHEMA_VERSION);
 
-        let base = Utc::now();
+        let base = KronroeTimestamp::now_utc();
         let mut ids = Vec::new();
         for i in 0..5 {
             let mut fact = build_fact("timeline", "role", format!("role-{i}"));
-            fact.valid_from = base + chrono::Duration::hours(i);
+            fact.valid_from = base + KronroeSpan::hours(i);
             fact.recorded_at = fact.valid_from;
             if i < 4 {
-                fact.valid_to = Some(base + chrono::Duration::hours(i + 1));
-                fact.expired_at = Some(base + chrono::Duration::hours(i + 1));
+                fact.valid_to = Some(base + KronroeSpan::hours(i + 1));
+                fact.expired_at = Some(base + KronroeSpan::hours(i + 1));
             }
             ids.push(fact.id.clone());
             storage.write_fact(&fact).unwrap();
         }
 
         let rows = storage
-            .facts_at("timeline", "role", base + chrono::Duration::hours(2))
+            .facts_at("timeline", "role", base + KronroeSpan::hours(2))
             .unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].fact.id, ids[2]);
