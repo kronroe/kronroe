@@ -1,6 +1,5 @@
 #[cfg(feature = "contradiction")]
 use crate::contradiction::Contradiction;
-#[cfg(any(test, feature = "storage-append-log"))]
 use crate::storage_append_log::AppendLogBackend;
 use crate::storage_observability::{
     noop_observer, StorageEvent, StorageObserver, StorageOperation,
@@ -121,10 +120,7 @@ pub(crate) fn fact_row_key(subject: &str, predicate: &str, fact_id: &FactId) -> 
     format!("{subject}:{predicate}:{}", fact_id.as_str())
 }
 
-/// Kronroe-owned storage facade for the current on-disk backend.
-///
-/// Phase 1 keeps `redb` under the hood while the rest of the engine moves to a
-/// Kronroe-shaped storage contract.
+/// Kronroe-owned storage facade for the current storage backend.
 pub(crate) struct KronroeStorage {
     engine: StorageEngine,
     observer: Arc<dyn StorageObserver>,
@@ -132,13 +128,26 @@ pub(crate) struct KronroeStorage {
 
 enum StorageEngine {
     Redb(Database),
-    #[cfg(any(test, feature = "storage-append-log"))]
     #[allow(dead_code)]
     AppendLog(Box<AppendLogBackend>),
 }
 
 impl KronroeStorage {
     pub(crate) fn open(path: &str) -> Result<Self> {
+        Ok(Self {
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open(path)?)),
+            observer: noop_observer(),
+        })
+    }
+
+    pub(crate) fn open_in_memory() -> Result<Self> {
+        Ok(Self {
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open_in_memory())),
+            observer: noop_observer(),
+        })
+    }
+
+    pub(crate) fn open_redb(path: &str) -> Result<Self> {
         let db = Database::create(path)?;
         Ok(Self {
             engine: StorageEngine::Redb(db),
@@ -146,7 +155,7 @@ impl KronroeStorage {
         })
     }
 
-    pub(crate) fn open_in_memory() -> Result<Self> {
+    pub(crate) fn open_redb_in_memory() -> Result<Self> {
         let backend = redb::backends::InMemoryBackend::new();
         let db = Database::builder().create_with_backend(backend)?;
         Ok(Self {
@@ -160,6 +169,25 @@ impl KronroeStorage {
         path: &str,
         observer: Arc<dyn StorageObserver>,
     ) -> Result<Self> {
+        Ok(Self {
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open(path)?)),
+            observer,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn open_in_memory_with_observer(observer: Arc<dyn StorageObserver>) -> Result<Self> {
+        Ok(Self {
+            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open_in_memory())),
+            observer,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn open_redb_with_observer(
+        path: &str,
+        observer: Arc<dyn StorageObserver>,
+    ) -> Result<Self> {
         let db = Database::create(path)?;
         Ok(Self {
             engine: StorageEngine::Redb(db),
@@ -168,7 +196,9 @@ impl KronroeStorage {
     }
 
     #[cfg(test)]
-    pub(crate) fn open_in_memory_with_observer(observer: Arc<dyn StorageObserver>) -> Result<Self> {
+    pub(crate) fn open_redb_in_memory_with_observer(
+        observer: Arc<dyn StorageObserver>,
+    ) -> Result<Self> {
         let backend = redb::backends::InMemoryBackend::new();
         let db = Database::builder().create_with_backend(backend)?;
         Ok(Self {
@@ -177,45 +207,31 @@ impl KronroeStorage {
         })
     }
 
-    #[cfg(any(test, feature = "storage-append-log"))]
     #[allow(dead_code)]
     pub(crate) fn open_append_log(path: &str) -> Result<Self> {
-        Ok(Self {
-            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open(path)?)),
-            observer: noop_observer(),
-        })
+        Self::open(path)
     }
 
-    #[cfg(any(test, feature = "storage-append-log"))]
     #[allow(dead_code)]
     pub(crate) fn open_append_log_in_memory() -> Result<Self> {
-        Ok(Self {
-            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open_in_memory())),
-            observer: noop_observer(),
-        })
+        Self::open_in_memory()
     }
 
-    #[cfg(any(test, feature = "storage-append-log"))]
+    #[cfg(test)]
     #[allow(dead_code)]
     pub(crate) fn open_append_log_with_observer(
         path: &str,
         observer: Arc<dyn StorageObserver>,
     ) -> Result<Self> {
-        Ok(Self {
-            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open(path)?)),
-            observer,
-        })
+        Self::open_with_observer(path, observer)
     }
 
-    #[cfg(any(test, feature = "storage-append-log"))]
+    #[cfg(test)]
     #[allow(dead_code)]
     pub(crate) fn open_append_log_in_memory_with_observer(
         observer: Arc<dyn StorageObserver>,
     ) -> Result<Self> {
-        Ok(Self {
-            engine: StorageEngine::AppendLog(Box::new(AppendLogBackend::open_in_memory())),
-            observer,
-        })
+        Self::open_in_memory_with_observer(observer)
     }
     #[cfg(not(target_arch = "wasm32"))]
     fn record(
@@ -252,7 +268,7 @@ impl KronroeStorage {
     #[allow(dead_code)]
     fn unsupported_backend(operation: &str) -> KronroeError {
         KronroeError::Storage(format!(
-            "{operation} is not supported by the experimental append-log backend yet"
+            "{operation} is not supported by the current append-log backend yet"
         ))
     }
 
@@ -312,7 +328,6 @@ impl KronroeStorage {
                 write_txn.commit()?;
                 Ok(stored_version)
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => backend.initialize_schema(),
         };
         self.record(
@@ -464,7 +479,6 @@ impl KronroeStorage {
                 write_txn.commit()?;
                 Ok(facts_rows.len())
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(_) => {
                 Err(Self::unsupported_backend("schema v1 -> v2 migration"))
             }
@@ -501,7 +515,6 @@ impl KronroeStorage {
 
                 Ok((rows, rows_scanned))
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => {
                 let (rows, rows_scanned) = backend.scan_facts(prefix);
                 Ok((rows, rows_scanned))
@@ -544,7 +557,6 @@ impl KronroeStorage {
 
                 Ok((None, rows_scanned))
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => {
                 let (row, rows_scanned) = backend.fact_by_id(fact_id);
                 Ok((row, rows_scanned))
@@ -592,7 +604,6 @@ impl KronroeStorage {
 
                 Ok((rows, rows_scanned))
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => {
                 let (rows, rows_scanned) = backend.current_facts(subject, predicate);
                 Ok((rows, rows_scanned))
@@ -641,7 +652,6 @@ impl KronroeStorage {
 
                 Ok((rows, rows_scanned))
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => {
                 let (rows, rows_scanned) = backend.facts_at(subject, predicate, at);
                 Ok((rows, rows_scanned))
@@ -673,7 +683,6 @@ impl KronroeStorage {
                 write_txn.commit()?;
                 Ok(())
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => backend.write_fact(fact),
         };
         self.record(StorageOperation::WriteFact, started_at, 0, result.is_ok());
@@ -693,7 +702,6 @@ impl KronroeStorage {
                 write_txn.commit()?;
                 Ok(())
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => backend.replace_fact_row(key, fact),
         };
         self.record(
@@ -728,7 +736,6 @@ impl KronroeStorage {
                     })
                     .transpose()
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => backend.get_idempotency(idempotency_key),
         };
         self.record(
@@ -784,7 +791,6 @@ impl KronroeStorage {
                 write_txn.commit()?;
                 Ok(fact.id.clone())
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => {
                 backend.write_fact_and_idempotency(idempotency_key, fact)
             }
@@ -848,7 +854,6 @@ impl KronroeStorage {
                 write_txn.commit()?;
                 Ok((contradictions, rows_scanned))
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => backend.write_fact_with_contradiction_check(
                 subject,
                 predicate,
@@ -914,7 +919,6 @@ impl KronroeStorage {
                 write_txn.commit()?;
                 Ok(())
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => backend.write_fact_with_embedding(fact, embedding),
         };
         self.record(
@@ -965,7 +969,6 @@ impl KronroeStorage {
 
                 Ok(rows)
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => backend.embedding_rows(),
         };
         self.record(
@@ -996,7 +999,6 @@ impl KronroeStorage {
                 }
                 Ok(rows)
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => Ok(backend.load_predicate_registry_entries()),
         };
         self.record(
@@ -1025,7 +1027,6 @@ impl KronroeStorage {
                 write_txn.commit()?;
                 Ok(())
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => {
                 backend.write_predicate_registry_entry(predicate, encoded)
             }
@@ -1057,7 +1058,6 @@ impl KronroeStorage {
                 }
                 Ok(rows)
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => Ok(backend.load_volatility_registry_entries()),
         };
         self.record(
@@ -1087,7 +1087,6 @@ impl KronroeStorage {
                 }
                 Ok(rows)
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => Ok(backend.load_source_weight_registry_entries()),
         };
         self.record(
@@ -1116,7 +1115,6 @@ impl KronroeStorage {
                 write_txn.commit()?;
                 Ok(())
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => {
                 backend.write_volatility_registry_entry(predicate, encoded)
             }
@@ -1147,7 +1145,6 @@ impl KronroeStorage {
                 write_txn.commit()?;
                 Ok(())
             })(),
-            #[cfg(any(test, feature = "storage-append-log"))]
             StorageEngine::AppendLog(backend) => {
                 backend.write_source_weight_registry_entry(source, encoded)
             }
@@ -1369,7 +1366,7 @@ mod tests {
         let path = tempdir.path().join("redb-backed.kronroe");
         let path_str = path.to_str().unwrap();
 
-        let redb_storage = KronroeStorage::open(path_str).unwrap();
+        let redb_storage = KronroeStorage::open_redb(path_str).unwrap();
         assert_eq!(redb_storage.initialize_schema().unwrap(), SCHEMA_VERSION);
         redb_storage
             .write_fact(&build_fact("alice", "works_at", "Acme"))
