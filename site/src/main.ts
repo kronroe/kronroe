@@ -3,7 +3,7 @@
 
 import './animations';
 import './hero-graph';
-import { initPlaygroundGraph, updatePlaygroundGraph, clearPlaygroundGraph, highlightNode } from './playground-graph';
+import { initPlaygroundGraph, updatePlaygroundGraph, clearPlaygroundGraph, highlightNode, highlightFact } from './playground-graph';
 
 // ── WASM types ──────────────────────────────────────────────────────────────
 
@@ -860,6 +860,15 @@ async function init() {
     }
   });
 
+  // ── Click subject tag in fact stream → highlight in graph ─────────────────
+
+  streamBody.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    if (!target.classList.contains("tag-s")) return;
+    const subjectName = target.textContent?.trim();
+    if (subjectName) highlightFact(subjectName);
+  });
+
   // ── Bi-temporal timestamp tooltip (fixed, avoids scroll clipping) ─────────
 
   const tsTip = document.getElementById("ts-tooltip")!;
@@ -1137,15 +1146,45 @@ async function init() {
     updateRail();
   }
 
-  // ── First-visit auto-demo ──────────────────────────────────────────────
+  // ── First-visit auto-demo — pre-load a rich knowledge graph ──────────
 
   const HAS_VISITED_KEY = "kronroe_has_visited";
-  if (!localStorage.getItem(HAS_VISITED_KEY)) {
+  if (!localStorage.getItem(HAS_VISITED_KEY) && allFacts.length === 0) {
     localStorage.setItem(HAS_VISITED_KEY, "1");
-    // Small delay so the page finishes rendering first
+
+    // Pre-load a compelling demo scenario so the graph is alive on first visit
+    const demoFacts: Array<{ s: string; p: string; v: string; t: ObjType; at: string }> = [
+      { s: "alice",  p: "works_at",  v: "Acme",     t: "Entity", at: "2023-06-01T09:00:00.000Z" },
+      { s: "alice",  p: "role",      v: "engineer",  t: "Text",   at: "2023-06-01T09:00:00.000Z" },
+      { s: "alice",  p: "lives_in",  v: "London",    t: "Entity", at: "2023-01-15T00:00:00.000Z" },
+      { s: "bob",    p: "works_at",  v: "Acme",      t: "Entity", at: "2022-03-01T09:00:00.000Z" },
+      { s: "bob",    p: "knows",     v: "alice",     t: "Entity", at: "2023-06-15T12:00:00.000Z" },
+      { s: "bob",    p: "role",      v: "manager",   t: "Text",   at: "2022-03-01T09:00:00.000Z" },
+      { s: "carol",  p: "works_at",  v: "TechCorp",  t: "Entity", at: "2024-01-10T09:00:00.000Z" },
+      { s: "carol",  p: "knows",     v: "alice",     t: "Entity", at: "2024-02-01T14:00:00.000Z" },
+      { s: "Acme",   p: "industry",  v: "technology", t: "Text",  at: "2020-01-01T00:00:00.000Z" },
+    ];
+
     setTimeout(() => {
-      document.getElementById("time-demo-btn")?.click();
-    }, 600);
+      try {
+        for (const df of demoFacts) {
+          const factId = assertIntoEngine(graph, df.s, df.p, df.t, df.v, df.at);
+          const localFact = buildLocalFact(factId, df.s, df.p, df.t, df.v, df.at);
+          allFacts.push(localFact);
+          storedFacts.push({
+            s: df.s, p: df.p, objType: df.t, oValue: df.v,
+            valid_from_iso: df.at, fact_id: factId,
+          });
+        }
+        saveToLocalStorage(storedFacts);
+        viewMode = "all";
+        renderFacts(activeFacts(), "ALL");
+        setStatus(assertStatus, "Demo loaded — 9 facts across 5 entities. Try clicking a node!", "ok");
+      } catch (e) {
+        // Fallback to the old time-travel demo if anything fails
+        document.getElementById("time-demo-btn")?.click();
+      }
+    }, 400);
   }
 }
 

@@ -12,13 +12,13 @@ const COLOURS = {
   copper: "#E87D4A",
   aqua: "#3EC9C9",
   lime: "#5A8A00",
+  limeLight: "#8BBF20",
   espresso: "#2A1D12",
   cream: "#FBF8F2",
   surface: "#FFFFFF",
   textMid: "rgba(42, 29, 18, 0.65)",
   textDim: "rgba(42, 29, 18, 0.46)",
   border: "rgba(42, 29, 18, 0.12)",
-  invalidated: "rgba(42, 29, 18, 0.25)",
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -41,28 +41,26 @@ type WasmFact = {
 type EntityKind = "person" | "company" | "location" | "concept" | "default";
 
 function classifyEntity(name: string, facts: WasmFact[]): EntityKind {
-  const lower = name.toLowerCase();
-
   // @ prefix = company/org
   if (name.startsWith("@")) return "company";
 
-  // Check predicates for hints
+  // Check predicates for hints (as subject)
   for (const f of facts) {
     if (f.subject !== name) continue;
     const p = f.predicate;
-    if (p === "works_at" || p === "job_title" || p === "role" || p === "knows" || p === "age")
+    if (p === "works_at" || p === "job_title" || p === "role" || p === "knows" || p === "age" || p === "born_in")
       return "person";
-    if (p === "industry" || p === "founded" || p === "hq") return "company";
-    if (p === "country" || p === "region" || p === "population") return "location";
+    if (p === "industry" || p === "founded" || p === "hq" || p === "sector") return "company";
+    if (p === "country" || p === "region" || p === "population" || p === "timezone") return "location";
   }
 
   // Check if it's referenced as a target of specific predicates
   for (const f of facts) {
     const target = f.object.type === "Entity" ? String(f.object.value) : (f.object.type === "Text" ? String(f.object.value) : null);
     if (target !== name) continue;
-
     if (f.predicate === "lives_in" || f.predicate === "born_in" || f.predicate === "located_in") return "location";
     if (f.predicate === "works_at" || f.predicate === "employed_by") return "company";
+    if (f.predicate === "knows") return "person";
   }
 
   return "default";
@@ -80,24 +78,32 @@ const KIND_STYLES: Record<EntityKind, { bg: string; shape: string; border: strin
 
 function buildElements(facts: WasmFact[]): ElementDefinition[] {
   const activeFacts = facts.filter((f) => f.expired_at === null);
-  const nodes = new Set<string>();
+  const nodeNames = new Set<string>();
   const elements: ElementDefinition[] = [];
 
-  // Collect all entity names (subjects + entity-type objects)
+  // Count edges per node for sizing
+  const edgeCount = new Map<string, number>();
+
   for (const f of activeFacts) {
-    nodes.add(f.subject);
+    nodeNames.add(f.subject);
     if (f.object.type === "Entity") {
-      nodes.add(String(f.object.value));
+      nodeNames.add(String(f.object.value));
+      edgeCount.set(f.subject, (edgeCount.get(f.subject) || 0) + 1);
+      const target = String(f.object.value);
+      edgeCount.set(target, (edgeCount.get(target) || 0) + 1);
     }
   }
 
-  // Create node elements
-  for (const name of nodes) {
+  // Create node elements — size scales with connection count
+  for (const name of nodeNames) {
     const kind = classifyEntity(name, activeFacts);
     const style = KIND_STYLES[kind];
+    const connections = edgeCount.get(name) || 0;
     const propCount = activeFacts.filter(
       (f) => f.subject === name && f.object.type !== "Entity"
     ).length;
+    // Base size 44, grows with connections (max ~72)
+    const size = Math.min(72, 44 + connections * 7);
 
     elements.push({
       data: {
@@ -105,9 +111,11 @@ function buildElements(facts: WasmFact[]): ElementDefinition[] {
         label: name,
         kind,
         propCount,
+        connections,
         bg: style.bg,
         borderColor: style.border,
         shape: style.shape,
+        nodeSize: size,
       },
     });
   }
@@ -139,37 +147,50 @@ const STYLESHEET: cytoscape.Stylesheet[] = [
       label: "data(label)",
       "background-color": "data(bg)" as any,
       "border-color": "data(borderColor)" as any,
-      "border-width": 2,
+      "border-width": 2.5,
       shape: "data(shape)" as any,
-      width: 50,
-      height: 50,
+      width: "data(nodeSize)" as any,
+      height: "data(nodeSize)" as any,
       "font-family": "Quicksand, system-ui, sans-serif",
-      "font-size": "11px",
-      "font-weight": 600,
+      "font-size": "12px",
+      "font-weight": 700,
       color: COLOURS.espresso,
       "text-valign": "bottom",
-      "text-margin-y": 6,
+      "text-margin-y": 8,
       "text-outline-color": COLOURS.cream,
-      "text-outline-width": 2,
+      "text-outline-width": 2.5,
       "overlay-opacity": 0,
-      "transition-property": "background-color, border-color, width, height",
-      "transition-duration": 200,
+      "transition-property": "background-color, border-color, width, height, border-width",
+      "transition-duration": 250,
     } as any,
   },
   {
     selector: "node:active",
     style: {
-      "overlay-opacity": 0.08,
+      "overlay-opacity": 0.1,
       "overlay-color": COLOURS.violet,
     },
   },
   {
     selector: "node.highlighted",
     style: {
-      "border-width": 3,
+      "border-width": 4,
       "border-color": COLOURS.violet,
-      width: 60,
-      height: 60,
+      "background-opacity": 1,
+      "z-index": 10,
+    },
+  },
+  {
+    selector: "node.pulse",
+    style: {
+      "border-width": 5,
+      "border-color": COLOURS.limeLight,
+    },
+  },
+  {
+    selector: "node.dimmed",
+    style: {
+      opacity: 0.25,
     },
   },
   {
@@ -180,18 +201,19 @@ const STYLESHEET: cytoscape.Stylesheet[] = [
       "line-color": COLOURS.copper,
       "target-arrow-color": COLOURS.copper,
       "target-arrow-shape": "triangle",
+      "arrow-scale": 0.8,
       "curve-style": "bezier",
       "font-family": "JetBrains Mono, monospace",
       "font-size": "9px",
       "font-weight": 500,
       color: COLOURS.textMid,
       "text-rotation": "autorotate",
-      "text-margin-y": -8,
+      "text-margin-y": -10,
       "text-outline-color": COLOURS.cream,
       "text-outline-width": 2,
       "overlay-opacity": 0,
-      "transition-property": "line-color, target-arrow-color, width",
-      "transition-duration": 200,
+      "transition-property": "line-color, target-arrow-color, width, opacity",
+      "transition-duration": 250,
     } as any,
   },
   {
@@ -200,9 +222,20 @@ const STYLESHEET: cytoscape.Stylesheet[] = [
       "line-color": COLOURS.violet,
       "target-arrow-color": COLOURS.violet,
       width: 3,
+      "z-index": 10,
+    },
+  },
+  {
+    selector: "edge.dimmed",
+    style: {
+      opacity: 0.15,
     },
   },
 ];
+
+// ── Track previous node set for pulse animation ──────────────────────────────
+
+let previousNodeIds = new Set<string>();
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -225,19 +258,18 @@ export function initPlaygroundGraph(containerId: string): Core {
     maxZoom: 3,
   });
 
-  // Highlight connected elements on tap
+  // Highlight connected elements on tap — dim everything else
   cy.on("tap", "node", (evt) => {
-    cy!.elements().removeClass("highlighted");
     const node = evt.target;
-    node.addClass("highlighted");
-    node.connectedEdges().addClass("highlighted");
-    node.connectedEdges().connectedNodes().addClass("highlighted");
+    const connected = node.closedNeighborhood();
+    cy!.elements().addClass("dimmed").removeClass("highlighted");
+    connected.removeClass("dimmed").addClass("highlighted");
   });
 
   // Clear highlight on background tap
   cy.on("tap", (evt) => {
     if (evt.target === cy) {
-      cy!.elements().removeClass("highlighted");
+      cy!.elements().removeClass("highlighted").removeClass("dimmed");
     }
   });
 
@@ -248,50 +280,72 @@ export function updatePlaygroundGraph(facts: WasmFact[]): void {
   if (!cy) return;
 
   const elements = buildElements(facts);
+  const newNodeIds = new Set(elements.filter(e => !e.data.source).map(e => e.data.id as string));
 
   // Batch update: remove old, add new
   cy.elements().remove();
   cy.add(elements);
+
+  // Pulse newly added nodes
+  for (const id of newNodeIds) {
+    if (!previousNodeIds.has(id) && previousNodeIds.size > 0) {
+      const node = cy.getElementById(id);
+      node.addClass("pulse");
+      setTimeout(() => node.removeClass("pulse"), 800);
+    }
+  }
+  previousNodeIds = newNodeIds;
 
   // Run force-directed layout
   if (elements.length > 0) {
     cy.layout({
       name: "cose",
       animate: true,
-      animationDuration: 400,
-      animationEasing: "ease-out",
-      nodeRepulsion: () => 8000,
-      idealEdgeLength: () => 120,
-      edgeElasticity: () => 100,
-      gravity: 0.3,
-      numIter: 200,
-      padding: 30,
+      animationDuration: 500,
+      animationEasing: "ease-out-cubic" as any,
+      nodeRepulsion: () => 12000,
+      idealEdgeLength: () => 140,
+      edgeElasticity: () => 80,
+      gravity: 0.25,
+      numIter: 300,
+      padding: 40,
       randomize: false,
       fit: true,
+      nodeDimensionsIncludeLabels: true,
     } as any).run();
   }
 }
 
 export function highlightNode(entityName: string): void {
   if (!cy) return;
-  cy.elements().removeClass("highlighted");
   const node = cy.getElementById(entityName);
   if (node.length) {
-    node.addClass("highlighted");
-    node.connectedEdges().addClass("highlighted");
-    node.connectedEdges().connectedNodes().addClass("highlighted");
-    cy.animate({ center: { eles: node }, zoom: 1.5 }, { duration: 300 });
+    const connected = node.closedNeighborhood();
+    cy.elements().addClass("dimmed").removeClass("highlighted");
+    connected.removeClass("dimmed").addClass("highlighted");
+    cy.animate({ center: { eles: node }, zoom: 1.2 }, { duration: 400 });
+  }
+}
+
+export function highlightFact(subjectName: string): void {
+  if (!cy) return;
+  const node = cy.getElementById(subjectName);
+  if (node.length) {
+    node.addClass("pulse");
+    setTimeout(() => node.removeClass("pulse"), 600);
   }
 }
 
 export function clearPlaygroundGraph(): void {
   if (!cy) return;
   cy.elements().remove();
+  previousNodeIds = new Set();
 }
 
 export function destroyPlaygroundGraph(): void {
   if (cy) {
     cy.destroy();
     cy = null;
+    previousNodeIds = new Set();
   }
 }
