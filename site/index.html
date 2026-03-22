@@ -289,13 +289,13 @@
       }
 
       .hero h1 { font-family: var(--body); font-size: clamp(1.8rem, 3.8vw, 2.9rem); font-weight: var(--w-heading); letter-spacing: -0.02em; line-height: 1.22; margin-bottom: 1.4rem; color: var(--text); }
-      .hero h1 .lime { font-family: var(--hand); font-weight: 400; color: var(--copper); font-size: 0.85em; }
+      .hero h1 .lime { font-family: var(--hand); font-weight: 400; color: var(--copper); font-size: 0.72em; }
 
       /* ── Flip Words — rotating subtitle ── */
       .flip-words {
         display: inline-block;
         position: relative;
-        height: 1.35em;
+        height: 1.6em;
         vertical-align: bottom;
         overflow: hidden;
       }
@@ -313,10 +313,10 @@
       .flip-word:first-child {
         position: relative;
       }
-      .flip-word:nth-child(1) { animation-delay: 0s; }
-      .flip-word:nth-child(2) { animation-delay: 3s; }
-      .flip-word:nth-child(3) { animation-delay: 6s; }
-      .flip-word:nth-child(4) { animation-delay: 9s; }
+      .flip-word:nth-child(1) { animation-delay: 9s; }
+      .flip-word:nth-child(2) { animation-delay: 0s; }
+      .flip-word:nth-child(3) { animation-delay: 3s; }
+      .flip-word:nth-child(4) { animation-delay: 6s; }
       @keyframes flip-word-cycle {
         0%   { opacity: 0; transform: translateY(40%); }
         5%   { opacity: 1; transform: translateY(0); }
@@ -1584,10 +1584,10 @@
           </a>
           <h1>Bi-<span class="temporal-accent temporal-shiny">temporal</span> graph.<br>
             <span class="flip-words" aria-label="In your browser. On your iPhone. In your AI agent. Zero server required.">
+              <span class="flip-word lime">Zero server required.</span>
               <span class="flip-word lime">In your browser.</span>
               <span class="flip-word lime">On your iPhone.</span>
               <span class="flip-word lime">In your AI agent.</span>
-              <span class="flip-word lime">Zero server required.</span>
             </span>
           </h1>
           <p class="hero-explain">Track not just what's true — but when it became true, and when you recorded it. Bi-temporal facts are a first-class engine primitive in Kronroe, not an application concern you bolt on later. Query any point in time, or compare two snapshots to see exactly what changed.</p>
