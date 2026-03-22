@@ -277,6 +277,7 @@ impl LockFileGuard {
             .create(true)
             .read(true)
             .write(true)
+            .truncate(false)
             .open(path)
             .map_err(|error| {
                 KronroeError::Storage(format!(

@@ -523,13 +523,14 @@ fn run_mixed_session(_config: BenchmarkConfig) -> WorkloadReport {
 
 fn build_storage_benchmark_report(scale: BenchmarkScale) -> StorageBenchmarkReport {
     let config = BenchmarkConfig::for_scale(scale);
-    let mut workloads = Vec::new();
-    workloads.push(run_assert_heavy_ingestion(config));
-    workloads.push(run_correction_heavy_timeline_churn(config));
-    workloads.push(run_current_state_scan(config));
-    workloads.push(run_historical_point_in_time_scan(config));
-    workloads.push(run_idempotent_retries(config));
-    workloads.push(run_mixed_session(config));
+    let mut workloads = vec![
+        run_assert_heavy_ingestion(config),
+        run_correction_heavy_timeline_churn(config),
+        run_current_state_scan(config),
+        run_historical_point_in_time_scan(config),
+        run_idempotent_retries(config),
+        run_mixed_session(config),
+    ];
     #[cfg(feature = "vector")]
     workloads.push(run_embedding_reopen(config));
 
