@@ -23,7 +23,7 @@ Kronroe is still early-stage software, but this document defines which surfaces 
 | Bi-temporal CRUD/query (`assert_fact`, `facts_at`, `current_facts`, `correct_fact`, `invalidate_fact`) | base | `Stable` | Primary engine contract. |
 | Full-text search (`search`) | `fulltext` (default) | `Stable` | BM25 + fuzzy match path. |
 | Vector search (`search_by_vector`, embedding writes) | `vector` | `Stable` | Feature-gated but contract intended to be dependable. |
-| Hybrid search (`search_hybrid`) | `hybrid-experimental` + `vector` | `Experimental` | Explicitly marked experimental in feature naming and docs. |
+| Hybrid search (`search_hybrid`) | `hybrid-experimental` + `vector` | `Experimental` | Eval passed 2026-03-22 (product gate PASS, nDCG@3=0.8249, +17% semantic, +47% time-slice). Remains Experimental pending gate A3 (agent orchestration). See `docs/HYBRID-BEHAVIOR-GUIDE.md`. |
 | Contradiction detection (`assert_fact_checked`, `detect_contradictions`) | `contradiction` | `Preview` | Functional and tested; policy/shape may still evolve. |
 | Uncertainty model (`register_predicate_volatility`, `effective_confidence`) | `uncertainty` | `Preview` | Functional and tested; modeling knobs may evolve. |
 
@@ -34,7 +34,7 @@ Kronroe is still early-stage software, but this document defines which surfaces 
 | `remember`, `recall`, `recall_scored`, `assemble_context` | base | `Stable` | Primary high-level product API. |
 | Confidence/source assertions (`assert_with_confidence`, `assert_with_source`) | base | `Stable` | Part of core ingestion contract. |
 | `RecallOptions` / `RecallScore` | base | `Stable` | Designed for additive evolution (`#[non_exhaustive]`). |
-| Hybrid recall controls (`with_hybrid`, temporal intent/operator passthrough) | `hybrid` | `Experimental` | Inherits hybrid-experimental risk from core. |
+| Hybrid recall controls (`with_hybrid`, temporal intent/operator passthrough) | `hybrid` | `Experimental` | Inherits hybrid-experimental risk from core. Score contract: `docs/HYBRID-RERANKER-CONTRACT.md`. |
 | Contradiction helpers (`assert_checked`, `audit`) | `contradiction` | `Preview` | Depends on preview contradiction engine behavior. |
 | Uncertainty helpers (`with_min_effective_confidence`, volatility/source registration) | `uncertainty` | `Preview` | Depends on preview uncertainty model behavior. |
 
@@ -75,10 +75,10 @@ Kronroe is still early-stage software, but this document defines which surfaces 
 |---|---|---|---|
 | `fulltext` | `kronroe` | `Stable` | Default in core; safe to depend on. |
 | `vector` | `kronroe` | `Stable` | Opt-in but contract is stable. |
-| `hybrid-experimental` | `kronroe` | `Experimental` | Do not treat as long-term stable contract yet. |
+| `hybrid-experimental` | `kronroe` | `Experimental` | Eval passed 2026-03-22; promotion to Preview blocked on gate A3. |
 | `contradiction` | `kronroe`, `kronroe-agent-memory` | `Preview` | Supported, still evolving. |
 | `uncertainty` | `kronroe`, `kronroe-agent-memory`, `kronroe-mcp`, `kronroe-py` | `Preview` | Supported, still evolving. |
-| `hybrid` | `kronroe-agent-memory`, `kronroe-mcp`, `kronroe-py` | `Experimental` | Transitively depends on `hybrid-experimental`. |
+| `hybrid` | `kronroe-agent-memory`, `kronroe-mcp`, `kronroe-py` | `Experimental` | Eval passed 2026-03-22; inherits `hybrid-experimental` gate. |
 | `extension-module` | `kronroe-py` | `Stable` | Standard packaging path for Python extension builds. |
 | `python-runtime-tests` | `kronroe-py` | `Internal` | Runtime test harness mode, not public product API. |
 
