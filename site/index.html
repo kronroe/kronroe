@@ -116,6 +116,9 @@
         --orchid:         #B45CFC;
         --orchid-bg:      rgba(180, 92, 252, 0.08);
         --orchid-border:  rgba(180, 92, 252, 0.22);
+        --copper:         #E87D4A;
+        --copper-bg:      rgba(232, 125, 74, 0.10);
+        --copper-border:  rgba(232, 125, 74, 0.25);
         --lime:           #5A8A00;
         --lime-bg:        rgba(90, 138, 0, 0.08);
         --lime-border:    rgba(90, 138, 0, 0.20);
@@ -286,7 +289,7 @@
       }
 
       .hero h1 { font-family: var(--body); font-size: clamp(1.8rem, 3.8vw, 2.9rem); font-weight: var(--w-heading); letter-spacing: -0.02em; line-height: 1.22; margin-bottom: 1.4rem; color: var(--text); }
-      .hero h1 .lime { font-family: var(--hand); font-weight: 400; color: var(--violet); font-size: 0.85em; }
+      .hero h1 .lime { font-family: var(--hand); font-weight: 400; color: var(--copper); font-size: 0.85em; }
 
       /* ── Flip Words — rotating subtitle ── */
       .flip-words {
@@ -589,12 +592,12 @@
         50% { opacity: 0.35; }
       }
       .explain-card { background: var(--surface); border: 1.5px solid var(--border-hi); border-radius: 12px; padding: 1.25rem; }
-      .explain-card-highlight { border-color: var(--violet-border); background: var(--violet-bg); }
+      .explain-card-highlight { border-color: var(--violet-border); background: var(--violet-bg); border-left: 3px solid var(--copper); }
       .explain-card-label { font-family: var(--hand); font-size: 0.82rem; color: var(--text-dim); margin-bottom: 0.75rem; }
       .explain-card-highlight .explain-card-label { color: var(--violet); }
       .explain-card-body code { display: block; font-family: var(--mono); font-size: 0.72rem; background: var(--surface-2); padding: 0.6rem 0.75rem; border-radius: 6px; margin-bottom: 0.75rem; line-height: 1.6; }
       .explain-card-body p { font-family: var(--body); font-size: 0.82rem; color: var(--text-mid); line-height: 1.55; }
-      .ts-inline { color: var(--violet); font-size: 0.65rem; }
+      .ts-inline { color: var(--copper); font-size: 0.65rem; }
 
       /* ── Temporal lifecycle stepper ── */
       .temporal-steps {
@@ -709,7 +712,7 @@
         line-height: 1.5;
         margin: 0;
       }
-      .step-note .ts { color: var(--violet); font-family: var(--mono); font-size: 0.68rem; }
+      .step-note .ts { color: var(--copper); font-family: var(--mono); font-size: 0.68rem; }
 
       /* ── Fork diagram — bi-temporal split visualisation ── */
       .fork-diagram {
@@ -972,6 +975,7 @@
         margin-bottom: 0.55rem;
         letter-spacing: -0.03em;
       }
+      .stat-item--copper .stat-value { color: var(--copper); }
       .stat-label {
         font-family: var(--body);
         font-size: 0.92rem;
@@ -1123,12 +1127,15 @@
       input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(0.15) sepia(0.2); cursor: pointer; }
       .type-at-row { display: grid; grid-template-columns: auto auto 1fr; gap: 0.35rem; align-items: center; }
       .type-at-row select { width: auto; flex-shrink: 0; }
-      .at-hint { font-family: var(--hand); font-size: 0.72rem; color: var(--orange); letter-spacing: 0; }
+      .at-hint { font-family: var(--hand); font-size: 0.72rem; color: var(--copper); letter-spacing: 0; }
       button { cursor: pointer; font-family: var(--body); font-size: 0.78rem; font-weight: var(--w-label); border: none; border-radius: 8px; padding: 0.45rem 0.875rem; white-space: nowrap; transition: all 0.1s; letter-spacing: 0; }
       .btn-primary { background: var(--violet); color: #fff; border: 1.5px solid var(--espresso); }
       .btn-primary:hover { background: #8d6ffd; }
       .btn-primary:focus-visible { outline-color: color-mix(in srgb, #fff 35%, var(--violet)); }
       .btn-primary:active { opacity: 0.88; }
+      .btn-copper { background: var(--copper); border-color: var(--espresso); }
+      .btn-copper:hover { background: #ed9468; }
+      .btn-copper:focus-visible { outline-color: color-mix(in srgb, #fff 35%, var(--copper)); }
       .btn-ghost { background: transparent; border: 1.5px solid rgba(26,21,16,0.18); color: var(--text-mid); }
       .btn-ghost:hover { border-color: var(--text-mid); color: var(--text); }
       #clear-btn, #show-all-btn { border: 1.5px solid var(--border-hi); color: var(--text-mid); }
@@ -1147,8 +1154,8 @@
       .chip:nth-child(odd) { background: var(--violet-bg); border-color: var(--violet-border); }
       .chip:nth-child(even) { background: var(--lime-bg); border-color: var(--lime-border); }
       .chip:hover { border-color: var(--violet-border); color: var(--violet); background: var(--violet-bg); }
-      .chip-demo { background: var(--orchid-bg) !important; border-color: var(--orchid-border) !important; color: var(--orchid) !important; font-family: var(--hand); display: block; width: 100%; text-align: center; padding: 0.35rem 0.875rem; }
-      .chip-demo:hover { background: rgba(180,92,252,0.14) !important; border-color: var(--orchid) !important; color: var(--orchid) !important; }
+      .chip-demo { background: var(--copper-bg) !important; border-color: var(--copper-border) !important; color: var(--copper) !important; font-family: var(--hand); display: block; width: 100%; text-align: center; padding: 0.35rem 0.875rem; }
+      .chip-demo:hover { background: rgba(232,125,74,0.18) !important; border-color: var(--copper) !important; color: var(--copper) !important; }
       .status { font-family: var(--mono); font-size: 0.68rem; color: var(--text-dim); min-height: 1.1rem; line-height: 1.4; }
       .status.ok  { color: var(--green); }
       .status.err { color: var(--red); }
@@ -1828,7 +1835,7 @@
           <span class="stat-label">native library size</span>
           <span class="stat-sublabel">iOS · Android · WASM</span>
         </div>
-        <div class="stat-item reveal-on-scroll" data-target="4">
+        <div class="stat-item stat-item--copper reveal-on-scroll" data-target="4">
           <span class="stat-value"><span class="stat-count">0</span></span>
           <span class="stat-label">timestamps per fact</span>
           <span class="stat-sublabel">valid + transaction time</span>
@@ -1974,7 +1981,7 @@
                   <input type="datetime-local" id="assert-at" title="valid_from — optional." aria-label="Valid from (optional)" />
                 </div>
                 <div class="btn-row">
-                  <button class="btn-primary" id="assert-btn">Assert →</button>
+                  <button class="btn-primary btn-copper" id="assert-btn">Assert →</button>
                   <button class="btn-ghost"   id="clear-btn" title="Remove all facts from this in-browser graph">Clear graph</button>
                 </div>
                 <div class="clear-confirm" id="clear-confirm" hidden>
