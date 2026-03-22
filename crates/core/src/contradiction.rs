@@ -8,8 +8,7 @@
 //! Detection is purely structural: temporal overlap (Allen's interval
 //! algebra) + value comparison. No LLM required.
 
-use crate::{Fact, Value};
-use chrono::{DateTime, Utc};
+use crate::{Fact, KronroeTimestamp, Value};
 use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
@@ -73,9 +72,9 @@ pub struct Contradiction {
     /// Predicate they share.
     pub predicate: String,
     /// Start of the temporal overlap window.
-    pub overlap_start: DateTime<Utc>,
+    pub overlap_start: KronroeTimestamp,
     /// End of the temporal overlap window (None = ongoing).
-    pub overlap_end: Option<DateTime<Utc>>,
+    pub overlap_end: Option<KronroeTimestamp>,
     /// How severe the conflict is.
     pub severity: ConflictSeverity,
     /// Confidence delta between the two facts (absolute value).
@@ -101,21 +100,22 @@ use serde::{Deserialize, Serialize};
 pub(crate) fn valid_time_overlap(
     a: &Fact,
     b: &Fact,
-) -> Option<(DateTime<Utc>, Option<DateTime<Utc>>)> {
+) -> Option<(KronroeTimestamp, Option<KronroeTimestamp>)> {
     // Skip facts that have been expired (transaction-time invalidated).
     if a.expired_at.is_some() || b.expired_at.is_some() {
         return None;
     }
 
-    let a_end = a.valid_to.unwrap_or(DateTime::<Utc>::MAX_UTC);
-    let b_end = b.valid_to.unwrap_or(DateTime::<Utc>::MAX_UTC);
+    let max_ts = KronroeTimestamp::from_unix_micros(i64::MAX).expect("max timestamp should exist");
+    let a_end = a.valid_to.unwrap_or(max_ts);
+    let b_end = b.valid_to.unwrap_or(max_ts);
 
     // Allen's overlap: a_start < b_end AND b_start < a_end
     if a.valid_from < b_end && b.valid_from < a_end {
         let overlap_start = a.valid_from.max(b.valid_from);
         let overlap_end = {
             let min_end = a_end.min(b_end);
-            if min_end == DateTime::<Utc>::MAX_UTC {
+            if min_end == max_ts {
                 None
             } else {
                 Some(min_end)
@@ -150,10 +150,10 @@ pub(crate) fn values_conflict(a: &Value, b: &Value) -> bool {
 pub(crate) fn compute_severity(
     a: &Fact,
     b: &Fact,
-    overlap: (DateTime<Utc>, Option<DateTime<Utc>>),
+    overlap: (KronroeTimestamp, Option<KronroeTimestamp>),
 ) -> ConflictSeverity {
-    let a_end = a.valid_to.unwrap_or(DateTime::<Utc>::MAX_UTC);
-    let b_end = b.valid_to.unwrap_or(DateTime::<Utc>::MAX_UTC);
+    let a_end = a.valid_to.unwrap_or(KronroeTimestamp::MAX);
+    let b_end = b.valid_to.unwrap_or(KronroeTimestamp::MAX);
 
     // Full containment: one interval contains the other entirely.
     let a_contains_b = a.valid_from <= b.valid_from && a_end >= b_end;
@@ -328,14 +328,13 @@ impl ContradictionDetector {
 mod tests {
     use super::*;
     use crate::FactId;
-    use chrono::TimeZone;
 
     fn make_fact(
         subject: &str,
         predicate: &str,
         object: &str,
-        valid_from: DateTime<Utc>,
-        valid_to: Option<DateTime<Utc>>,
+        valid_from: KronroeTimestamp,
+        valid_to: Option<KronroeTimestamp>,
         confidence: f32,
     ) -> Fact {
         Fact {
@@ -345,15 +344,15 @@ mod tests {
             object: Value::Text(object.to_string()),
             valid_from,
             valid_to,
-            recorded_at: Utc::now(),
+            recorded_at: KronroeTimestamp::now_utc(),
             expired_at: None,
             confidence,
             source: None,
         }
     }
 
-    fn dt(year: i32, month: u32, day: u32) -> DateTime<Utc> {
-        Utc.with_ymd_and_hms(year, month, day, 0, 0, 0).unwrap()
+    fn dt(year: i32, month: u32, day: u32) -> KronroeTimestamp {
+        KronroeTimestamp::from_utc_components(year, month, day, 0, 0, 0, 0).unwrap()
     }
 
     // -- valid_time_overlap ---------------------------------------------------
@@ -524,7 +523,7 @@ mod tests {
         let mut b = make_fact("alice", "works_at", "Beta", dt(2024, 1, 1), None, 1.0);
         // Make b recorded 2 hours after a.
         a.recorded_at = dt(2024, 1, 1);
-        b.recorded_at = Utc::now();
+        b.recorded_at = KronroeTimestamp::now_utc();
         let res = suggest_resolution(&a, &b);
         assert!(
             matches!(res, SuggestedResolution::CloseOlderFact { ref fact_id } if *fact_id == a.id.to_string()),

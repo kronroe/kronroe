@@ -116,15 +116,14 @@ facts = memory.facts_about("alice")
 ### Rust
 
 ```rust
-use kronroe::{TemporalGraph, Value};
-use chrono::Utc;
+use kronroe::{KronroeTimestamp, TemporalGraph, Value};
 
 let db = TemporalGraph::open("./memory.kronroe")?;
 
-let id = db.assert_fact("alice", "works_at", Value::Text("Acme".into()), Utc::now())?;
+let id = db.assert_fact("alice", "works_at", Value::Text("Acme".into()), KronroeTimestamp::now_utc())?;
 let current = db.current_facts("alice", "works_at")?;
 let historical = db.facts_at("alice", "works_at", past_date)?;
-db.invalidate_fact(&id, Utc::now())?;
+db.invalidate_fact(&id, KronroeTimestamp::now_utc())?;
 ```
 
 ## Capability Matrix

@@ -17,7 +17,6 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
-chrono = { workspace = true }
 kronroe = { version = "0.3.0", path = "../core" }
 kronroe-agent-memory = { version = "0.3.0", path = "../agent-memory" }
 serde = { workspace = true }

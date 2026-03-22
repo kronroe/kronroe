@@ -1,5 +1,5 @@
 use crate::storage::{fact_row_key, StoredFactRow, SCHEMA_VERSION};
-use crate::{Fact, FactId, KronroeError, Result};
+use crate::{Fact, FactId, KronroeError, KronroeTimestamp, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 #[cfg(not(target_arch = "wasm32"))]
@@ -699,7 +699,7 @@ impl AppendLogBackend {
         &self,
         subject: &str,
         predicate: &str,
-        at: chrono::DateTime<chrono::Utc>,
+        at: KronroeTimestamp,
     ) -> (Vec<StoredFactRow>, usize) {
         let state = self.state.lock().unwrap();
         let prefix = AppendLogState::subject_predicate_prefix(subject, predicate);

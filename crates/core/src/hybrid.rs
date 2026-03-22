@@ -12,8 +12,7 @@
 //! vector-dominance path adjusts weights based on the signal balance in the top
 //! candidates.
 
-use crate::Fact;
-use chrono::{DateTime, Utc};
+use crate::{Fact, KronroeSpan, KronroeTimestamp};
 use std::cmp::Ordering;
 
 // ---------------------------------------------------------------------------
@@ -127,9 +126,9 @@ pub(crate) fn intent_gated_temporal_signal(
     fact: &Fact,
     intent: TemporalIntent,
     op: TemporalOperator,
-    at: Option<DateTime<Utc>>,
+    at: Option<KronroeTimestamp>,
 ) -> f64 {
-    let t = at.unwrap_or_else(Utc::now);
+    let t = at.unwrap_or_else(KronroeTimestamp::now_utc);
     let conf = fact.confidence.clamp(0.2, 1.0) as f64;
 
     match intent {
@@ -195,8 +194,8 @@ pub(crate) fn intent_gated_temporal_signal(
             // Operator is intentionally ignored for intervals — overlap check
             // against ±90 day window is the only signal. Matches eval runner.
             let _ = op;
-            let start = t - chrono::Duration::days(90);
-            let end = t + chrono::Duration::days(90);
+            let start = t - KronroeSpan::days(90);
+            let end = t + KronroeSpan::days(90);
             let overlap = fact.valid_from < end && fact.valid_to.unwrap_or(end) > start;
             if overlap {
                 1.0 * conf
@@ -214,14 +213,14 @@ pub(crate) fn intent_gated_temporal_signal_with_uncertainty(
     fact: &Fact,
     intent: TemporalIntent,
     op: TemporalOperator,
-    at: Option<DateTime<Utc>>,
+    at: Option<KronroeTimestamp>,
     engine: &crate::uncertainty::UncertaintyEngine,
 ) -> f64 {
     if matches!(intent, TemporalIntent::Timeless) {
         return 0.0;
     }
 
-    let t = at.unwrap_or_else(Utc::now);
+    let t = at.unwrap_or_else(KronroeTimestamp::now_utc);
     let eff = engine.effective_confidence(fact, t);
     let conf = eff.value.clamp(0.2, 1.0) as f64;
 
@@ -287,8 +286,8 @@ pub(crate) fn intent_gated_temporal_signal_with_uncertainty(
 
         TemporalIntent::HistoricalInterval => {
             let _ = op;
-            let start = t - chrono::Duration::days(90);
-            let end = t + chrono::Duration::days(90);
+            let start = t - KronroeSpan::days(90);
+            let end = t + KronroeSpan::days(90);
             let overlap = fact.valid_from < end && fact.valid_to.unwrap_or(end) > start;
             if overlap {
                 1.0 * conf
@@ -405,7 +404,7 @@ pub(crate) fn rerank_two_stage(
     k: usize,
     intent: TemporalIntent,
     op: TemporalOperator,
-    at: Option<DateTime<Utc>>,
+    at: Option<KronroeTimestamp>,
 ) -> Vec<(Fact, HybridScoreBreakdown)> {
     rerank_two_stage_internal(hits, k, intent, |fact| {
         intent_gated_temporal_signal(fact, intent, op, at)
@@ -420,7 +419,7 @@ pub(crate) fn rerank_two_stage_with_uncertainty(
     k: usize,
     intent: TemporalIntent,
     op: TemporalOperator,
-    at: Option<DateTime<Utc>>,
+    at: Option<KronroeTimestamp>,
     engine: &crate::uncertainty::UncertaintyEngine,
 ) -> Vec<(Fact, HybridScoreBreakdown)> {
     rerank_two_stage_internal(hits, k, intent, |fact| {
@@ -436,12 +435,11 @@ pub(crate) fn rerank_two_stage_with_uncertainty(
 mod tests {
     use super::*;
     use crate::{FactId, Value};
-    use chrono::TimeZone;
 
     fn make_fact(
         subject: &str,
-        valid_from: DateTime<Utc>,
-        valid_to: Option<DateTime<Utc>>,
+        valid_from: KronroeTimestamp,
+        valid_to: Option<KronroeTimestamp>,
         confidence: f32,
     ) -> Fact {
         Fact {
@@ -451,15 +449,15 @@ mod tests {
             object: Value::Text("val".to_string()),
             valid_from,
             valid_to,
-            recorded_at: Utc::now(),
+            recorded_at: KronroeTimestamp::now_utc(),
             expired_at: None,
             confidence,
             source: None,
         }
     }
 
-    fn dt(year: i32, month: u32, day: u32) -> DateTime<Utc> {
-        Utc.with_ymd_and_hms(year, month, day, 0, 0, 0).unwrap()
+    fn dt(year: i32, month: u32, day: u32) -> KronroeTimestamp {
+        KronroeTimestamp::from_utc_components(year, month, day, 0, 0, 0, 0).unwrap()
     }
 
     #[test]

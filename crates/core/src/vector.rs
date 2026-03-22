@@ -100,7 +100,7 @@ impl VectorIndex {
     ///
     /// `valid_ids` is computed by the caller from the bi-temporal index (e.g. all
     /// facts valid at time T), enabling temporal filtering without coupling this
-    /// module to a specific storage backend or chrono.
+    /// module to a specific storage backend or time library.
     ///
     /// Results are returned in descending similarity order. If fewer than `k`
     /// entries pass the filter, all passing entries are returned.

@@ -32,7 +32,6 @@ kronroe-agent-memory = { version = "0.3.0", path = "../agent-memory", default-fe
 wasm-bindgen = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
-chrono = { workspace = true }
 
 # Keep the browser RNG path available for Kronroe Fact ID generation.
 getrandom = { version = "0.2", features = ["js"] }

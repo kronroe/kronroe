@@ -51,5 +51,5 @@ export KRONROE_MCP_DB_PATH=/path/to/memory.kronroe
 
 ## Distribution wrappers
 
-- Native binary (`kronroe-mcp`): supported MCP runtime
+- Native binary (`cargo install --path crates/mcp-server`) is the canonical runtime path.
 - Python wrapper (`pip install kronroe-mcp`): `python/kronroe-mcp/`

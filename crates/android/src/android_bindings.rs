@@ -1,4 +1,4 @@
-use chrono::Utc;
+use kronroe::KronroeTimestamp;
 use kronroe::TemporalGraph;
 use std::cell::RefCell;
 
@@ -43,7 +43,12 @@ impl KronroeGraphHandle {
 
     fn assert_text(&self, subject: &str, predicate: &str, object: &str) -> Result<bool, String> {
         self.graph
-            .assert_fact(subject, predicate, object.to_string(), Utc::now())
+            .assert_fact(
+                subject,
+                predicate,
+                object.to_string(),
+                KronroeTimestamp::now_utc(),
+            )
             .map(|_| true)
             .map_err(|e| e.to_string())
     }

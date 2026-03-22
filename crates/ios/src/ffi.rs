@@ -1,4 +1,4 @@
-use chrono::Utc;
+use kronroe::KronroeTimestamp;
 use kronroe::TemporalGraph;
 use std::cell::RefCell;
 use std::ffi::{c_char, CStr, CString};
@@ -136,7 +136,7 @@ pub unsafe extern "C" fn kronroe_graph_assert_text(
     let graph = unsafe { &*handle };
     match graph
         .graph
-        .assert_fact(&subject, &predicate, object, Utc::now())
+        .assert_fact(&subject, &predicate, object, KronroeTimestamp::now_utc())
     {
         Ok(_) => true,
         Err(err) => {
