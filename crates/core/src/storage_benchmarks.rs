@@ -143,7 +143,7 @@ fn graph_in_memory(
     observer: Arc<dyn StorageObserver>,
 ) -> TemporalGraph {
     let storage = match engine {
-        BenchmarkStorageEngine::Redb => KronroeStorage::open_in_memory_with_observer(observer),
+        BenchmarkStorageEngine::Redb => KronroeStorage::open_redb_in_memory_with_observer(observer),
         BenchmarkStorageEngine::AppendLog => {
             KronroeStorage::open_append_log_in_memory_with_observer(observer)
         }
@@ -158,7 +158,7 @@ fn graph_on_disk(
     observer: Arc<dyn StorageObserver>,
 ) -> TemporalGraph {
     let storage = match engine {
-        BenchmarkStorageEngine::Redb => KronroeStorage::open_with_observer(path, observer),
+        BenchmarkStorageEngine::Redb => KronroeStorage::open_redb_with_observer(path, observer),
         BenchmarkStorageEngine::AppendLog => {
             KronroeStorage::open_append_log_with_observer(path, observer)
         }

@@ -31,7 +31,6 @@ mod fact_id;
 #[cfg(feature = "fulltext")]
 mod lexical;
 mod storage;
-#[cfg(any(test, feature = "storage-append-log"))]
 mod storage_append_log;
 #[cfg(test)]
 mod storage_benchmarks;
@@ -254,7 +253,8 @@ impl Fact {
 /// Kronroe temporal property graph database.
 ///
 /// An embedded, serverless database where bi-temporal facts are the core
-/// primitive. All writes are ACID (backed by `redb`). The database file
+/// primitive. All writes are ACID-backed by Kronroe's current default storage
+/// engine. The database file
 /// uses the `.kronroe` extension by convention.
 ///
 /// # Example
@@ -270,9 +270,9 @@ impl Fact {
 /// ```
 pub struct TemporalGraph {
     storage: KronroeStorage,
-    /// In-memory vector index cache.  Rebuilt from the `embeddings` redb table
-    /// on every [`init`] call, then kept in sync by [`assert_fact_with_embedding`].
-    /// The redb tables are the source of truth; this cache is a read-optimised
+    /// In-memory vector index cache. Rebuilt from persisted embedding rows on
+    /// every [`init`] call, then kept in sync by [`assert_fact_with_embedding`].
+    /// Persisted storage is the source of truth; this cache is a read-optimised
     /// view of them.
     ///
     /// [`assert_fact_with_embedding`]: TemporalGraph::assert_fact_with_embedding
@@ -289,6 +289,13 @@ impl TemporalGraph {
     ///
     /// The file will be created if it does not exist. The `.kronroe`
     /// extension is conventional but not enforced.
+    ///
+    /// This is the default Kronroe storage engine path and now uses the
+    /// append-log backend.
+    ///
+    /// Existing redb-backed `.kronroe` files are not auto-migrated on this
+    /// path. If you still have one, delete it and recreate it, or use the
+    /// explicit redb open path for internal testing and benchmarks.
     pub fn open(path: &str) -> Result<Self> {
         let storage = KronroeStorage::open(path)?;
         Self::init(storage)
@@ -298,22 +305,35 @@ impl TemporalGraph {
     ///
     /// Useful for WASM targets, testing, and ephemeral workloads where
     /// persistence is not needed. Data is lost when the instance is dropped.
+    ///
+    /// This is the default in-memory Kronroe storage engine path and now uses
+    /// the append-log backend.
     pub fn open_in_memory() -> Result<Self> {
         let storage = KronroeStorage::open_in_memory()?;
         Self::init(storage)
     }
 
-    #[cfg(any(test, feature = "storage-append-log"))]
     #[allow(dead_code)]
     pub(crate) fn open_append_log(path: &str) -> Result<Self> {
         let storage = KronroeStorage::open_append_log(path)?;
         Self::init(storage)
     }
 
-    #[cfg(any(test, feature = "storage-append-log"))]
     #[allow(dead_code)]
     pub(crate) fn open_append_log_in_memory() -> Result<Self> {
         let storage = KronroeStorage::open_append_log_in_memory()?;
+        Self::init(storage)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn open_redb(path: &str) -> Result<Self> {
+        let storage = KronroeStorage::open_redb(path)?;
+        Self::init(storage)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn open_redb_in_memory() -> Result<Self> {
+        let storage = KronroeStorage::open_redb_in_memory()?;
         Self::init(storage)
     }
 
@@ -388,7 +408,7 @@ impl TemporalGraph {
         })
     }
 
-    /// Read every persisted embedding from redb and build a fresh in-memory
+    /// Read every persisted embedding from storage and build a fresh in-memory
     /// [`VectorIndex`] cache.
     ///
     /// Called once from [`init`].  If the database was created before the
@@ -825,9 +845,8 @@ impl TemporalGraph {
     ///
     /// # Atomicity
     ///
-    /// The contradiction check and the write happen inside a single redb
-    /// `WriteTransaction`. Since redb serialises write transactions, this
-    /// is race-free: no concurrent writer can insert a conflicting fact
+    /// The contradiction check and the write happen inside a single storage
+    /// backend write boundary. This is race-free: no concurrent writer can insert a conflicting fact
     /// between the check and the insert.
     ///
     /// Note: the predicate's conflict policy is read from the in-memory
@@ -885,11 +904,11 @@ impl TemporalGraph {
     /// Assert a fact and durably persist its embedding in a single ACID transaction.
     ///
     /// The fact row, the embedding dimension check-and-set, and the raw embedding
-    /// bytes are all written to redb inside **one `WriteTransaction`** and committed
-    /// atomically.  The in-memory vector index cache is updated *after* the commit,
-    /// so the redb tables are always the source of truth.
+    /// bytes are all written inside one backend write boundary and committed
+    /// atomically. The in-memory vector index cache is updated *after* the commit,
+    /// so persisted storage is always the source of truth.
     ///
-    /// Because redb serialises write transactions, the dimension check-and-set is
+    /// Because the backend serialises the dimension check-and-set, it is
     /// race-free: no two concurrent callers can simultaneously establish different
     /// dimensions on the first insert.
     ///
@@ -927,7 +946,7 @@ impl TemporalGraph {
 
         // Update the in-memory cache after the durable commit.
         // If the process crashes between commit() and here the cache is rebuilt
-        // correctly from redb on the next open().
+        // correctly from storage on the next open().
         self.vector_index
             .lock()
             .map_err(|_| KronroeError::Internal("vector index lock poisoned".into()))?
@@ -1324,6 +1343,13 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         let path = file.path().to_str().unwrap().to_string();
         let db = TemporalGraph::open(&path).unwrap();
+        (db, file)
+    }
+
+    fn open_temp_redb_db() -> (TemporalGraph, NamedTempFile) {
+        let file = NamedTempFile::new().unwrap();
+        let path = file.path().to_str().unwrap().to_string();
+        let db = TemporalGraph::open_redb(&path).unwrap();
         (db, file)
     }
 
@@ -2049,7 +2075,7 @@ mod tests {
         );
     }
 
-    /// Embeddings are persisted to redb; the vector index must survive a
+    /// Embeddings are persisted to the default backend; the vector index must survive a
     /// close-and-reopen without any re-population by the caller.
     #[test]
     #[cfg(feature = "vector")]
@@ -2068,7 +2094,7 @@ mod tests {
                 .unwrap();
         } // db dropped — file closed
 
-        // Reopen: the index must be rebuilt from redb automatically.
+        // Reopen: the index must be rebuilt from storage automatically.
         let db = TemporalGraph::open(path_str).unwrap();
         let results = db.search_by_vector(&[1.0, 0.0, 0.0], 2, None).unwrap();
         assert_eq!(results.len(), 2, "both embeddings must survive reopen");
@@ -2119,11 +2145,11 @@ mod tests {
         let path_str = path.to_str().unwrap();
 
         // Create — version should be stamped.
-        let _db = TemporalGraph::open(path_str).unwrap();
+        let _db = TemporalGraph::open_redb(path_str).unwrap();
         drop(_db);
 
         // Reopen — should succeed (version matches).
-        let _db2 = TemporalGraph::open(path_str).unwrap();
+        let _db2 = TemporalGraph::open_redb(path_str).unwrap();
         drop(_db2);
 
         // Tamper: write a future version to simulate a file written by a newer build.
@@ -2132,7 +2158,7 @@ mod tests {
         }
 
         // Opening should return SchemaMismatch, not silently corrupt data.
-        match TemporalGraph::open(path_str) {
+        match TemporalGraph::open_redb(path_str) {
             Err(KronroeError::SchemaMismatch { found, expected }) => {
                 assert_eq!(found, SCHEMA_VERSION + 1);
                 assert_eq!(expected, SCHEMA_VERSION);
@@ -2170,7 +2196,7 @@ mod tests {
             &[],
         );
 
-        let db = TemporalGraph::open(path_str).unwrap();
+        let db = TemporalGraph::open_redb(path_str).unwrap();
         let facts = db.all_facts_about("alice").unwrap();
         assert_eq!(facts.len(), 1);
 
@@ -2195,7 +2221,7 @@ mod tests {
 
         drop(db);
 
-        let reopened = TemporalGraph::open(path_str).unwrap();
+        let reopened = TemporalGraph::open_redb(path_str).unwrap();
         let reopened_fact = reopened.fact_by_id(&canonical_id).unwrap();
         assert_eq!(reopened_fact.id, canonical_id);
     }
@@ -2228,7 +2254,7 @@ mod tests {
             &[],
         );
 
-        let db = TemporalGraph::open(path_str).unwrap();
+        let db = TemporalGraph::open_redb(path_str).unwrap();
         let canonical_id = db.all_facts_about("alice").unwrap()[0].id.clone();
 
         match db.invalidate_fact(legacy_id, cutoff) {
@@ -2277,7 +2303,7 @@ mod tests {
             &[(legacy_id, &[1.0, 0.0])],
         );
 
-        let db = TemporalGraph::open(path_str).unwrap();
+        let db = TemporalGraph::open_redb(path_str).unwrap();
         let migrated = db.all_facts_about("alice").unwrap().remove(0);
         assert!(migrated.id.as_str().starts_with("kf_"));
 
@@ -2430,7 +2456,7 @@ mod tests {
 
     #[test]
     fn assert_fact_with_confidence_persists() {
-        let (db, _tmp) = open_temp_db();
+        let (db, _tmp) = open_temp_redb_db();
         let now = Utc::now();
         let id = db
             .assert_fact_with_confidence("alice", "works_at", "Acme", now, 0.7)
@@ -2529,12 +2555,12 @@ mod tests {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
         {
-            let db = TemporalGraph::open(&path).unwrap();
+            let db = TemporalGraph::open_redb(&path).unwrap();
             db.register_predicate_volatility("works_at", PredicateVolatility::new(730.0))
                 .unwrap();
         }
         // Reopen — volatility should survive.
-        let db = TemporalGraph::open(&path).unwrap();
+        let db = TemporalGraph::open_redb(&path).unwrap();
         let fact = db
             .assert_fact("alice", "works_at", "Acme", Utc::now())
             .unwrap();
@@ -2556,11 +2582,11 @@ mod tests {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
         {
-            let db = TemporalGraph::open(&path).unwrap();
+            let db = TemporalGraph::open_redb(&path).unwrap();
             db.register_source_weight("user:owner", SourceWeight::new(1.5))
                 .unwrap();
         }
-        let db = TemporalGraph::open(&path).unwrap();
+        let db = TemporalGraph::open_redb(&path).unwrap();
         let id = db
             .assert_fact_with_source("alice", "works_at", "Acme", Utc::now(), 0.8, "user:owner")
             .unwrap();
@@ -2604,13 +2630,13 @@ mod tests {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
         {
-            let db = TemporalGraph::open(&path).unwrap();
+            let db = TemporalGraph::open_redb(&path).unwrap();
             db.storage
                 .write_volatility_registry_entry("broken", "not-json")
                 .unwrap();
         }
 
-        match TemporalGraph::open(&path) {
+        match TemporalGraph::open_redb(&path) {
             Err(KronroeError::Storage(msg)) => {
                 assert!(msg.contains("invalid volatility registry"));
             }
@@ -2627,13 +2653,13 @@ mod tests {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
         {
-            let db = TemporalGraph::open(&path).unwrap();
+            let db = TemporalGraph::open_redb(&path).unwrap();
             db.storage
                 .write_source_weight_registry_entry("trusted-api", "not-json")
                 .unwrap();
         }
 
-        match TemporalGraph::open(&path) {
+        match TemporalGraph::open_redb(&path) {
             Err(KronroeError::Storage(msg)) => {
                 assert!(msg.contains("invalid source-weight registry"));
             }
@@ -2650,13 +2676,13 @@ mod tests {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
         {
-            let db = TemporalGraph::open(&path).unwrap();
+            let db = TemporalGraph::open_redb(&path).unwrap();
             db.storage
                 .write_predicate_registry_entry("works_at", "not-json")
                 .unwrap();
         }
 
-        match TemporalGraph::open(&path) {
+        match TemporalGraph::open_redb(&path) {
             Err(KronroeError::Storage(msg)) => {
                 assert!(msg.contains("invalid predicate registry"));
             }
