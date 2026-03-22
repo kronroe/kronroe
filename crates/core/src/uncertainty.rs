@@ -291,7 +291,7 @@ pub fn compute_effective_confidence(
 
 /// In-memory registries for uncertainty computation.
 ///
-/// Loaded from redb on init, kept in sync by the registration methods on
+/// Loaded from storage on init, kept in sync by the registration methods on
 /// [`TemporalGraph`](crate::TemporalGraph). Follows the same pattern as
 /// `ContradictionDetector`.
 pub(crate) struct UncertaintyEngine {

@@ -28,11 +28,11 @@ struct Entry {
 
 /// Flat vector index keyed by [`FactId`].
 ///
-/// Held entirely in memory as a read-optimised cache.  The backing store is the
-/// `embeddings` redb table, which is written atomically alongside the fact row in
+/// Held entirely in memory as a read-optimised cache. The backing store is the
+/// persisted embedding set, which is written atomically alongside the fact row in
 /// [`TemporalGraph::assert_fact_with_embedding`] and read back by
 /// [`TemporalGraph`]'s `rebuild_vector_index_from_db` on every `open` / `open_in_memory`
-/// call.  The redb tables are the source of truth; this struct is a derived view.
+/// call. The storage backend is the source of truth; this struct is a derived view.
 #[derive(Debug, Default, Clone)]
 pub struct VectorIndex {
     entries: Vec<Entry>,
@@ -100,7 +100,7 @@ impl VectorIndex {
     ///
     /// `valid_ids` is computed by the caller from the bi-temporal index (e.g. all
     /// facts valid at time T), enabling temporal filtering without coupling this
-    /// module to redb or chrono.
+    /// module to a specific storage backend or chrono.
     ///
     /// Results are returned in descending similarity order. If fewer than `k`
     /// entries pass the filter, all passing entries are returned.
@@ -141,7 +141,7 @@ impl VectorIndex {
     /// Expected embedding dimension (set on first insert, `None` if empty).
     ///
     /// Used by [`TemporalGraph::assert_fact_with_embedding`] to pre-validate
-    /// the embedding before writing to redb, keeping the two stores in sync.
+    /// the embedding before persisting it, keeping the two stores in sync.
     pub(crate) fn dim(&self) -> Option<usize> {
         self.dim
     }

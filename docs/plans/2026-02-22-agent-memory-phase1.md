@@ -4,9 +4,9 @@
 
 **Goal:** Implement AgentMemory Phase 1 — wire `remember()`, `recall()`, and `assemble_context()` stubs into working code using the existing hybrid RRF retrieval scaffold, add idempotency-key support, and complete the PyO3 Python binding surface.
 
-**Architecture:** `AgentMemory` in `crates/agent-memory` wraps `TemporalGraph` from `crates/core`. The core already has hybrid RRF type scaffolding (`HybridParams`, `HybridFusionStrategy`, `TemporalAdjustment`) behind `#[cfg(feature = "hybrid-experimental")]`; we promote those types to `pub`, extract ranked retrieval helpers, implement weighted RRF fusion in a new `hybrid.rs` module, then wire the `AgentMemory` methods on top. Idempotency uses a new `IDEMPOTENCY` redb table (key → FactId) in the same write transaction as fact assertion.
+**Architecture:** `AgentMemory` in `crates/agent-memory` wraps `TemporalGraph` from `crates/core`. The core already has hybrid RRF type scaffolding (`HybridParams`, `HybridFusionStrategy`, `TemporalAdjustment`) behind `#[cfg(feature = "hybrid-experimental")]`; we promote those types to `pub`, extract ranked retrieval helpers, implement weighted RRF fusion in a new `hybrid.rs` module, then wire the `AgentMemory` methods on top. Idempotency uses a dedicated storage mapping (key → FactId) in the same atomic write path as fact assertion.
 
-**Tech Stack:** Rust stable, redb 3.1, Kronroe lexical engine (feature: fulltext), flat cosine vector index (feature: vector), PyO3/maturin — **no C++ required**.
+**Tech Stack:** Rust stable, Kronroe lexical engine (feature: fulltext), flat cosine vector index (feature: vector), PyO3/maturin — **no C++ required**.
 
 **Historical note:** This phase plan captured the original full-text implementation. Detailed task instructions below are retained as historical context.
 
@@ -41,9 +41,10 @@ git push -u origin feature/agent-memory-phase1
 
 ---
 
-## How redb works (brief)
+## How the storage layer worked at the time (brief)
 
-redb is a pure-Rust embedded key-value store. Key patterns you'll see:
+The original implementation used an embedded transactional storage layer. Key
+patterns you would have seen:
 
 ```rust
 // Open a table in a read transaction
@@ -205,9 +206,9 @@ git commit -m "feat(core): make hybrid types pub for cross-crate use"
 
 ---
 
-## Task 2: Add `IDEMPOTENCY` redb table to core
+## Task 2: Add `IDEMPOTENCY` storage table to core
 
-**Context:** We need a table `"idempotency"` mapping `&str` (user-supplied key) → `&str` (FactId string). It must be opened in `init()` so redb creates it on first open. A separate `assert_fact_idempotent()` method on `TemporalGraph` will check-then-write atomically.
+**Context:** We need a table `"idempotency"` mapping `&str` (user-supplied key) → `&str` (FactId string). It must be opened in `init()` so storage creates it on first open. A separate `assert_fact_idempotent()` method on `TemporalGraph` will check-then-write atomically.
 
 **Files:**
 - Modify: `crates/core/src/temporal_graph.rs`
@@ -375,7 +376,7 @@ Add this private function directly after `write_fact_in_txn`:
 
 ```rust
 fn write_fact_full_in_txn(
-    write_txn: &redb::WriteTransaction,
+    write_txn: &StorageWriteTransaction,
     subject: &str,
     predicate: &str,
     object: Value,

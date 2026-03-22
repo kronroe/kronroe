@@ -29,7 +29,7 @@
   - `valid_from`, `valid_to`, `recorded_at`, `expired_at`
 - Core operations implemented:
   - assert, query-current, query-at-time, query-about-entity, invalidate/correct
-- ACID persistence via `redb`.
+- ACID persistence via the embedded storage engine.
 
 ### Retrieval capabilities
 - Full-text retrieval via the Kronroe lexical engine behind `fulltext`.

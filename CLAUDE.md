@@ -147,8 +147,8 @@ Crate entrypoint is explicitly configured at `crates/agent-memory/src/agent_memo
 
 ### Storage
 
-- **Engine:** `redb` 3.1 — pure Rust B-tree CoW ACID key-value store. No C deps. Supports
-  file-backed (`Database::create`) and in-memory (`InMemoryBackend`) storage.
+- **Engine:** Kronroe append-log storage backend. Pure Rust, no C deps. Supports
+  file-backed and in-memory storage.
 - **Key format (Phase 0):** `"subject:predicate:fact_id"` composite string
 - **Phase 0 note:** `invalidate_fact` uses a linear scan to find a fact by ID. A dedicated
   ID-keyed index is planned for Phase 1 as a performance improvement.
@@ -163,7 +163,7 @@ kronroe-mcp            ← stdio MCP server (11 tools)
 kronroe-ios            ← C FFI staticlib + cbindgen header + Swift Package
 kronroe-android        ← JNI cdylib + Kotlin wrapper
         ↓
-   kronroe (core)      ← TemporalGraph, bi-temporal storage, redb 3.1,
+   kronroe (core)      ← TemporalGraph, bi-temporal storage, append-log backend,
                           Kronroe lexical full-text (feature: fulltext),
                           flat cosine vector index (feature: vector)
 ```
@@ -175,7 +175,7 @@ Future crates will layer on top.
 ### WASM Notes (`crates/wasm`)
 
 - Compiles to `wasm32-unknown-unknown` via `wasm-pack build --target web`
-- Uses `redb::backends::InMemoryBackend` — no file I/O in browser
+- Uses the in-memory append-log backend — no file I/O in browser
 - `getrandom` with `wasm_js` feature provides `Crypto.getRandomValues` for Kronroe Fact ID generation
 - The `wasm` crate builds with `--no-default-features`, so browser builds exclude the optional
   full-text engine while keeping the rest of core available; full-text search in core remains
@@ -224,7 +224,7 @@ Future crates will layer on top.
   feature with `pyo3/auto-initialize` for embedded interpreter tests (mutually exclusive)
 - **Test scripts:** `scripts/run_runtime_smoke.sh` (builds extension, runs Python smoke test),
   `scripts/run_rust_runtime_tests.sh` (embedded interpreter Rust-side tests with DYLD setup)
-- All I/O methods use `py.allow_threads()` to release the GIL during redb operations
+- All I/O methods use `py.allow_threads()` to release the GIL during storage operations
 - Feature gating: `hybrid` and `uncertainty` features properly gated — returns `PyRuntimeError`
   when unavailable features are requested from Python
 
@@ -257,7 +257,7 @@ Future crates will layer on top.
 - Enabled with `--features vector` (not in `default`; callers opt in)
 - **Phase 0 implementation:** flat brute-force cosine similarity — O(n·d) search,
   zero new dependencies, works on all targets (native, WASM, iOS, Android)
-- `VectorIndex` is an in-memory read cache over the `EMBEDDINGS` redb table — rebuilt from redb
+- `VectorIndex` is an in-memory read cache over persisted embedding rows — rebuilt from storage
   on every `open()` / `open_in_memory()` call via `rebuild_vector_index_from_db()`
 - Kronroe never generates embeddings — the caller (`kronroe-agent-memory`, or the
   application) computes them and passes pre-computed `Vec<f32>` to `assert_fact_with_embedding`
@@ -293,7 +293,7 @@ Future crates will layer on top.
 - **Detection model:** Allen's interval algebra overlap check + structural value comparison
 - **Conflict severity:** `High` (full temporal containment), `Medium` (>30 day overlap), `Low` (≤30 day overlap)
 - **API:**
-  - `register_singleton_predicate(predicate, policy)` — persist cardinality to redb
+  - `register_singleton_predicate(predicate, policy)` — persist cardinality to storage
   - `detect_contradictions(subject, predicate)` — lazy pairwise scan
   - `detect_all_contradictions()` — full scan across all registered singletons
   - `assert_fact_checked(subject, predicate, object, valid_from)` — eager detection at write time
@@ -314,8 +314,8 @@ Future crates will layer on top.
   (no decay). Unregistered predicates default to stable
 - **Source authority weights:** per-source multiplier \[0.0, 2.0\]. `1.0` = neutral. Unknown = 1.0
 - **API:**
-  - `register_predicate_volatility(predicate, volatility)` — persist to redb + update in-memory
-  - `register_source_weight(source, weight)` — persist to redb + update in-memory
+  - `register_predicate_volatility(predicate, volatility)` — persist to storage + update in-memory
+  - `register_source_weight(source, weight)` — persist to storage + update in-memory
   - `predicate_volatility(predicate) -> Option<PredicateVolatility>` — query current registration
   - `source_weight(source) -> Option<SourceWeight>` — query current registration
   - `effective_confidence(fact, at) -> EffectiveConfidence` — query-time computation
@@ -327,11 +327,10 @@ Future crates will layer on top.
   `full_name`: stable). `assert_with_source()`, `register_volatility()`, `register_source_weight()`
   convenience methods. `RecallScore.effective_confidence` populated automatically
 
-## Rust / redb Gotchas
+## Rust / storage Gotchas
 
-- **redb `AccessGuard` borrow:** `table.get("key")?` returns `AccessGuard<V>` that borrows
-  `table`. Extract to owned before any mutable borrow:
-  `let v: Option<u64> = table.get("key")?.map(|g| g.value());`
+- **Borrowed storage state:** extract owned values before mutating the backend again in the
+  same logical flow.
 - **`unexpected_cfgs` on CI:** CI runs `clippy --all-features`. Any `#[cfg(feature = "foo")]`
   in code requires `foo = []` declared in `Cargo.toml` or clippy fails with `-D unexpected-cfgs`.
 - **Targeted `git add` leaves Cargo.toml unstaged:** When committing with specific file paths,
@@ -415,7 +414,7 @@ Rebekah Cole — project owner & sole maintainer of Kronroe. Building Kindly Roe
 | Term | Meaning |
 |------|---------|
 | FFI | Foreign Function Interface — C API layer for iOS/Android |
-| CoW | Copy on Write — redb storage strategy |
+| CoW | Copy on Write |
 | Kronroe Fact ID | Canonical `kf_...` sortable fact identifier used across all surfaces |
 | MCP | Model Context Protocol — AI tool integration standard |
 | PyO3 | Python ↔ Rust bindings framework (crates/python) |

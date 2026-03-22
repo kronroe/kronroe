@@ -265,6 +265,7 @@ fn decode_char(ch: char) -> Option<u8> {
         .map(|idx| idx as u8)
 }
 
+#[cfg(test)]
 pub(crate) fn deterministic_entropy(seed: &str) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
     for byte in seed.as_bytes() {
