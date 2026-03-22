@@ -1091,16 +1091,24 @@ async function init() {
 
   // ── Click-to-copy for install commands ───────────────────────────────────
 
-  document.querySelectorAll('.install-cmd').forEach(el => {
-    el.addEventListener('click', () => {
-      const original = el.textContent?.trim() ?? '';
-      navigator.clipboard.writeText(original);
-      (el as HTMLElement).setAttribute('data-copied', '1');
-      el.textContent = 'Copied ✓';
-      setTimeout(() => {
-        el.textContent = original;
-        (el as HTMLElement).removeAttribute('data-copied');
-      }, 1500);
+  function copySnippet(el: Element) {
+    const original = el.textContent?.trim() ?? '';
+    navigator.clipboard.writeText(original);
+    (el as HTMLElement).setAttribute('data-copied', '1');
+    el.textContent = 'Copied ✓';
+    setTimeout(() => {
+      el.textContent = original;
+      (el as HTMLElement).removeAttribute('data-copied');
+    }, 1500);
+  }
+
+  document.querySelectorAll('.install-cmd, .install-chip').forEach(el => {
+    el.addEventListener('click', () => copySnippet(el));
+    el.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+        (e as KeyboardEvent).preventDefault();
+        copySnippet(el);
+      }
     });
   });
 

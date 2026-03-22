@@ -12,6 +12,9 @@
   const cnv = document.getElementById('hero-3d-graph') as HTMLCanvasElement | null;
   if (!cnv) return;
 
+  // Respect prefers-reduced-motion — render a static frame, skip animation loop
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   const ctx = cnv.getContext('2d')!;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -514,5 +517,11 @@
   }
 
   cnv.style.cursor = 'grab';
-  requestAnimationFrame(loop);
+  if (reducedMotion) {
+    // Render a single static frame — no continuous animation
+    physicsStep();
+    if (W > 0 && H > 0) render(0);
+  } else {
+    requestAnimationFrame(loop);
+  }
 })();

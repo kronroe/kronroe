@@ -7,7 +7,8 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-QC2EK11KHY');
+      gtag('config', 'G-QC2EK11KHY', { send_page_view: false });
+      gtag('event', 'page_view');
       (window.requestIdleCallback || setTimeout)(function(){
         var s = document.createElement('script');
         s.src = 'https://www.googletagmanager.com/gtag/js?id=G-QC2EK11KHY';
@@ -1595,6 +1596,8 @@
       </nav>
     </header>
 
+    <main id="main-content">
+
     <!-- Hero — DARK FULL-WIDTH -->
     <section class="hero">
       <div class="hero-inner">
@@ -1616,9 +1619,9 @@
           <p class="hero-explain">Track not just what's true — but when it became true, and when you recorded it. Bi-temporal facts are a first-class engine primitive in Kronroe, not an application concern you bolt on later. Query any point in time, or compare two snapshots to see exactly what changed.</p>
           <p class="sub">// Pure Rust → WebAssembly. <span class="hero-hl">No server</span>. <span class="hero-hl">No network</span>. <span class="hero-hl">No schema</span>.</p>
           <div class="hero-install">
-            <code class="install-cmd" title="Click to copy">pip install kronroe</code>
+            <code class="install-cmd" role="button" tabindex="0" title="Click to copy" aria-label="Copy: pip install kronroe">pip install kronroe</code>
             <span class="install-sep">or</span>
-            <code class="install-cmd" title="Click to copy">cargo add kronroe</code>
+            <code class="install-cmd" role="button" tabindex="0" title="Click to copy" aria-label="Copy: cargo add kronroe">cargo add kronroe</code>
           </div>
           <div class="hero-cta">
             <a href="#playground" class="btn-primary hero-btn">Try the playground ↓</a>
@@ -1848,18 +1851,18 @@
               <circle class="stat-ring-fill" cx="60" cy="60" r="54"
                       stroke-dasharray="339.292" stroke-dashoffset="339.292"/>
             </svg>
-            <span class="stat-value"><span class="stat-count">0</span>%</span>
+            <span class="stat-value"><span class="stat-count">100</span>%</span>
           </div>
-          <span class="stat-label">client-side</span>
-          <span class="stat-sublabel">zero network calls</span>
+          <span class="stat-label">client-side engine</span>
+          <span class="stat-sublabel">zero network calls from Kronroe</span>
         </div>
         <div class="stat-item reveal-on-scroll" data-target="6">
-          <span class="stat-value">&lt;<span class="stat-count">0</span> MB</span>
+          <span class="stat-value">&lt;<span class="stat-count">6</span> MB</span>
           <span class="stat-label">native library size</span>
           <span class="stat-sublabel">iOS · Android · WASM</span>
         </div>
         <div class="stat-item stat-item--copper reveal-on-scroll" data-target="4">
-          <span class="stat-value"><span class="stat-count">0</span></span>
+          <span class="stat-value"><span class="stat-count">4</span></span>
           <span class="stat-label">timestamps per fact</span>
           <span class="stat-sublabel">valid + transaction time</span>
         </div>
@@ -1978,7 +1981,7 @@
           </div>
           <span class="mac-title">kronroe.playground — live wasm · in-browser · no server</span>
         </div>
-        <main class="playground" id="main-content">
+        <div class="playground">
           <div class="hero-guide" style="grid-column:1/-1;">
             <div class="hero-guide-label">QUICK START</div>
             <div class="hero-guide-copy">1) Click a TRY chip. 2) Press Assert. 3) Enter that subject in Find and press Find.</div>
@@ -2099,7 +2102,7 @@
               </div>
             </div>
           </div>
-        </main>
+        </div>
       </div>
     </section>
 
@@ -2110,15 +2113,17 @@
         <h2 class="footer-cta-headline reveal-on-scroll" id="heading-footer-cta">Start tracking time, <br>not just facts.</h2>
         <p class="footer-cta-sub reveal-on-scroll">Drop-in agent memory. Full property graph. Zero server. Ships on iOS, Android, Python, Rust, and browser WASM.</p>
         <div class="footer-cta-chips reveal-on-scroll">
-          <code class="install-chip">pip install kronroe</code>
-          <code class="install-chip">cargo add kronroe</code>
-          <code class="install-chip">npx kronroe-mcp</code>
+          <code class="install-chip" role="button" tabindex="0" aria-label="Copy: pip install kronroe">pip install kronroe</code>
+          <code class="install-chip" role="button" tabindex="0" aria-label="Copy: cargo add kronroe">cargo add kronroe</code>
+          <code class="install-chip" role="button" tabindex="0" aria-label="Copy: npx kronroe-mcp">npx kronroe-mcp</code>
         </div>
         <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer" class="footer-cta-btn reveal-on-scroll">
           View on GitHub →
         </a>
       </div>
     </section>
+
+    </main>
 
     <footer>
       <div class="footer-inner">

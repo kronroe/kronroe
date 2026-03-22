@@ -7,6 +7,8 @@
 // scroll-triggered reveals. Elements are fully visible without this class.
 document.documentElement.classList.add('animations-ready');
 
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 // ── Scroll reveals ────────────────────────────────────────────────────────────
 (function () {
   const items = document.querySelectorAll<HTMLElement>('.reveal-on-scroll');
@@ -40,19 +42,21 @@ document.documentElement.classList.add('animations-ready');
 })();
 
 // ── 3D tilt on use-case cards ─────────────────────────────────────────────────
-(function () {
-  document.querySelectorAll<HTMLElement>('.use-case-card').forEach((card) => {
-    card.addEventListener('mousemove', (e) => {
-      const rect = card.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width - 0.5;
-      const y = (e.clientY - rect.top) / rect.height - 0.5;
-      card.style.transform = `perspective(700px) rotateY(${x * 10}deg) rotateX(${-y * 10}deg) translateZ(6px)`;
+if (!prefersReducedMotion) {
+  (function () {
+    document.querySelectorAll<HTMLElement>('.use-case-card').forEach((card) => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        card.style.transform = `perspective(700px) rotateY(${x * 10}deg) rotateX(${-y * 10}deg) translateZ(6px)`;
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = '';
+      });
     });
-    card.addEventListener('mouseleave', () => {
-      card.style.transform = '';
-    });
-  });
-})();
+  })();
+}
 
 // ── NumberTicker for stats ────────────────────────────────────────────────────
 (function () {
@@ -93,7 +97,14 @@ document.documentElement.classList.add('animations-ready');
           const circumference = ringFill
             ? 2 * Math.PI * (ringFill.r?.baseVal?.value ?? 54)
             : 0;
-          if (countEl && target) animateCount(countEl, target, ringFill, circumference);
+          if (countEl && target) {
+            if (prefersReducedMotion) {
+              countEl.textContent = String(target);
+              if (ringFill) ringFill.style.strokeDashoffset = String(circumference * (1 - Math.min(target / 100, 1)));
+            } else {
+              animateCount(countEl, target, ringFill, circumference);
+            }
+          }
           io.unobserve(item);
         }
       });
@@ -101,11 +112,17 @@ document.documentElement.classList.add('animations-ready');
     { threshold: 0.4 },
   );
 
-  document.querySelectorAll<HTMLElement>('.stat-item[data-target]').forEach((el) => io.observe(el));
+  document.querySelectorAll<HTMLElement>('.stat-item[data-target]').forEach((el) => {
+    // HTML has real values for a11y/no-JS; reset to 0 visually when JS runs
+    const countEl = el.querySelector<HTMLElement>('.stat-count');
+    if (countEl) countEl.textContent = '0';
+    io.observe(el);
+  });
 })();
 
 // ── Tracing beam — scroll-following glow on lifecycle steps ──────────────────
 (function () {
+  if (prefersReducedMotion) return;
   const container = document.querySelector<HTMLElement>('.temporal-steps');
   const fill = document.getElementById('tracing-beam-fill');
   if (!container || !fill) return;
