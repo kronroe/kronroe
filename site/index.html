@@ -28,7 +28,7 @@
       });
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Track not just what's true — but when it became true, and when you recorded it. Kronroe is an embedded bi-temporal property graph database. Pure Rust, zero server, runs in your browser via WebAssembly." />
+    <meta name="description" content="AI memory that runs entirely on-device. No server, no cloud, no data risk. Kronroe is an embedded temporal graph — every fact timestamped, queryable at any point in time. Runs on iOS, Android, Rust, Python, and WASM." />
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#2A1D12" />
     <link rel="canonical" href="https://kronroe.dev/" />
@@ -37,16 +37,16 @@
     <meta property="og:type"        content="website" />
     <meta property="og:url"         content="https://kronroe.dev/" />
     <meta property="og:site_name"   content="Kronroe" />
-    <meta property="og:title"       content="Kronroe — Bi-temporal Graph Database" />
-    <meta property="og:description" content="Track not just what's true — but when it became true, and when you recorded it. Kronroe is an embedded bi-temporal property graph database. Pure Rust, zero server, runs in your browser via WebAssembly." />
+    <meta property="og:title"       content="Kronroe — AI memory that never leaves the device" />
+    <meta property="og:description" content="AI memory that runs entirely on-device. No server, no cloud, no data risk. Kronroe is an embedded temporal graph — every fact timestamped, queryable at any point in time. Runs on iOS, Android, Rust, Python, and WASM." />
     <meta property="og:image"       content="https://kronroe.dev/png/social-og-image-light.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt"   content="Kronroe — Bi-temporal Graph Database" />
     <!-- Twitter Card -->
     <meta name="twitter:card"        content="summary_large_image" />
-    <meta name="twitter:title"       content="Kronroe — Bi-temporal Graph Database" />
-    <meta name="twitter:description" content="Track not just what's true — but when it became true, and when you recorded it. Kronroe is an embedded bi-temporal property graph database. Pure Rust, zero server, runs in your browser via WebAssembly." />
+    <meta name="twitter:title"       content="Kronroe — AI memory that never leaves the device" />
+    <meta name="twitter:description" content="AI memory that runs entirely on-device. No server, no cloud, no data risk. Kronroe is an embedded temporal graph — every fact timestamped, queryable at any point in time. Runs on iOS, Android, Rust, Python, and WASM." />
     <meta name="twitter:image"       content="https://kronroe.dev/png/social-og-image-light.png" />
     <!-- Structured data -->
     <script type="application/ld+json">
@@ -55,7 +55,7 @@
       "@type": "SoftwareApplication",
       "name": "Kronroe",
       "url": "https://kronroe.dev/",
-      "description": "Embedded bi-temporal property graph database. Track not just what's true, but when it became true and when you recorded it. Pure Rust, zero server, runs in your browser via WebAssembly.",
+      "description": "AI memory that runs entirely on-device. No server, no cloud, no data risk. Kronroe is an embedded temporal graph — every fact timestamped, queryable at any point in time. Runs on iOS, Android, Rust, Python, and WASM.",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "Any",
       "offers": [
@@ -90,7 +90,7 @@
       }
     }
     </script>
-    <title>Kronroe — Bi-temporal Graph Database</title>
+    <title>Kronroe — AI memory that never leaves the device</title>
     <link rel="icon" type="image/x-icon"  href="/favicon/favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32"  href="/favicon/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16"  href="/favicon/favicon-16x16.png" />
@@ -1632,17 +1632,19 @@
              target="_blank" rel="noopener"
              class="announce-pill">
             <span class="announce-dot"></span>
-            v0.1.2 · pip install kronroe · now live →
+            Private AI memory · runs on iOS, Android, WASM · no server required
           </a>
-          <h1>Bi-<span class="temporal-accent temporal-shiny">temporal</span> graph.<br>
-            <span class="flip-words" aria-label="In your browser. On your iPhone. In your AI agent. Zero server required.">
-              <span class="flip-word lime">Zero server required.</span>
-              <span class="flip-word lime">In your browser.</span>
-              <span class="flip-word lime">On your iPhone.</span>
-              <span class="flip-word lime">In your AI agent.</span>
-            </span>
+          <h1>
+            AI memory that stays<br>on your device.
+            <span class="lime">No cloud. No server. No data risk.</span>
           </h1>
-          <p class="hero-explain">Track not just what's true — but when it became true, and when you recorded it. Bi-temporal facts are a first-class engine primitive in Kronroe, not an application concern you bolt on later. Query any point in time, or compare two snapshots to see exactly what changed.</p>
+          <p class="hero-explain">
+            Most AI memory tools send your data to the cloud. Kronroe doesn't.
+            Every fact is stored and queried entirely on-device — no API calls,
+            no server, no data risk. Built for healthcare, education, legal, and
+            any app where privacy isn't optional. Pure Rust, under 6 MB, runs on
+            iOS, Android, Python, and WASM.
+          </p>
           <p class="sub">// Pure Rust → WebAssembly. <span class="hero-hl">No server</span>. <span class="hero-hl">No network</span>. <span class="hero-hl">No schema</span>.</p>
           <div class="hero-install">
             <code class="install-cmd" role="button" tabindex="0" title="Click to copy" aria-label="Copy: pip install kronroe">pip install kronroe</code>
@@ -1899,7 +1901,12 @@
     <section class="use-cases" id="use-cases" aria-labelledby="heading-use-cases">
       <div class="use-cases-inner">
         <h2 class="section-title reveal-on-scroll" id="heading-use-cases">Built for</h2>
-        <p class="section-intro reveal-on-scroll">Kronroe is designed for use cases where history is not optional — from AI agents that need to remember how their understanding evolved, to mobile apps that work fully offline, to developer tools that persist structured context across sessions.</p>
+        <p class="section-intro reveal-on-scroll">
+          Kronroe is built for teams where data privacy isn't optional — healthcare
+          providers, schools, care platforms, and legal tools where sensitive records
+          cannot touch a third-party server. And for developers building mobile and
+          offline-first apps that need AI memory without network dependency.
+        </p>
         <div class="use-case-grid">
           <div class="use-case-card reveal-on-scroll">
             <div class="use-case-icon">
@@ -1924,8 +1931,15 @@
                 <line x1="18" y1="7" x2="26" y2="7" stroke="#C04800" stroke-width="2" stroke-linecap="round"/>
               </svg>
             </div>
-            <h3>Mobile and edge apps</h3>
-            <p>Full property graph on iOS and Android with zero network latency. The Rust engine compiles to a native library under 6 MB — a Swift Package for iOS and a JNI library for Android with a Kotlin wrapper. Privacy-first: all graph data stays on-device, no network required.</p>
+            <h3>Privacy-first mobile apps</h3>
+            <p>
+              Healthcare, care homes, schools, and legal apps can't send sensitive
+              data to the cloud. Kronroe gives them AI memory that runs entirely
+              on-device — no server, no API keys, no data leaves the device. Ships
+              as a Swift Package for iOS and a Kotlin/JNI library for Android, under
+              6 MB. Works offline: on planes, in hospitals, anywhere without wifi.
+              GDPR, HIPAA, and Ofsted-friendly by architecture.
+            </p>
           </div>
           <div class="use-case-card reveal-on-scroll">
             <div class="use-case-icon">
@@ -2141,8 +2155,14 @@
     <section class="footer-cta" aria-labelledby="heading-footer-cta">
       <div class="footer-cta-inner">
         <span class="footer-cta-eyebrow">Get started in seconds</span>
-        <h2 class="footer-cta-headline reveal-on-scroll" id="heading-footer-cta">Start tracking time, <br>not just facts.</h2>
-        <p class="footer-cta-sub reveal-on-scroll">Drop-in agent memory. Full property graph. Zero server. Ships on iOS, Android, Python, Rust, and browser WASM.</p>
+        <h2 class="footer-cta-headline reveal-on-scroll" id="heading-footer-cta">
+          AI memory.<br>Private by design.
+        </h2>
+        <p class="footer-cta-sub reveal-on-scroll">
+          On-device AI memory. Every fact timestamped, every query private.
+          Ships on iOS, Android, Python, Rust, and WASM —
+          no server, no cloud, no compromise.
+        </p>
         <div class="footer-cta-chips reveal-on-scroll">
           <code class="install-chip" role="button" tabindex="0" aria-label="Copy: pip install kronroe">pip install kronroe</code>
           <code class="install-chip" role="button" tabindex="0" aria-label="Copy: cargo add kronroe">cargo add kronroe</code>

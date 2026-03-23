@@ -1,9 +1,24 @@
 # Kronroe
 
-**Embedded temporal property graph database.**
-Bi-temporal facts as a first-class engine primitive — not an application concern.
+**AI memory that never leaves the device.**
+No server. No cloud. No data risk.
 
-> ⚠️ Early development. Not yet ready for production use.
+Kronroe is built for three audiences:
+
+- **Privacy-regulated industries** — healthcare, education, legal, care homes.
+  Patient notes, student records, and case files never leave the device.
+  Bi-temporal storage means every fact has a full audit trail built in:
+  "what did we know, and when did we know it?" is a first-class query.
+
+- **Mobile and offline-first apps** — iOS and Android developers who need AI
+  memory that works on a plane, in a hospital, in a care home with no wifi.
+  Ships as a Swift Package and a Kotlin/JNI library. The same engine runs in
+  WASM in-browser with zero network calls.
+
+- **AI agent builders** — developers building agents that need to remember how
+  their understanding of the world has changed over time. Drop-in replacement
+  for Graphiti, mem0, and mcp-memory-service — without the Neo4j server,
+  without the cloud API, without data leaving your infrastructure.
 
 ---
 
@@ -35,16 +50,29 @@ This is the DuckDB move. DuckDB did not "do SQLite better" — it said analytica
 
 ## Why now
 
-Two use cases are completely unserved:
+Three use cases are completely unserved:
 
-- **AI agent memory** — agents that need to remember, update, and query facts about the world over time, without running a server
-- **Mobile/edge** — iOS and Android apps that need relationship graph capabilities without network latency or server infrastructure
+- **Privacy-regulated industries** — healthcare providers, schools, care
+  homes, and legal tools want AI capabilities but cannot send sensitive
+  data to the cloud. GDPR, HIPAA, and sector-specific regulations make
+  cloud AI a compliance blocker. Kronroe runs entirely on-device —
+  zero data egress, full audit trail by design.
+
+- **AI agent memory** — agents that need to remember, update, and query
+  facts about the world over time, without running a server. Kronroe
+  replaces Graphiti + Neo4j, mem0, and mcp-memory-service with a single
+  embedded library.
+
+- **Mobile/edge** — iOS and Android apps that need AI memory without
+  network latency, server infrastructure, or per-call API costs.
+  The XCFramework and Kotlin/JNI library are under 6 MB and work offline.
 
 The solutions developers reach for today (Graphiti + Neo4j, mcp-memory-service) require a running server, have no temporal model at the engine level, and do not run on mobile.
 
 ## Architecture
 
-Pure Rust. No C dependencies in the core engine.
+Pure Rust. No C dependencies. No network calls. Runs on every platform
+where data privacy is non-negotiable.
 
 | Layer | Crate | Notes |
 |---|---|---|
