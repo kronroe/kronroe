@@ -1,4 +1,6 @@
 use anyhow::{Context, Result};
+#[cfg(test)]
+use kronroe::FactId;
 use kronroe::{Fact, KronroeSpan, KronroeTimestamp, Value};
 #[cfg(feature = "hybrid")]
 use kronroe::{TemporalIntent, TemporalOperator};
@@ -2999,5 +3001,514 @@ mod tests {
         let mut cursor = Cursor::new(Vec::<u8>::new());
         let result = read_message(&mut cursor).unwrap();
         assert!(result.is_none());
+    }
+
+    // ── Orchestration eval: Gate A3 ─────────────────────────────────────
+    //
+    // Validates that agent_brief recommended actions suggest the correct
+    // next tool for every reachable memory state. 100% top-1 accuracy
+    // required — every scenario must match.
+
+    fn extract_agent_brief(out: &JsonValue) -> (&str, &str) {
+        let brief = out
+            .get("structuredContent")
+            .and_then(|v| v.get("agent_brief"))
+            .expect("agent_brief should be present");
+        let action_id = brief
+            .get("recommended_action_id")
+            .and_then(JsonValue::as_str)
+            .expect("recommended_action_id should be present");
+        let actions = brief
+            .get("next_actions")
+            .and_then(JsonValue::as_array)
+            .expect("next_actions should be present");
+        let top_tool = actions
+            .first()
+            .and_then(|a| a.get("suggested_tool"))
+            .and_then(JsonValue::as_str)
+            .expect("top action should have suggested_tool");
+        (action_id, top_tool)
+    }
+
+    // ── recall_for_task scenarios ────────────────────────────────────────
+
+    #[test]
+    fn orch_recall_for_task_no_context_suggests_recall_for_task() {
+        let mut state = temp_state();
+        // No facts seeded — empty context
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall_for_task",
+                "arguments": {
+                    "task": "prepare renewal call",
+                    "subject": "unknown_entity",
+                    "horizon_days": 90,
+                    "limit": 8
+                }
+            })),
+        )
+        .unwrap();
+        let (action_id, tool) = extract_agent_brief(&out);
+        assert_eq!(action_id, "ask_clarifying_question");
+        assert_eq!(tool, "recall_for_task");
+    }
+
+    #[test]
+    fn orch_recall_for_task_low_confidence_suggests_memory_health() {
+        let mut state = temp_state();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme",
+                    "confidence": 0.3
+                }
+            })),
+        )
+        .unwrap();
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall_for_task",
+                "arguments": {
+                    "task": "prepare renewal call",
+                    "subject": "alice",
+                    "horizon_days": 90,
+                    "limit": 8
+                }
+            })),
+        )
+        .unwrap();
+        let (action_id, tool) = extract_agent_brief(&out);
+        assert_eq!(action_id, "verify_low_confidence_facts");
+        assert_eq!(tool, "memory_health");
+    }
+
+    #[test]
+    fn orch_recall_for_task_stale_high_impact_includes_refresh_action() {
+        let mut state = temp_state();
+        let old = (KronroeTimestamp::now_utc() - KronroeSpan::days(200)).to_rfc3339();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme",
+                    "confidence": 0.95,
+                    "valid_from": old
+                }
+            })),
+        )
+        .unwrap();
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall_for_task",
+                "arguments": {
+                    "task": "prepare renewal call",
+                    "subject": "alice",
+                    "horizon_days": 90,
+                    "limit": 8
+                }
+            })),
+        )
+        .unwrap();
+        // When stale facts exist but key_facts is non-empty, prepare_task_brief
+        // wins top-1 (decision_reliability > freshness_hygiene in scoring).
+        // The refresh action must still appear in the ranked action list.
+        let (action_id, tool) = extract_agent_brief(&out);
+        assert_eq!(action_id, "prepare_task_brief");
+        assert_eq!(tool, "assemble_context");
+        let brief = out
+            .get("structuredContent")
+            .and_then(|v| v.get("agent_brief"))
+            .unwrap();
+        let actions = brief["next_actions"].as_array().unwrap();
+        let has_refresh = actions.iter().any(|a| {
+            a.get("id").and_then(JsonValue::as_str) == Some("refresh_stale_high_impact_facts")
+        });
+        assert!(
+            has_refresh,
+            "refresh_stale_high_impact_facts should be in actions"
+        );
+    }
+
+    #[test]
+    fn orch_recall_for_task_good_facts_suggests_assemble_context() {
+        let mut state = temp_state();
+        // Fresh, high-confidence fact — no watchouts
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "project",
+                    "object": "Renewal Q2",
+                    "confidence": 0.95
+                }
+            })),
+        )
+        .unwrap();
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "recall_for_task",
+                "arguments": {
+                    "task": "prepare renewal call",
+                    "subject": "alice",
+                    "horizon_days": 90,
+                    "limit": 8
+                }
+            })),
+        )
+        .unwrap();
+        let (action_id, tool) = extract_agent_brief(&out);
+        assert_eq!(action_id, "prepare_task_brief");
+        assert_eq!(tool, "assemble_context");
+    }
+
+    #[test]
+    fn orch_recall_for_task_contradictions_suggests_memory_health() {
+        // Test the agent_brief routing directly — contradictions present
+        // means resolve_contradictions_first should win top-1
+        let brief = recall_for_task_agent_brief(&RecallForTaskReport {
+            task: "prepare renewal call".to_string(),
+            subject: Some("alice".to_string()),
+            generated_at: KronroeTimestamp::now_utc(),
+            horizon_days: 90,
+            query_used: "prepare renewal call".to_string(),
+            key_facts: vec![Fact::new(
+                "alice",
+                "works_at",
+                "Acme",
+                KronroeTimestamp::now_utc(),
+            )],
+            low_confidence_count: 0,
+            stale_high_impact_count: 0,
+            contradiction_count: 2,
+            watchouts: vec!["2 contradictions".to_string()],
+            recommended_next_checks: vec!["Resolve contradictions".to_string()],
+        });
+        let action_id = brief["recommended_action_id"].as_str().unwrap();
+        let top_tool = brief["next_actions"][0]["suggested_tool"].as_str().unwrap();
+        assert_eq!(action_id, "resolve_contradictions_first");
+        assert_eq!(top_tool, "memory_health");
+    }
+
+    // ── what_changed scenarios ───────────────────────────────────────────
+
+    #[test]
+    fn orch_what_changed_corrections_suggests_facts_about() {
+        let mut state = temp_state();
+        let first = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme"
+                }
+            })),
+        )
+        .unwrap();
+        let fact_id = first["structuredContent"]["fact_id"]
+            .as_str()
+            .expect("fact_id");
+
+        // Brief sleep to ensure since timestamp is strictly after the assertion
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let since = KronroeTimestamp::now_utc().to_rfc3339();
+
+        // Correct the fact — creates a correction event
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "correct_fact",
+                "arguments": { "fact_id": fact_id, "new_value": "Globex" }
+            })),
+        )
+        .unwrap();
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "what_changed",
+                "arguments": {
+                    "entity": "alice",
+                    "since": since,
+                    "predicate": "works_at"
+                }
+            })),
+        )
+        .unwrap();
+        let (action_id, tool) = extract_agent_brief(&out);
+        assert_eq!(action_id, "verify_corrections");
+        assert_eq!(tool, "facts_about");
+    }
+
+    #[test]
+    fn orch_what_changed_risky_confidence_shift_suggests_memory_health() {
+        // Test the agent_brief routing directly — risky confidence shifts
+        // (drop ≥ 0.2) without corrections should produce revalidate_confidence
+        let brief = what_changed_agent_brief(&WhatChangedReport {
+            entity: "alice".to_string(),
+            since: KronroeTimestamp::now_utc() - KronroeSpan::days(7),
+            predicate_filter: None,
+            new_facts: vec![
+                Fact::new("alice", "works_at", "Globex", KronroeTimestamp::now_utc())
+                    .with_confidence(0.5),
+            ],
+            invalidated_facts: Vec::new(),
+            corrections: Vec::new(),
+            confidence_shifts: vec![ConfidenceShift {
+                from_fact_id: FactId::new(),
+                to_fact_id: FactId::new(),
+                from_confidence: 0.95,
+                to_confidence: 0.5,
+            }],
+        });
+        let action_id = brief["recommended_action_id"].as_str().unwrap();
+        let top_tool = brief["next_actions"][0]["suggested_tool"].as_str().unwrap();
+        assert_eq!(action_id, "revalidate_confidence");
+        assert_eq!(top_tool, "memory_health");
+    }
+
+    #[test]
+    fn orch_what_changed_invalidation_gaps_suggests_facts_about() {
+        let mut state = temp_state();
+        let f1 = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "email",
+                    "object": "alice@example.com"
+                }
+            })),
+        )
+        .unwrap();
+        let f2 = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "phone",
+                    "object": "+44123456"
+                }
+            })),
+        )
+        .unwrap();
+        let id1 = f1["structuredContent"]["fact_id"].as_str().expect("id1");
+        let id2 = f2["structuredContent"]["fact_id"].as_str().expect("id2");
+
+        let since = KronroeTimestamp::now_utc().to_rfc3339();
+
+        // Invalidate both without replacement → more invalidations than new facts
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "invalidate_fact",
+                "arguments": { "fact_id": id1 }
+            })),
+        )
+        .unwrap();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "invalidate_fact",
+                "arguments": { "fact_id": id2 }
+            })),
+        )
+        .unwrap();
+
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "what_changed",
+                "arguments": { "entity": "alice", "since": since }
+            })),
+        )
+        .unwrap();
+        let (action_id, tool) = extract_agent_brief(&out);
+        assert_eq!(action_id, "fill_invalidation_gaps");
+        assert_eq!(tool, "facts_about");
+    }
+
+    #[test]
+    fn orch_what_changed_stable_suggests_what_changed() {
+        let mut state = temp_state();
+        let _ = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "assert_fact",
+                "arguments": {
+                    "subject": "alice",
+                    "predicate": "works_at",
+                    "object": "Acme"
+                }
+            })),
+        )
+        .unwrap();
+
+        // since is after assertion — nothing changed
+        let since = KronroeTimestamp::now_utc().to_rfc3339();
+        let out = call_tool(
+            &mut state,
+            Some(&json!({
+                "name": "what_changed",
+                "arguments": { "entity": "alice", "since": since }
+            })),
+        )
+        .unwrap();
+        let (action_id, tool) = extract_agent_brief(&out);
+        assert_eq!(action_id, "monitor");
+        assert_eq!(tool, "what_changed");
+    }
+
+    // ── memory_health scenarios ──────────────────────────────────────────
+
+    #[test]
+    fn orch_memory_health_contradictions_suggests_facts_about() {
+        let brief = memory_health_agent_brief(&MemoryHealthReport {
+            entity: "alice".to_string(),
+            generated_at: KronroeTimestamp::now_utc(),
+            predicate_filter: None,
+            total_fact_count: 3,
+            active_fact_count: 3,
+            low_confidence_facts: Vec::new(),
+            stale_high_impact_facts: Vec::new(),
+            contradiction_count: 2,
+            recommended_actions: vec!["Resolve contradictions".to_string()],
+        });
+        let action_id = brief["recommended_action_id"].as_str().unwrap();
+        let top_tool = brief["next_actions"][0]["suggested_tool"].as_str().unwrap();
+        assert_eq!(action_id, "resolve_contradictions");
+        assert_eq!(top_tool, "facts_about");
+    }
+
+    #[test]
+    fn orch_memory_health_low_confidence_high_impact_suggests_facts_about() {
+        let low_conf_fact = Fact::new("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
+            .with_confidence(0.3);
+
+        let brief = memory_health_agent_brief(&MemoryHealthReport {
+            entity: "alice".to_string(),
+            generated_at: KronroeTimestamp::now_utc(),
+            predicate_filter: None,
+            total_fact_count: 1,
+            active_fact_count: 1,
+            low_confidence_facts: vec![low_conf_fact],
+            stale_high_impact_facts: Vec::new(),
+            contradiction_count: 0,
+            recommended_actions: Vec::new(),
+        });
+        let action_id = brief["recommended_action_id"].as_str().unwrap();
+        let top_tool = brief["next_actions"][0]["suggested_tool"].as_str().unwrap();
+        assert_eq!(action_id, "verify_low_confidence");
+        assert_eq!(top_tool, "facts_about");
+    }
+
+    #[test]
+    fn orch_memory_health_low_confidence_non_high_impact_suggests_facts_about() {
+        let low_conf_fact =
+            Fact::new("alice", "nickname", "Bex", KronroeTimestamp::now_utc()).with_confidence(0.4);
+
+        let brief = memory_health_agent_brief(&MemoryHealthReport {
+            entity: "alice".to_string(),
+            generated_at: KronroeTimestamp::now_utc(),
+            predicate_filter: None,
+            total_fact_count: 1,
+            active_fact_count: 1,
+            low_confidence_facts: vec![low_conf_fact],
+            stale_high_impact_facts: Vec::new(),
+            contradiction_count: 0,
+            recommended_actions: Vec::new(),
+        });
+        let action_id = brief["recommended_action_id"].as_str().unwrap();
+        let top_tool = brief["next_actions"][0]["suggested_tool"].as_str().unwrap();
+        assert_eq!(action_id, "verify_low_confidence");
+        assert_eq!(top_tool, "facts_about");
+    }
+
+    #[test]
+    fn orch_memory_health_stale_high_impact_suggests_what_changed() {
+        let stale_fact = Fact::new(
+            "alice",
+            "works_at",
+            "Acme",
+            KronroeTimestamp::now_utc() - KronroeSpan::days(200),
+        );
+
+        let brief = memory_health_agent_brief(&MemoryHealthReport {
+            entity: "alice".to_string(),
+            generated_at: KronroeTimestamp::now_utc(),
+            predicate_filter: None,
+            total_fact_count: 1,
+            active_fact_count: 1,
+            low_confidence_facts: Vec::new(),
+            stale_high_impact_facts: vec![stale_fact],
+            contradiction_count: 0,
+            recommended_actions: Vec::new(),
+        });
+        let action_id = brief["recommended_action_id"].as_str().unwrap();
+        let top_tool = brief["next_actions"][0]["suggested_tool"].as_str().unwrap();
+        assert_eq!(action_id, "refresh_stale_high_impact");
+        assert_eq!(top_tool, "what_changed");
+    }
+
+    #[test]
+    fn orch_memory_health_healthy_suggests_memory_health() {
+        let brief = memory_health_agent_brief(&MemoryHealthReport {
+            entity: "alice".to_string(),
+            generated_at: KronroeTimestamp::now_utc(),
+            predicate_filter: None,
+            total_fact_count: 2,
+            active_fact_count: 2,
+            low_confidence_facts: Vec::new(),
+            stale_high_impact_facts: Vec::new(),
+            contradiction_count: 0,
+            recommended_actions: Vec::new(),
+        });
+        let action_id = brief["recommended_action_id"].as_str().unwrap();
+        let top_tool = brief["next_actions"][0]["suggested_tool"].as_str().unwrap();
+        assert_eq!(action_id, "monitor_health");
+        assert_eq!(top_tool, "memory_health");
+    }
+
+    #[test]
+    fn orch_memory_health_contradictions_win_over_low_confidence() {
+        let low_conf_fact =
+            Fact::new("alice", "nickname", "Bex", KronroeTimestamp::now_utc()).with_confidence(0.3);
+
+        let brief = memory_health_agent_brief(&MemoryHealthReport {
+            entity: "alice".to_string(),
+            generated_at: KronroeTimestamp::now_utc(),
+            predicate_filter: None,
+            total_fact_count: 3,
+            active_fact_count: 3,
+            low_confidence_facts: vec![low_conf_fact],
+            stale_high_impact_facts: Vec::new(),
+            contradiction_count: 1,
+            recommended_actions: vec!["Resolve contradiction".to_string()],
+        });
+        let action_id = brief["recommended_action_id"].as_str().unwrap();
+        let top_tool = brief["next_actions"][0]["suggested_tool"].as_str().unwrap();
+        // Contradictions score higher (critical_identity + high risk) than
+        // low confidence non-high-impact (decision_reliability + medium risk)
+        assert_eq!(action_id, "resolve_contradictions");
+        assert_eq!(top_tool, "facts_about");
     }
 }
