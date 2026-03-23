@@ -1,5 +1,12 @@
 # Kronroe
 
+[![CI](https://github.com/kronroe/kronroe/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kronroe/kronroe/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/kronroe.svg)](https://crates.io/crates/kronroe)
+[![docs.rs](https://img.shields.io/docsrs/kronroe)](https://docs.rs/kronroe)
+[![PyPI](https://img.shields.io/pypi/v/kronroe)](https://pypi.org/project/kronroe/)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](./LICENSE)
+[![kronroe.dev](https://img.shields.io/badge/site-kronroe.dev-orange)](https://kronroe.dev)
+
 **AI memory that never leaves the device.**
 No server. No cloud. No data risk.
 
