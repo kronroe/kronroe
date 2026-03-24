@@ -9,6 +9,19 @@ document.documentElement.classList.add('animations-ready');
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// ── Sticky header — scroll-aware background transition ─────────────────────
+(function () {
+  const header = document.querySelector('header');
+  if (!header) return;
+  const SCROLL_THRESHOLD = 32;
+
+  function onScroll() {
+    header!.classList.toggle('header-scrolled', window.scrollY > SCROLL_THRESHOLD);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
 // ── Scroll reveals ────────────────────────────────────────────────────────────
 (function () {
   const items = document.querySelectorAll<HTMLElement>('.reveal-on-scroll');
