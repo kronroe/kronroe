@@ -372,7 +372,7 @@ impl KronroeStorage {
 mod tests {
     use super::*;
     use crate::storage_observability::{StorageEvent, StorageObserver, StorageOperation};
-    use crate::{KronroeError, KronroeSpan, Value};
+    use crate::{KronroeSpan, Value};
     use std::sync::{Arc, Mutex};
 
     fn build_fact(subject: &str, predicate: &str, object: impl Into<Value>) -> Fact {
@@ -420,7 +420,7 @@ mod tests {
         let error = storage
             .write_fact_with_embedding(&second, &[0.0, 1.0])
             .unwrap_err();
-        assert!(matches!(error, KronroeError::InvalidEmbedding(_)));
+        assert!(error.is_invalid_embedding());
 
         let scanned = storage.scan_facts("alice:interest:").unwrap();
         assert_eq!(
@@ -520,7 +520,7 @@ mod tests {
             Ok(_) => panic!("append-log backend should reject non-append-log files"),
             Err(error) => error,
         };
-        assert!(matches!(error, KronroeError::Storage(_)));
+        assert!(error.is_storage());
         assert!(error.to_string().contains("storage backend mismatch"));
     }
 
@@ -762,7 +762,7 @@ mod tests {
         let error = storage
             .write_fact_with_embedding(&second, &[0.0, 1.0])
             .unwrap_err();
-        assert!(matches!(error, KronroeError::InvalidEmbedding(_)));
+        assert!(error.is_invalid_embedding());
 
         let scanned = storage.scan_facts("alice:interest:").unwrap();
         assert_eq!(
