@@ -118,7 +118,8 @@ Additional fact metadata fields:
 | `Value` | `Text(String)` \| `Number(f64)` \| `Boolean(bool)` \| `Entity(String)` |
 | `ErrorCode` | Stable numeric error codes (`repr(u16)`): 1xxx storage, 2xxx validation, 3xxx query, 4xxx temporal, 9xxx internal. Safe for FFI consumers. |
 | `ErrorContext` | Extension trait enabling `.context()` on `Result<T, KronroeError>` for ergonomic error chaining (zero-dep replacement for `anyhow::Context`). |
-| `KronroeError` | Error type with built-in context chaining, predicate methods (`is_storage()`, `is_not_found()`, etc.), and structured accessors (`.contradictions()`, `.schema_versions()`, `.code()`). Niche-optimised: `Result<(), KronroeError>` is 8 bytes. |
+| `OptionContext` | Extension trait enabling `.context()` on `Option<T>`, converting `None` to `KronroeError::invalid_input`. |
+| `KronroeError` | Error type with built-in context chaining, predicate methods (`is_storage()`, `is_not_found()`, `is_invalid_input()`, etc.), and structured accessors (`.contradictions()`, `.schema_versions()`, `.code()`). Niche-optimised: `Result<(), KronroeError>` is 8 bytes. `From` impls for `io::Error`, `serde_json::Error`, `ParseIntError`, `TryFromIntError`. |
 
 `Entity(String)` is a reference to another entity's canonical name — this is how graph edges are expressed.
 
@@ -338,12 +339,13 @@ Future crates will layer on top.
   in tests instead of `assert_eq!`.
 - **`.ideas/` has private experiment planning docs** — gitignored, check there for context on
   experimental features before starting new work (e.g. `EXPERIMENT_01_HYBRID_RETRIEVAL_RESEARCH.md`).
-- **Error handling is Kronroe-native:** `kronroe` (core) and `kronroe-agent-memory` use zero external
-  error deps. Use `KronroeError::storage()`, `KronroeError::not_found()`, etc. for construction, and
-  `.context()` for chaining (trait: `ErrorContext<T>`). Error codes are stable numeric identifiers
-  (`ErrorCode`: 1xxx storage, 2xxx validation, 3xxx query, 4xxx temporal, 9xxx internal) suitable for
-  FFI. Predicate methods (`is_storage()`, `is_not_found()`, etc.) replace pattern matching. Only
-  `kronroe-mcp` still uses `anyhow` (planned for removal).
+- **Error handling is Kronroe-native:** All crates use zero external error deps. Use
+  `KronroeError::storage()`, `KronroeError::not_found()`, `KronroeError::invalid_input()`, etc. for
+  construction, `.context()` for chaining (trait: `ErrorContext<T>` on `Result`, `OptionContext<T>` on
+  `Option`). Error codes are stable numeric identifiers (`ErrorCode`: 1xxx storage, 2xxx validation,
+  3xxx query, 4xxx temporal, 9xxx internal) suitable for FFI. Predicate methods (`is_storage()`,
+  `is_not_found()`, `is_invalid_input()`, etc.) replace pattern matching. MCP error responses include
+  `errorCode` for programmatic handling.
 
 ## Phase 0 Milestone Status
 

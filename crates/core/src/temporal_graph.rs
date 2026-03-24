@@ -58,7 +58,7 @@ mod uncertainty;
 #[cfg(feature = "uncertainty")]
 pub use uncertainty::{EffectiveConfidence, PredicateVolatility, SourceWeight};
 
-pub use error::{ErrorCode, ErrorContext, KronroeError};
+pub use error::{ErrorCode, ErrorContext, KronroeError, OptionContext};
 pub use fact_id::{FactId, FactIdParseError};
 pub use kronroe_time::{
     default_clock, FixedClock, KronroeClock, KronroeSpan, KronroeTimestamp, SystemClock,

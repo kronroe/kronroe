@@ -309,7 +309,6 @@ dependencies = [
 name = "kronroe-mcp"
 version = "0.3.1"
 dependencies = [
- "anyhow",
  "kronroe",
  "kronroe-agent-memory",
  "serde",

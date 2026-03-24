@@ -16,7 +16,6 @@ name = "kronroe-mcp"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = { workspace = true }
 kronroe = { version = "0.3.1", path = "../core" }
 kronroe-agent-memory = { version = "0.3.1", path = "../agent-memory" }
 serde = { workspace = true }
