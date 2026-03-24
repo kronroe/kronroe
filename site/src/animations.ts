@@ -163,6 +163,120 @@ const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)
   }
 })();
 
+// ── Timeline card entrance + time scrubber ───────────────────────────────────
+// On scroll into view: rows animate in sequentially, correction plays out,
+// then scrubber appears. After that, user controls the scrubber.
+(function () {
+  const card = document.getElementById('tl-card');
+  const scrubber = document.getElementById('tl-scrubber');
+  const input = document.getElementById('tl-scrubber-input') as HTMLInputElement | null;
+  const label = document.getElementById('tl-scrubber-label');
+  if (!card || !scrubber || !input || !label) return;
+
+  const rows = card.querySelectorAll<HTMLElement>('.tl-row');
+  const validBar = card.querySelector<HTMLElement>('.rail-bar-valid');
+  const recordedBar = card.querySelector<HTMLElement>('.rail-bar-recorded');
+
+  // Scrubber time positions
+  const POSITIONS = [
+    { label: 'March 2020', validW: '15%', recordedW: '20%' },
+    { label: 'June 2022 — correction', validW: '35%', recordedW: '45%' },
+    { label: 'January 2023', validW: '55%', recordedW: '75%' },
+    { label: 'now', validW: '55%', recordedW: '75%' },
+  ];
+
+  function applyPosition(pos: number) {
+    const p = POSITIONS[pos];
+    // Update label with fade
+    label!.innerHTML = `Viewing as of: <strong>${p.label}</strong>`;
+    // Update rail bars
+    if (validBar) validBar.style.width = p.validW;
+    if (recordedBar) recordedBar.style.width = p.recordedW;
+
+    // Update row visibility
+    rows.forEach(row => {
+      const showAt = (row.dataset.show || '').split(',');
+      const correctedAt = (row.dataset.corrected || '').split(',');
+      const visible = showAt.includes(String(pos));
+      const corrected = correctedAt.includes(String(pos));
+
+      row.classList.toggle('tl-row--hidden', !visible);
+      row.classList.toggle('tl-row--corrected', visible && corrected);
+      if (visible) row.classList.add('tl-row--visible');
+    });
+  }
+
+  // Scrubber input handler
+  input.addEventListener('input', () => {
+    applyPosition(parseInt(input.value, 10));
+  });
+
+  // Entrance animation on scroll into view
+  if (prefersReducedMotion) {
+    // Show everything immediately at "now" position
+    rows.forEach(r => r.classList.add('tl-row--visible'));
+    scrubber.classList.add('tl-scrubber--visible');
+    applyPosition(3);
+    return;
+  }
+
+  let hasPlayed = false;
+  const io = new IntersectionObserver((entries) => {
+    if (hasPlayed) return;
+    const entry = entries[0];
+    if (!entry.isIntersecting) return;
+    hasPlayed = true;
+    io.disconnect();
+
+    // Start at position 0 (2020)
+    input.value = '0';
+    applyPosition(0);
+
+    // Animate rows in sequentially
+    const visibleAtZero = Array.from(rows).filter(r =>
+      (r.dataset.show || '').split(',').includes('0')
+    );
+    visibleAtZero.forEach((row, i) => {
+      setTimeout(() => row.classList.add('tl-row--visible'), i * 200);
+    });
+
+    // After rows appear, auto-advance through positions to show the story
+    const baseDelay = visibleAtZero.length * 200 + 400;
+
+    // Position 1: correction event (Acme gets struck)
+    setTimeout(() => {
+      input.value = '1';
+      applyPosition(1);
+    }, baseDelay);
+
+    // Position 2: new facts arrive (TechCorp, bob)
+    setTimeout(() => {
+      input.value = '2';
+      applyPosition(2);
+    }, baseDelay + 800);
+
+    // Position 3: now (final state)
+    setTimeout(() => {
+      input.value = '3';
+      applyPosition(3);
+    }, baseDelay + 1600);
+
+    // Show scrubber after story completes
+    setTimeout(() => {
+      scrubber.classList.add('tl-scrubber--visible');
+    }, baseDelay + 2200);
+
+    // Animate rail bars
+    setTimeout(() => {
+      if (validBar) validBar.style.width = '55%';
+      if (recordedBar) recordedBar.style.width = '75%';
+    }, baseDelay + 1600);
+
+  }, { threshold: 0.3 });
+
+  io.observe(card);
+})();
+
 // ── Scroll reveals ────────────────────────────────────────────────────────────
 (function () {
   const items = document.querySelectorAll<HTMLElement>('.reveal-on-scroll');

@@ -564,19 +564,8 @@
         width: 100%;
         border-bottom: 1px solid rgba(255,255,255,0.06);
       }
-      .frow-corrected {
-        opacity: 0.30;
+      .frow.tl-row {
         position: relative;
-      }
-      .frow-corrected::after {
-        content: 'corrected';
-        font-family: var(--hand);
-        font-size: 0.55rem;
-        color: var(--copper);
-        position: absolute;
-        top: -2px;
-        right: 0.5rem;
-        transform: rotate(-6deg);
       }
       .tag-subject {
         display: inline-block;
@@ -607,9 +596,6 @@
         font-weight: 600;
         background: rgba(90,138,0,0.18);
         color: #8BBF2A;
-      }
-      .tag-struck {
-        text-decoration: line-through;
       }
       .frow-time {
         margin-left: auto;
@@ -644,6 +630,113 @@
       .rail-label {
         font-family: var(--mono);
         font-size: 0.55rem;
+        color: rgba(255,255,255,0.30);
+      }
+
+      /* ── Timeline card entrance animation ── */
+      .animations-ready .tl-row {
+        opacity: 0;
+        transform: translateX(-12px);
+        transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .tl-row.tl-row--visible {
+        opacity: 1;
+        transform: translateX(0);
+      }
+      /* Corrected state — applied by scrubber */
+      .tl-row.tl-row--corrected {
+        opacity: 0.30;
+      }
+      .tl-row.tl-row--corrected .tag-value {
+        text-decoration: line-through;
+      }
+      .tl-row.tl-row--corrected::after {
+        content: 'corrected';
+        font-family: var(--hand);
+        font-size: 0.55rem;
+        color: var(--copper);
+        position: absolute;
+        top: -2px;
+        right: 0.5rem;
+        transform: rotate(-6deg);
+      }
+      /* Hidden row (not in current time window) */
+      .tl-row.tl-row--hidden {
+        opacity: 0;
+        height: 0;
+        padding: 0;
+        border: none;
+        overflow: hidden;
+        transform: translateX(-12px);
+      }
+      /* Rail bars animate width */
+      .rail-bar {
+        transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      /* ── Time scrubber ── */
+      .tl-scrubber {
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 0.4s ease, transform 0.4s ease;
+      }
+      .tl-scrubber.tl-scrubber--visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .tl-scrubber-label {
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        color: rgba(255,255,255,0.45);
+        text-align: center;
+        margin-bottom: 0.5rem;
+        transition: opacity 0.15s;
+      }
+      .tl-scrubber-label strong {
+        color: var(--copper);
+        font-weight: 600;
+      }
+      .tl-scrubber-track {
+        position: relative;
+      }
+      .tl-scrubber-track input[type="range"] {
+        width: 100%;
+        height: 4px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: rgba(255,255,255,0.12);
+        border-radius: 2px;
+        outline: none;
+        cursor: pointer;
+      }
+      .tl-scrubber-track input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--copper);
+        border: 2px solid var(--espresso);
+        box-shadow: 0 0 8px rgba(232, 125, 74, 0.4);
+        cursor: grab;
+      }
+      .tl-scrubber-track input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--copper);
+        border: 2px solid var(--espresso);
+        box-shadow: 0 0 8px rgba(232, 125, 74, 0.4);
+        cursor: grab;
+      }
+      .tl-scrubber-ticks {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.25rem;
+        font-family: var(--mono);
+        font-size: 0.52rem;
         color: rgba(255,255,255,0.30);
       }
 
@@ -1863,8 +1956,8 @@
           <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer" class="btn-ghost hero-btn">View on GitHub</a>
         </div>
 
-        <!-- 7. Fact timeline card -->
-        <div class="tl-card">
+        <!-- 7. Fact timeline card + time scrubber (unified) -->
+        <div class="tl-card" id="tl-card">
           <div class="tl-top">
             <div class="tl-tabs">
               <span class="tl-tab tl-tab-active">FACTS</span>
@@ -1875,31 +1968,33 @@
             </div>
             <span class="tl-note">every fact carries four timestamps</span>
           </div>
-          <div class="frow">
+          <!-- data-show: comma-separated scrubber positions where this row is visible -->
+          <!-- data-corrected: positions where the row shows as corrected/struck -->
+          <div class="frow tl-row" data-show="2,3" data-row="0">
             <span class="tag-subject">alice</span>
             <span class="tag-pred">works_at</span>
             <span class="tag-value">@TechCorp</span>
             <span class="frow-time">2023-01 →</span>
           </div>
-          <div class="frow frow-corrected">
+          <div class="frow tl-row" data-show="0,1,2,3" data-corrected="1,2,3" data-row="1">
             <span class="tag-subject">alice</span>
             <span class="tag-pred">works_at</span>
-            <span class="tag-value tag-struck">@Acme</span>
+            <span class="tag-value">@Acme</span>
             <span class="frow-time">2020-03 → 2022-06</span>
           </div>
-          <div class="frow">
+          <div class="frow tl-row" data-show="1,2,3" data-row="2">
             <span class="tag-subject">alice</span>
             <span class="tag-pred">lives_in</span>
             <span class="tag-value">London</span>
             <span class="frow-time">2021-09 →</span>
           </div>
-          <div class="frow">
+          <div class="frow tl-row" data-show="2,3" data-row="3">
             <span class="tag-subject">bob</span>
             <span class="tag-pred">works_at</span>
             <span class="tag-value">@TechCorp</span>
             <span class="frow-time">2022-11 →</span>
           </div>
-          <div class="frow">
+          <div class="frow tl-row" data-show="0,1,2,3" data-row="4">
             <span class="tag-subject">carol</span>
             <span class="tag-pred">lives_in</span>
             <span class="tag-value">London</span>
@@ -1907,12 +2002,25 @@
           </div>
           <div class="rails">
             <div class="rail">
-              <div class="rail-bar rail-bar-valid" style="width: 55%"></div>
+              <div class="rail-bar rail-bar-valid" style="width: 0%"></div>
               <span class="rail-label">valid time — when it was true in the world</span>
             </div>
             <div class="rail">
-              <div class="rail-bar rail-bar-recorded" style="width: 75%"></div>
+              <div class="rail-bar rail-bar-recorded" style="width: 0%"></div>
               <span class="rail-label">recorded — when you learned it</span>
+            </div>
+          </div>
+          <!-- Time scrubber — VCR control attached to card -->
+          <div class="tl-scrubber" id="tl-scrubber">
+            <div class="tl-scrubber-label" id="tl-scrubber-label">Viewing as of: <strong>now</strong></div>
+            <div class="tl-scrubber-track">
+              <input type="range" min="0" max="3" value="3" step="1" id="tl-scrubber-input" aria-label="Scrub through time">
+              <div class="tl-scrubber-ticks">
+                <span>2020</span>
+                <span>2022</span>
+                <span>2023</span>
+                <span>now</span>
+              </div>
             </div>
           </div>
         </div>
