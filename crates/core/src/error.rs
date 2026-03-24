@@ -52,6 +52,7 @@ pub enum ErrorCode {
 
     // 4xxx — Temporal / contradiction
     /// Fact storage was rejected due to contradiction(s).
+    #[cfg(feature = "contradiction")]
     ContradictionRejected = 4001,
 
     // 9xxx — Internal
