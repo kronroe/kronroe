@@ -770,6 +770,7 @@
         width: 2px;
         height: calc(100% + 0.65rem);
         background: rgba(124,92,252,0.12);
+        z-index: 1;
       }
       /* Tracing beam — glowing line that follows scroll */
       .tracing-beam {
@@ -809,7 +810,7 @@
         position: relative;
         z-index: 3;
         transition: background 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s;
-        box-shadow: 0 0 0 4px var(--bg);
+        box-shadow: 0 0 0 6px var(--bg);
       }
       .step-badge.beam-active {
         background: var(--violet);
