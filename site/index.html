@@ -210,31 +210,27 @@
         pointer-events: none; z-index: 0;
       }
 
-      /* ── Header — sticky, transparent → blur on scroll ── */
+      /* ── Header — sticky, solid espresso ── */
       header {
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
         z-index: 100;
-        height: 56px;
-        padding: 0 2.5rem 0 2.5rem;
-        border-bottom: 1px solid transparent;
+        height: 64px;
+        padding: 0 2.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         display: flex;
         align-items: center;
         gap: 1rem;
-        background: rgba(42, 29, 18, 0.85);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+        background: #2A1D12;
+        transition: box-shadow 0.3s;
       }
       header.header-scrolled {
-        background: rgba(42, 29, 18, 0.97);
-        border-bottom-color: rgba(255, 255, 255, 0.08);
-        box-shadow: 0 1px 12px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.2);
       }
       /* Offset body for fixed header */
-      body { padding-top: 56px; }
+      body { padding-top: 64px; }
 
       .logo {
         display: flex;
@@ -244,7 +240,7 @@
 
       .logo svg {
         display: block;
-        height: 44px;
+        height: 50px;
         width: auto;
       }
 
@@ -1687,7 +1683,7 @@
     <header>
       <div class="logo">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
-             height="44" style="display:block;width:auto;" aria-label="Kronroe">
+             height="50" style="display:block;width:auto;" aria-label="Kronroe">
           <!-- Valid timeline (solid rail) -->
           <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
           <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
