@@ -255,6 +255,33 @@
         border: 1px solid rgba(180, 92, 252, 0.30);
         color: #C8A0FC;
         flex-shrink: 0;
+        position: relative;
+        cursor: default;
+      }
+      .badge::after {
+        content: 'Engine compiled to WebAssembly — runs in-browser, no server';
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%) translateY(4px);
+        white-space: nowrap;
+        font-family: var(--body);
+        font-size: 0.68rem;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: #fff;
+        background: var(--espresso);
+        padding: 0.35rem 0.65rem;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s, transform 0.15s;
+        z-index: 200;
+      }
+      .badge:hover::after {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
       }
 
       .header-nav {
@@ -266,12 +293,26 @@
         font-weight: var(--w-label);
       }
 
-      .header-nav a {
+      .header-nav a:not(.nav-icon) {
         color: rgba(255, 255, 255, 0.55);
         text-decoration: none;
         transition: color 0.12s;
+        position: relative;
       }
-      .header-nav a:hover { color: #fff; }
+      .header-nav a:not(.nav-icon)::after {
+        content: '';
+        position: absolute;
+        bottom: -3px;
+        left: 0;
+        width: 100%;
+        height: 1.5px;
+        background: var(--violet);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .header-nav a:not(.nav-icon):hover { color: #fff; }
+      .header-nav a:not(.nav-icon):hover::after { transform: scaleX(1); }
       .header-nav a:focus-visible {
         outline: 2px solid var(--violet);
         outline-offset: 3px;
@@ -2545,7 +2586,7 @@
       <div class="footer-inner">
         <div class="footer-left">
           <span>Kronroe</span><span class="sep">·</span>
-          <span class="version-badge">v0.3.1</span><span class="sep">·</span>
+          <span class="version-badge">v0.3.0</span><span class="sep">·</span>
           <span class="footer-licence">Free for open source. <a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank" rel="noopener noreferrer">Commercial licence</a> available. <a href="mailto:hi@kronroe.dev" class="footer-email">hi@kronroe.dev</a></span>
         </div>
         <div class="footer-right">

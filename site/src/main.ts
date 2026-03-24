@@ -229,6 +229,15 @@ async function init() {
   const loading     = document.getElementById("loading")!;
   const loadingText = loading.querySelector(".loading-label")!;
 
+  // Timeout: if WASM hasn't loaded after 10s, show fallback message
+  // and dismiss the splash so the rest of the site is usable.
+  const loadTimeout = setTimeout(() => {
+    if (!loading.classList.contains('hidden')) {
+      loadingText.textContent = "WASM engine is taking a while — try refreshing, or scroll down to explore.";
+      setTimeout(() => loading.classList.add('hidden'), 3000);
+    }
+  }, 10000);
+
   let wasm: WasmModule;
   try {
     const wasmImport = (await import("../public/pkg/kronroe_wasm.js")) as unknown as
@@ -237,8 +246,11 @@ async function init() {
     await wasmImport.default?.({
       module_or_path: new URL("../public/pkg/kronroe_wasm_bg.wasm", import.meta.url),
     });
+    clearTimeout(loadTimeout);
   } catch (e) {
+    clearTimeout(loadTimeout);
     loadingText.textContent = "Failed to load WASM — try refreshing.";
+    setTimeout(() => loading.classList.add('hidden'), 3000);
     console.error(e);
     return;
   }
