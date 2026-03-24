@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-03-24
+
+- Bumped workspace to `0.3.1` — patch release so published crates include `thiserror ^2` (0.3.0 was published before the bump was pulled locally).
+- Updated `thiserror` 1 → 2 across workspace.
+- Published `kronroe-mcp` pip shim to PyPI.
+- Added `mcp-shim-publish.yml` workflow for trusted publishing of the pip shim.
+- Fixed site footer version badge.
+- Fixed esbuild vulnerability (GHSA-67mh-4wv8-2f99) via npm override in docs site.
+
 ## 2026-03-22
 
 - Bumped the workspace and published package metadata to `0.3.0`.
