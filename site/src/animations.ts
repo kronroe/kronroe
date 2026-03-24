@@ -22,6 +22,53 @@ const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)
   onScroll();
 })();
 
+// ── Hero entrance — fact assertion sequence ──────────────────────────────────
+// Each element appears in order, mimicking facts being asserted into the database.
+// Plays once on load. Reduced-motion: everything visible immediately.
+(function () {
+  if (prefersReducedMotion) {
+    // Show everything immediately
+    document.querySelectorAll<HTMLElement>('.hero-word').forEach(el => el.classList.add('hero-word--visible'));
+    document.querySelectorAll<HTMLElement>('.hero-fact').forEach(el => el.classList.add('hero-fact--visible'));
+    document.querySelector('.hero-sweep')?.classList.add('hero-sweep--visible');
+    document.querySelector('.hero-install')?.classList.add('hero-el--visible');
+    document.querySelector('.hero-cta')?.classList.add('hero-el--visible');
+    const accent = document.querySelector('.temporal-accent');
+    if (accent) accent.classList.add('underline-drawn');
+    return;
+  }
+
+  const words = document.querySelectorAll<HTMLElement>('.hero-word');
+  const facts = document.querySelectorAll<HTMLElement>('.hero-fact');
+  const accent = document.querySelector('.temporal-accent');
+  const sweep = document.querySelector('.hero-sweep');
+  const install = document.querySelector('.hero-install');
+  const cta = document.querySelector('.hero-cta');
+
+  // Sequence timings (ms from page load)
+  // Bi- (0) → temporal (300) → underline draws (400) → AI memory. (800)
+  // → No cloud. (1100) → No server. (1300) → No data risk. (1500)
+  // → sweep (1700) → install (1900) → cta (2050)
+
+  const schedule: [Element | null, string, number][] = [
+    [words[0] ?? null, 'hero-word--visible', 0],       // "Bi-"
+    [words[1] ?? null, 'hero-word--visible', 300],      // "temporal"
+    [accent, 'underline-drawn', 400],                   // underline draws
+    [words[2] ?? null, 'hero-word--visible', 800],      // "AI memory."
+    [facts[0] ?? null, 'hero-fact--visible', 1100],     // "No cloud."
+    [facts[1] ?? null, 'hero-fact--visible', 1300],     // "No server."
+    [facts[2] ?? null, 'hero-fact--visible', 1500],     // "No data risk."
+    [sweep, 'hero-sweep--visible', 1700],               // sweep paragraph
+    [install, 'hero-el--visible', 1900],                // install commands
+    [cta, 'hero-el--visible', 2050],                    // CTA buttons
+  ];
+
+  for (const [el, cls, delay] of schedule) {
+    if (!el) continue;
+    setTimeout(() => el.classList.add(cls), delay);
+  }
+})();
+
 // ── Scroll reveals ────────────────────────────────────────────────────────────
 (function () {
   const items = document.querySelectorAll<HTMLElement>('.reveal-on-scroll');

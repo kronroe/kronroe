@@ -366,7 +366,67 @@
         text-align: center;
       }
 
-      .temporal-accent { color: var(--violet); text-decoration: underline; text-decoration-color: var(--violet); text-underline-offset: 3px; text-decoration-thickness: 2px; }
+      .temporal-accent {
+        color: var(--violet);
+        position: relative;
+        text-decoration: none;
+      }
+      .temporal-accent::before {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: var(--violet);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .temporal-accent.underline-drawn::before {
+        transform: scaleX(1);
+      }
+
+      /* ── Hero entrance — fact assertion sequence ── */
+      .animations-ready .hero-word {
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .hero-word.hero-word--visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .animations-ready .hero-fact {
+        opacity: 0;
+        transform: translateY(6px);
+        display: inline-block;
+        transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .hero-fact.hero-fact--visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .animations-ready .hero-sweep {
+        opacity: 0;
+        transform: translateY(10px);
+        transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0s, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0s;
+      }
+      .hero-sweep.hero-sweep--visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .animations-ready .hero-install,
+      .animations-ready .hero-cta {
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .hero-install.hero-el--visible,
+      .hero-cta.hero-el--visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
       .temporal-shiny {
         position: relative;
         display: inline-block; /* required: inline-block creates block formatting context so overflow:hidden clips ::after */
@@ -815,7 +875,7 @@
         background: var(--violet);
         border-color: var(--violet);
         color: #fff;
-        box-shadow: 0 0 0 4px var(--bg), 0 0 12px rgba(124, 92, 252, 0.4);
+        box-shadow: 0 0 0 6px var(--bg), 0 0 12px rgba(124, 92, 252, 0.4);
       }
       .step-body {
         background: var(--surface);
@@ -1768,10 +1828,10 @@
         </a>
 
         <!-- 2. Headline -->
-        <h1>Bi-<span class="temporal-accent temporal-shiny">temporal</span> AI memory.</h1>
+        <h1><span class="hero-word">Bi-</span><span class="temporal-accent temporal-shiny hero-word">temporal</span><span class="hero-word"> AI memory.</span></h1>
 
-        <!-- 3. Handwritten line -->
-        <span class="hero-handwritten">No cloud. No server. No data risk.</span>
+        <!-- 3. Handwritten line — each sentence is a fact assertion -->
+        <span class="hero-handwritten"><span class="hero-fact">No cloud.</span> <span class="hero-fact">No server.</span> <span class="hero-fact">No data risk.</span></span>
 
         <!-- 4. Capabilities sweep -->
         <p class="hero-sweep">
@@ -2367,7 +2427,7 @@
       <div class="footer-inner">
         <div class="footer-left">
           <span>Kronroe</span><span class="sep">·</span>
-          <span class="version-badge">v0.3.1</span><span class="sep">·</span>
+          <span class="version-badge">v0.3.0</span><span class="sep">·</span>
           <span class="footer-licence">Free for open source. <a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank" rel="noopener noreferrer">Commercial licence</a> available. <a href="mailto:hi@kronroe.dev" class="footer-email">hi@kronroe.dev</a></span>
         </div>
         <div class="footer-right">
