@@ -69,6 +69,100 @@ const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)
   }
 })();
 
+// ── Cursor-reactive graph particles ──────────────────────────────────────────
+// Ambient SVG nodes drift subtly away from the cursor, like the database
+// humming in the background. Spring easing for smooth return to rest.
+(function () {
+  if (prefersReducedMotion) return;
+  const hero = document.querySelector<HTMLElement>('.hero');
+  const svg = hero?.querySelector<SVGSVGElement>('.graph-bg svg');
+  if (!hero || !svg) return;
+
+  const nodes = svg.querySelectorAll<SVGGElement>('.graph-node');
+  if (!nodes.length) return;
+
+  // Pre-compute rest positions from data attributes
+  const state = Array.from(nodes).map(g => ({
+    el: g,
+    cx: parseFloat(g.dataset.cx || '0'),
+    cy: parseFloat(g.dataset.cy || '0'),
+    dx: 0, dy: 0,          // current displacement
+    vx: 0, vy: 0,          // velocity for spring
+  }));
+
+  const MAX_DRIFT = 12;    // max px displacement in SVG coords
+  const REPEL_RADIUS = 250; // influence radius in SVG coords
+  const SPRING = 0.06;     // spring constant (return to rest)
+  const DAMPING = 0.75;    // velocity damping
+
+  let mouseX = -9999, mouseY = -9999;
+  let animating = false;
+
+  hero.addEventListener('mousemove', (e: MouseEvent) => {
+    // Convert page coords to SVG viewBox coords
+    const rect = svg.getBoundingClientRect();
+    const scaleX = 1280 / rect.width;
+    const scaleY = 900 / rect.height;
+    mouseX = (e.clientX - rect.left) * scaleX;
+    mouseY = (e.clientY - rect.top) * scaleY;
+    if (!animating) { animating = true; tick(); }
+  });
+
+  hero.addEventListener('mouseleave', () => {
+    mouseX = -9999; mouseY = -9999;
+  });
+
+  function tick() {
+    let moving = false;
+    for (const n of state) {
+      // Repulsion from cursor
+      const ddx = n.cx - mouseX;
+      const ddy = n.cy - mouseY;
+      const dist = Math.sqrt(ddx * ddx + ddy * ddy) + 1;
+
+      let fx = 0, fy = 0;
+      if (dist < REPEL_RADIUS) {
+        const strength = (1 - dist / REPEL_RADIUS) * MAX_DRIFT * 0.3;
+        fx = (ddx / dist) * strength;
+        fy = (ddy / dist) * strength;
+      }
+
+      // Spring back to rest
+      fx -= SPRING * n.dx;
+      fy -= SPRING * n.dy;
+
+      n.vx = (n.vx + fx) * DAMPING;
+      n.vy = (n.vy + fy) * DAMPING;
+      n.dx += n.vx;
+      n.dy += n.vy;
+
+      // Clamp
+      const mag = Math.sqrt(n.dx * n.dx + n.dy * n.dy);
+      if (mag > MAX_DRIFT) {
+        n.dx = (n.dx / mag) * MAX_DRIFT;
+        n.dy = (n.dy / mag) * MAX_DRIFT;
+      }
+
+      n.el.setAttribute('transform', `translate(${n.dx.toFixed(1)},${n.dy.toFixed(1)})`);
+
+      if (Math.abs(n.vx) > 0.01 || Math.abs(n.vy) > 0.01 || Math.abs(n.dx) > 0.1 || Math.abs(n.dy) > 0.1) {
+        moving = true;
+      }
+    }
+
+    if (moving) {
+      requestAnimationFrame(tick);
+    } else {
+      animating = false;
+      // Snap to rest
+      for (const n of state) {
+        n.dx = 0; n.dy = 0; n.vx = 0; n.vy = 0;
+        n.el.removeAttribute('transform');
+      }
+    }
+  }
+})();
+
 // ── Scroll reveals ────────────────────────────────────────────────────────────
 (function () {
   const items = document.querySelectorAll<HTMLElement>('.reveal-on-scroll');
