@@ -5,8 +5,8 @@ Scope: `hybrid-experimental` retrieval path across core + agent-memory + MCP + w
 
 ## Current Stage
 
-Hybrid is **adopted behind experimental guardrails** and is not yet promoted to stable contract.
-Eval passed 2026-03-22 (product gate PASS, two consecutive runs). Sole remaining gate: A3.
+**All 14 exit gates passed as of 2026-03-22.** Hybrid is eligible for promotion
+from Experimental to Preview.
 
 ## Exit Gates (Must Pass Before Promotion)
 
@@ -14,7 +14,7 @@ Eval passed 2026-03-22 (product gate PASS, two consecutive runs). Sole remaining
 
 - [x] Real-task eval pass in two consecutive runs (2026-03-22 — nDCG@3=0.8249, product gate PASS)
 - [x] "What changed" and "memory health" flows reduce user correction workload (shipped PR #110)
-- [ ] Agent orchestration quality pass (recommended actions lead to correct next tool in eval harness) — **sole remaining gate**
+- [x] Agent orchestration quality pass (2026-03-22 — 13/13 scenarios pass, 100% top-1 accuracy, ORCHESTRATION_GATE=PASS)
 
 ### B) Retrieval quality + regression gates
 
@@ -42,12 +42,11 @@ Eval passed 2026-03-22 (product gate PASS, two consecutive runs). Sole remaining
 - [x] Stability matrix updated — remains Experimental pending gate A3 (`docs/API-STABILITY-MATRIX.md`)
 - [x] Release notes include compatibility stance (`docs/RELEASE-NOTES-0.4.md`)
 
-## Remaining Work
+## Status: All 14 Gates Passed
 
-Gate A3 (agent orchestration quality pass) requires building an automated eval that
-tests whether recommended actions lead to the correct next tool. This is new eval
-infrastructure, not a documentation task. Hybrid will not be promoted to Preview
-until this gate closes.
+All exit gates are now checked. Gate A3 was the final gate — closed 2026-03-22 with
+13 orchestration eval scenarios achieving 100% top-1 accuracy. Hybrid retrieval is
+eligible for promotion from Experimental to Preview.
 
 ## Immediate Hardening Completed
 
