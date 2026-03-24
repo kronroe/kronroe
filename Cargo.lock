@@ -267,7 +267,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "getrandom 0.3.4",
  "js-sys",
@@ -280,7 +280,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe-agent-memory"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "kronroe",
@@ -292,7 +292,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe-android"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "jni",
  "kronroe",
@@ -302,7 +302,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe-ios"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "kronroe",
  "serde_json",
@@ -310,7 +310,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe-mcp"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "kronroe",
@@ -322,7 +322,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe-py"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "kronroe",
  "kronroe-agent-memory",
@@ -333,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "kronroe-wasm"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "getrandom 0.2.17",
  "getrandom 0.3.4",
