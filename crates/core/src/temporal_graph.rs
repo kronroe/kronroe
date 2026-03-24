@@ -28,6 +28,7 @@
 //! let facts_then = db.facts_at("alice", "works_at", past).unwrap();
 //! ```
 
+mod error;
 mod fact_id;
 mod kronroe_time;
 #[cfg(feature = "fulltext")]
@@ -57,6 +58,7 @@ mod uncertainty;
 #[cfg(feature = "uncertainty")]
 pub use uncertainty::{EffectiveConfidence, PredicateVolatility, SourceWeight};
 
+pub use error::{ErrorCode, ErrorContext, KronroeError};
 pub use fact_id::{FactId, FactIdParseError};
 pub use kronroe_time::{
     default_clock, FixedClock, KronroeClock, KronroeSpan, KronroeTimestamp, SystemClock,
@@ -70,37 +72,6 @@ use std::cmp::Ordering;
 ))]
 use std::collections::HashMap;
 use storage::{KronroeStorage, SCHEMA_VERSION};
-
-// ---------------------------------------------------------------------------
-// Error types
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, thiserror::Error)]
-pub enum KronroeError {
-    #[error("storage error: {0}")]
-    Storage(String),
-    #[error("serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
-    #[error("not found: {0}")]
-    NotFound(String),
-    #[error("search error: {0}")]
-    Search(String),
-    #[error("invalid fact id: {0}")]
-    InvalidFactId(String),
-    #[error("invalid embedding: {0}")]
-    InvalidEmbedding(String),
-    #[error("internal error: {0}")]
-    Internal(String),
-    #[cfg(feature = "contradiction")]
-    #[error("fact rejected: contradiction(s) detected")]
-    ContradictionRejected(Vec<contradiction::Contradiction>),
-    #[error(
-        "schema version mismatch: file has version {found}, \
-         this build expects version {expected}; \
-         see https://github.com/kronroe/kronroe for migration guidance"
-    )]
-    SchemaMismatch { found: u64, expected: u64 },
-}
 
 pub type Result<T> = std::result::Result<T, KronroeError>;
 
@@ -317,12 +288,7 @@ impl TemporalGraph {
         let stored_version = storage.initialize_schema()?;
         match stored_version {
             v if v == SCHEMA_VERSION => {}
-            found => {
-                return Err(KronroeError::SchemaMismatch {
-                    found,
-                    expected: SCHEMA_VERSION,
-                })
-            }
+            found => return Err(KronroeError::schema_mismatch(found, SCHEMA_VERSION)),
         }
         #[cfg(feature = "vector")]
         let vector_index = {
@@ -338,7 +304,7 @@ impl TemporalGraph {
                     contradiction::ConflictPolicy,
                 )>(&encoded)
                 .map_err(|e| {
-                    KronroeError::Storage(format!(
+                    KronroeError::storage(format!(
                         "invalid predicate registry entry for '{}': {e}",
                         predicate
                     ))
@@ -353,7 +319,7 @@ impl TemporalGraph {
             for (predicate, encoded) in storage.load_volatility_registry_entries()? {
                 let vol: uncertainty::PredicateVolatility = serde_json::from_str(&encoded)
                     .map_err(|e| {
-                        KronroeError::Storage(format!(
+                        KronroeError::storage(format!(
                             "invalid volatility registry entry for predicate '{}': {e}",
                             predicate
                         ))
@@ -363,7 +329,7 @@ impl TemporalGraph {
             for (source, encoded) in storage.load_source_weight_registry_entries()? {
                 let sw: uncertainty::SourceWeight =
                     serde_json::from_str(&encoded).map_err(|e| {
-                        KronroeError::Storage(format!(
+                        KronroeError::storage(format!(
                             "invalid source-weight registry entry for source '{}': {e}",
                             source
                         ))
@@ -410,8 +376,8 @@ impl TemporalGraph {
         let confidence = if confidence.is_finite() {
             confidence.clamp(0.0, 1.0)
         } else {
-            return Err(KronroeError::Search(
-                "confidence must be finite and in [0.0, 1.0], got non-finite value".into(),
+            return Err(KronroeError::search(
+                "confidence must be finite and in [0.0, 1.0], got non-finite value",
             ));
         };
 
@@ -424,7 +390,7 @@ impl TemporalGraph {
     }
 
     fn resolve_fact_id_input(&self, fact_id: &str) -> Result<FactId> {
-        FactId::parse(fact_id).map_err(|_| KronroeError::InvalidFactId(fact_id.to_string()))
+        FactId::parse(fact_id).map_err(|_| KronroeError::invalid_fact_id(fact_id.to_string()))
     }
 
     /// Assert a new fact and return its [`FactId`].
@@ -580,7 +546,7 @@ impl TemporalGraph {
         #[cfg(not(feature = "fulltext"))]
         {
             let _ = (query, limit);
-            Err(KronroeError::Search(
+            Err(KronroeError::search(
                 "fulltext feature is disabled for this build".to_string(),
             ))
         }
@@ -643,7 +609,7 @@ impl TemporalGraph {
                 self.storage.replace_fact_row(&row.key, &fact)?;
                 Ok(())
             }
-            _ => Err(KronroeError::NotFound(format!(
+            _ => Err(KronroeError::not_found(format!(
                 "fact id {}",
                 fact_id.as_str()
             ))),
@@ -658,7 +624,7 @@ impl TemporalGraph {
         self.storage
             .fact_by_id(&fact_id)?
             .map(|row| row.fact)
-            .ok_or_else(|| KronroeError::NotFound(format!("fact id {}", fact_id.as_str())))
+            .ok_or_else(|| KronroeError::not_found(format!("fact id {}", fact_id.as_str())))
     }
 
     /// Correct a fact by id while preserving history.
@@ -705,7 +671,7 @@ impl TemporalGraph {
         let mut det = self
             .contradiction_detector
             .lock()
-            .map_err(|e| KronroeError::Internal(e.to_string()))?;
+            .map_err(|e| KronroeError::internal(e.to_string()))?;
         det.register(predicate, cardinality, policy);
         Ok(())
     }
@@ -716,7 +682,7 @@ impl TemporalGraph {
         let det = self
             .contradiction_detector
             .lock()
-            .map_err(|e| KronroeError::Internal(e.to_string()))?;
+            .map_err(|e| KronroeError::internal(e.to_string()))?;
         Ok(det.is_singleton(predicate))
     }
 
@@ -726,7 +692,7 @@ impl TemporalGraph {
         let det = self
             .contradiction_detector
             .lock()
-            .map_err(|e| KronroeError::Internal(e.to_string()))?;
+            .map_err(|e| KronroeError::internal(e.to_string()))?;
         Ok(det.singleton_predicates().map(String::from).collect())
     }
 
@@ -747,7 +713,7 @@ impl TemporalGraph {
             let det = self
                 .contradiction_detector
                 .lock()
-                .map_err(|e| KronroeError::Internal(e.to_string()))?;
+                .map_err(|e| KronroeError::internal(e.to_string()))?;
             det.is_singleton(predicate)
         };
         if !is_singleton {
@@ -777,7 +743,7 @@ impl TemporalGraph {
         let det = self
             .contradiction_detector
             .lock()
-            .map_err(|e| KronroeError::Internal(e.to_string()))?;
+            .map_err(|e| KronroeError::internal(e.to_string()))?;
 
         let singleton_preds: Vec<String> = det.singleton_predicates().map(String::from).collect();
         drop(det); // Release lock before scan.
@@ -852,7 +818,7 @@ impl TemporalGraph {
         let det = self
             .contradiction_detector
             .lock()
-            .map_err(|e| KronroeError::Internal(e.to_string()))?;
+            .map_err(|e| KronroeError::internal(e.to_string()))?;
         let policy = det.policy_for(predicate);
         let is_singleton = det.is_singleton(predicate);
         drop(det); // Release detector lock before I/O.
@@ -874,7 +840,7 @@ impl TemporalGraph {
                 let det = self
                     .contradiction_detector
                     .lock()
-                    .map_err(|e| KronroeError::Internal(e.to_string()))?;
+                    .map_err(|e| KronroeError::internal(e.to_string()))?;
                 Ok(det.check_against(&fact, existing))
             },
         )?;
@@ -915,8 +881,8 @@ impl TemporalGraph {
         embedding: Vec<f32>,
     ) -> Result<FactId> {
         if embedding.is_empty() {
-            return Err(KronroeError::InvalidEmbedding(
-                "embedding must not be empty".into(),
+            return Err(KronroeError::invalid_embedding(
+                "embedding must not be empty",
             ));
         }
 
@@ -929,7 +895,7 @@ impl TemporalGraph {
         // correctly from storage on the next open().
         self.vector_index
             .lock()
-            .map_err(|_| KronroeError::Internal("vector index lock poisoned".into()))?
+            .map_err(|_| KronroeError::internal("vector index lock poisoned"))?
             .insert(fact_id.clone(), embedding)?;
 
         Ok(fact_id)
@@ -967,10 +933,10 @@ impl TemporalGraph {
             let idx = self
                 .vector_index
                 .lock()
-                .map_err(|_| KronroeError::Internal("vector index lock poisoned".into()))?;
+                .map_err(|_| KronroeError::internal("vector index lock poisoned"))?;
             if let Some(d) = idx.dim() {
                 if query.len() != d {
-                    return Err(KronroeError::InvalidEmbedding(format!(
+                    return Err(KronroeError::invalid_embedding(format!(
                         "query dimension mismatch: index has dim {d}, query has {}",
                         query.len()
                     )));
@@ -994,7 +960,7 @@ impl TemporalGraph {
         let hits = self
             .vector_index
             .lock()
-            .map_err(|_| KronroeError::Internal("vector index lock poisoned".into()))?
+            .map_err(|_| KronroeError::internal("vector index lock poisoned"))?
             .search(query, k, &valid_ids);
 
         let results = hits
@@ -1069,27 +1035,27 @@ impl TemporalGraph {
     ) -> Result<Vec<(Fact, HybridScoreBreakdown)>> {
         // ── Validation ──────────────────────────────────────────────────
         if params.k == 0 {
-            return Err(KronroeError::Search(
+            return Err(KronroeError::search(
                 "search_hybrid: `k` must be >= 1".to_string(),
             ));
         }
         if params.candidate_window == 0 {
-            return Err(KronroeError::Search(
+            return Err(KronroeError::search(
                 "search_hybrid: `candidate_window` must be >= 1".to_string(),
             ));
         }
         if params.rank_constant < 1 {
-            return Err(KronroeError::Search(
+            return Err(KronroeError::search(
                 "search_hybrid: `rank_constant` must be >= 1".to_string(),
             ));
         }
         if params.text_weight < 0.0 || params.vector_weight < 0.0 {
-            return Err(KronroeError::Search(
+            return Err(KronroeError::search(
                 "search_hybrid: weights must be non-negative".to_string(),
             ));
         }
         if params.text_weight == 0.0 && params.vector_weight == 0.0 {
-            return Err(KronroeError::Search(
+            return Err(KronroeError::search(
                 "search_hybrid: at least one of `text_weight` or `vector_weight` must be > 0"
                     .to_string(),
             ));
@@ -1151,7 +1117,7 @@ impl TemporalGraph {
             let engine = self
                 .uncertainty_engine
                 .lock()
-                .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+                .map_err(|_| KronroeError::internal("uncertainty engine lock poisoned"))?;
             hybrid::rerank_two_stage_with_uncertainty(
                 resolved,
                 params.k,
@@ -1238,7 +1204,7 @@ impl TemporalGraph {
         let mut engine = self
             .uncertainty_engine
             .lock()
-            .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+            .map_err(|_| KronroeError::internal("uncertainty engine lock poisoned"))?;
         engine.register_volatility(predicate, volatility);
         Ok(())
     }
@@ -1252,7 +1218,7 @@ impl TemporalGraph {
         let engine = self
             .uncertainty_engine
             .lock()
-            .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+            .map_err(|_| KronroeError::internal("uncertainty engine lock poisoned"))?;
         Ok(engine.volatility_for(predicate).cloned())
     }
 
@@ -1274,7 +1240,7 @@ impl TemporalGraph {
         let mut engine = self
             .uncertainty_engine
             .lock()
-            .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+            .map_err(|_| KronroeError::internal("uncertainty engine lock poisoned"))?;
         engine.register_source_weight(source, weight);
         Ok(())
     }
@@ -1285,7 +1251,7 @@ impl TemporalGraph {
         let engine = self
             .uncertainty_engine
             .lock()
-            .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+            .map_err(|_| KronroeError::internal("uncertainty engine lock poisoned"))?;
         Ok(engine.source_weight_for(source).cloned())
     }
 
@@ -1304,7 +1270,7 @@ impl TemporalGraph {
         let engine = self
             .uncertainty_engine
             .lock()
-            .map_err(|_| KronroeError::Internal("uncertainty engine lock poisoned".into()))?;
+            .map_err(|_| KronroeError::internal("uncertainty engine lock poisoned"))?;
         Ok(engine.effective_confidence(fact, at))
     }
 }
@@ -1694,7 +1660,7 @@ mod tests {
         };
         let result = db.search_hybrid("Rust", &[1.0, 0.0], bad, None);
         assert!(
-            matches!(result, Err(KronroeError::Search(_))),
+            result.as_ref().is_err_and(|e| e.is_search()),
             "rank_constant=0 should return a validation error"
         );
     }
@@ -2031,7 +1997,7 @@ mod tests {
             vec![],
         );
         assert!(
-            matches!(result, Err(KronroeError::InvalidEmbedding(_))),
+            result.as_ref().is_err_and(|e| e.is_invalid_embedding()),
             "empty embedding must return InvalidEmbedding, not panic"
         );
     }
@@ -2050,7 +2016,7 @@ mod tests {
         let result =
             db.assert_fact_with_embedding("alice", "interest", "Python", now, vec![0.0, 1.0]);
         assert!(
-            matches!(result, Err(KronroeError::InvalidEmbedding(_))),
+            result.as_ref().is_err_and(|e| e.is_invalid_embedding()),
             "dim mismatch must return InvalidEmbedding, not panic"
         );
 
@@ -2073,7 +2039,7 @@ mod tests {
         // Query with dim=2 must return Err, not silently score 0.0.
         let result = db.search_by_vector(&[1.0, 0.0], 5, None);
         assert!(
-            matches!(result, Err(KronroeError::InvalidEmbedding(_))),
+            result.as_ref().is_err_and(|e| e.is_invalid_embedding()),
             "wrong query dimension must return InvalidEmbedding"
         );
     }
@@ -2117,10 +2083,7 @@ mod tests {
             "invalidating a nonexistent fact should fail"
         );
         let err = result.unwrap_err();
-        assert!(
-            matches!(err, KronroeError::NotFound(_)),
-            "error should be NotFound, got: {err:?}"
-        );
+        assert!(err.is_not_found(), "error should be NotFound, got: {err:?}");
     }
 
     #[test]
@@ -2226,10 +2189,9 @@ mod tests {
         let result =
             db.assert_fact_checked("alice", "lives_in", "Paris", KronroeTimestamp::now_utc());
         assert!(result.is_err(), "should be rejected");
-        assert!(matches!(
-            result.unwrap_err(),
-            KronroeError::ContradictionRejected(ref cs) if cs.len() == 1
-        ));
+        let err = result.unwrap_err();
+        assert!(err.is_contradiction_rejected());
+        assert_eq!(err.contradictions().unwrap().len(), 1);
 
         // Verify the fact was NOT stored.
         let facts = db.current_facts("alice", "lives_in").unwrap();
@@ -2306,9 +2268,10 @@ mod tests {
         for confidence in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
             let err = db.assert_fact_with_confidence("alice", "works_at", "Acme", now, confidence);
             match err {
-                Err(KronroeError::Search(msg)) => assert!(
-                    msg.contains("non-finite"),
-                    "unexpected search message for {confidence:?}: {msg}"
+                Err(ref e) if e.is_search() => assert!(
+                    e.message().contains("non-finite"),
+                    "unexpected search message for {confidence:?}: {}",
+                    e.message()
                 ),
                 _ => panic!("expected search error for confidence={confidence:?}"),
             }
@@ -2487,8 +2450,8 @@ mod tests {
         }
 
         match TemporalGraph::open(&path) {
-            Err(KronroeError::Storage(msg)) => {
-                assert!(msg.contains("invalid volatility registry"));
+            Err(ref err) if err.is_storage() => {
+                assert!(err.message().contains("invalid volatility registry"));
             }
             Err(err) => {
                 panic!("expected Storage error for corrupted volatility registry, got {err:?}")
@@ -2510,8 +2473,8 @@ mod tests {
         }
 
         match TemporalGraph::open(&path) {
-            Err(KronroeError::Storage(msg)) => {
-                assert!(msg.contains("invalid source-weight registry"));
+            Err(ref err) if err.is_storage() => {
+                assert!(err.message().contains("invalid source-weight registry"));
             }
             Err(err) => {
                 panic!("expected Storage error for corrupted source-weight registry, got {err:?}")
@@ -2533,8 +2496,8 @@ mod tests {
         }
 
         match TemporalGraph::open(&path) {
-            Err(KronroeError::Storage(msg)) => {
-                assert!(msg.contains("invalid predicate registry"));
+            Err(ref err) if err.is_storage() => {
+                assert!(err.message().contains("invalid predicate registry"));
             }
             Err(err) => {
                 panic!("expected Storage error for corrupted predicate registry, got {err:?}")
@@ -2733,8 +2696,8 @@ mod tests {
         insert_bytes_after_nth_newline(&path, 0, b"not-json\n");
 
         match TemporalGraph::open(&path) {
-            Err(KronroeError::Storage(message)) => {
-                assert!(message.contains("append-log corruption"));
+            Err(ref err) if err.is_storage() => {
+                assert!(err.message().contains("append-log corruption"));
             }
             Err(error) => panic!("expected storage corruption error, got {error:?}"),
             Ok(_) => panic!("expected mid-file corruption to fail reopen"),
@@ -2752,8 +2715,8 @@ mod tests {
         .unwrap();
 
         match TemporalGraph::open(&path) {
-            Err(KronroeError::Storage(message)) => {
-                assert!(message.contains("storage backend mismatch"));
+            Err(ref err) if err.is_storage() => {
+                assert!(err.message().contains("storage backend mismatch"));
             }
             Err(error) => panic!("expected backend mismatch, got {error:?}"),
             Ok(_) => panic!("expected wrong header to fail reopen"),
@@ -2771,7 +2734,8 @@ mod tests {
         .unwrap();
 
         match TemporalGraph::open(&path) {
-            Err(KronroeError::SchemaMismatch { found, expected }) => {
+            Err(ref err) if err.is_schema_mismatch() => {
+                let (found, expected) = err.schema_versions().unwrap();
                 assert_eq!(found, 999);
                 assert_eq!(expected, SCHEMA_VERSION);
             }
@@ -2973,8 +2937,8 @@ mod tests {
         let db = TemporalGraph::open(&path).unwrap();
 
         match TemporalGraph::open(&path) {
-            Err(KronroeError::Storage(message)) => {
-                assert!(message.contains("already open for write"));
+            Err(ref err) if err.is_storage() => {
+                assert!(err.message().contains("already open for write"));
             }
             Err(error) => panic!("expected single-writer lock error, got {error:?}"),
             Ok(_) => panic!("expected second writer open to fail"),

@@ -35,9 +35,9 @@ impl KronroeTimestamp {
     }
 
     pub fn from_unix_millis(unix_millis: i64) -> Result<Self> {
-        let unix_micros = unix_millis.checked_mul(MICROS_PER_MILLI).ok_or_else(|| {
-            KronroeError::Internal("timestamp overflows microsecond range".into())
-        })?;
+        let unix_micros = unix_millis
+            .checked_mul(MICROS_PER_MILLI)
+            .ok_or_else(|| KronroeError::internal("timestamp overflows microsecond range"))?;
         Self::from_unix_micros(unix_micros)
     }
 
@@ -84,15 +84,11 @@ impl KronroeTimestamp {
             .and_then(|v| v.checked_add((minute as i64) * MICROS_PER_MINUTE))
             .and_then(|v| v.checked_add((second as i64) * MICROS_PER_SECOND))
             .and_then(|v| v.checked_add(micros as i64))
-            .ok_or_else(|| {
-                KronroeError::Internal("timestamp overflows microsecond range".into())
-            })?;
+            .ok_or_else(|| KronroeError::internal("timestamp overflows microsecond range"))?;
         let unix_micros = days
             .checked_mul(MICROS_PER_DAY)
             .and_then(|v| v.checked_add(day_micros))
-            .ok_or_else(|| {
-                KronroeError::Internal("timestamp overflows microsecond range".into())
-            })?;
+            .ok_or_else(|| KronroeError::internal("timestamp overflows microsecond range"))?;
         Ok(Self { unix_micros })
     }
 }
@@ -174,14 +170,14 @@ impl KronroeSpan {
         self.micros
             .checked_add(rhs.micros)
             .map(Self::microseconds)
-            .ok_or_else(|| KronroeError::Internal("timespan overflow".into()))
+            .ok_or_else(|| KronroeError::internal("timespan overflow"))
     }
 
     pub fn checked_sub(self, rhs: Self) -> Result<Self> {
         self.micros
             .checked_sub(rhs.micros)
             .map(Self::microseconds)
-            .ok_or_else(|| KronroeError::Internal("timespan overflow".into()))
+            .ok_or_else(|| KronroeError::internal("timespan overflow"))
     }
 
     pub fn as_micros(self) -> i64 {
@@ -299,7 +295,7 @@ pub fn default_clock() -> SystemClock {
 fn parse_rfc3339_timestamp(input: &str) -> Result<KronroeTimestamp> {
     let date_time_sep = input
         .find('T')
-        .ok_or_else(|| KronroeError::Internal(format!("invalid RFC3339 timestamp: {input}")))?;
+        .ok_or_else(|| KronroeError::internal(format!("invalid RFC3339 timestamp: {input}")))?;
     let (date, rest) = input.split_at(date_time_sep);
     let rest = &rest[1..];
 
@@ -310,10 +306,10 @@ fn parse_rfc3339_timestamp(input: &str) -> Result<KronroeTimestamp> {
         let sign = offset
             .chars()
             .next()
-            .ok_or_else(|| KronroeError::Internal(format!("invalid RFC3339 timestamp: {input}")))?;
+            .ok_or_else(|| KronroeError::internal(format!("invalid RFC3339 timestamp: {input}")))?;
         (time, Some(sign), Some(&offset[1..]))
     } else {
-        return Err(KronroeError::Internal(format!(
+        return Err(KronroeError::internal(format!(
             "invalid RFC3339 timestamp: {input}"
         )));
     };
@@ -324,7 +320,7 @@ fn parse_rfc3339_timestamp(input: &str) -> Result<KronroeTimestamp> {
         (None, None) => 0,
         (Some(sign), Some(offset)) => parse_offset(sign, offset)?,
         _ => {
-            return Err(KronroeError::Internal(format!(
+            return Err(KronroeError::internal(format!(
                 "invalid RFC3339 timestamp: {input}"
             )))
         }
@@ -341,21 +337,21 @@ fn parse_date(date: &str) -> Result<(i32, u32, u32)> {
     let mut parts = date.split('-');
     let year = parts
         .next()
-        .ok_or_else(|| KronroeError::Internal(format!("invalid RFC3339 date: {date}")))?
+        .ok_or_else(|| KronroeError::internal(format!("invalid RFC3339 date: {date}")))?
         .parse::<i32>()
-        .map_err(|_| KronroeError::Internal(format!("invalid RFC3339 date: {date}")))?;
+        .map_err(|_| KronroeError::internal(format!("invalid RFC3339 date: {date}")))?;
     let month = parts
         .next()
-        .ok_or_else(|| KronroeError::Internal(format!("invalid RFC3339 date: {date}")))?
+        .ok_or_else(|| KronroeError::internal(format!("invalid RFC3339 date: {date}")))?
         .parse::<u32>()
-        .map_err(|_| KronroeError::Internal(format!("invalid RFC3339 date: {date}")))?;
+        .map_err(|_| KronroeError::internal(format!("invalid RFC3339 date: {date}")))?;
     let day = parts
         .next()
-        .ok_or_else(|| KronroeError::Internal(format!("invalid RFC3339 date: {date}")))?
+        .ok_or_else(|| KronroeError::internal(format!("invalid RFC3339 date: {date}")))?
         .parse::<u32>()
-        .map_err(|_| KronroeError::Internal(format!("invalid RFC3339 date: {date}")))?;
+        .map_err(|_| KronroeError::internal(format!("invalid RFC3339 date: {date}")))?;
     if parts.next().is_some() {
-        return Err(KronroeError::Internal(format!(
+        return Err(KronroeError::internal(format!(
             "invalid RFC3339 date: {date}"
         )));
     }
@@ -371,21 +367,21 @@ fn parse_time(time: &str) -> Result<(u32, u32, u32, u32)> {
     let mut parts = base.split(':');
     let hour = parts
         .next()
-        .ok_or_else(|| KronroeError::Internal(format!("invalid RFC3339 time: {time}")))?
+        .ok_or_else(|| KronroeError::internal(format!("invalid RFC3339 time: {time}")))?
         .parse::<u32>()
-        .map_err(|_| KronroeError::Internal(format!("invalid RFC3339 time: {time}")))?;
+        .map_err(|_| KronroeError::internal(format!("invalid RFC3339 time: {time}")))?;
     let minute = parts
         .next()
-        .ok_or_else(|| KronroeError::Internal(format!("invalid RFC3339 time: {time}")))?
+        .ok_or_else(|| KronroeError::internal(format!("invalid RFC3339 time: {time}")))?
         .parse::<u32>()
-        .map_err(|_| KronroeError::Internal(format!("invalid RFC3339 time: {time}")))?;
+        .map_err(|_| KronroeError::internal(format!("invalid RFC3339 time: {time}")))?;
     let second = parts
         .next()
-        .ok_or_else(|| KronroeError::Internal(format!("invalid RFC3339 time: {time}")))?
+        .ok_or_else(|| KronroeError::internal(format!("invalid RFC3339 time: {time}")))?
         .parse::<u32>()
-        .map_err(|_| KronroeError::Internal(format!("invalid RFC3339 time: {time}")))?;
+        .map_err(|_| KronroeError::internal(format!("invalid RFC3339 time: {time}")))?;
     if parts.next().is_some() {
-        return Err(KronroeError::Internal(format!(
+        return Err(KronroeError::internal(format!(
             "invalid RFC3339 time: {time}"
         )));
     }
@@ -394,14 +390,14 @@ fn parse_time(time: &str) -> Result<(u32, u32, u32, u32)> {
         None => 0,
         Some(raw) => {
             if raw.is_empty() || raw.len() > 6 || !raw.chars().all(|c| c.is_ascii_digit()) {
-                return Err(KronroeError::Internal(format!(
+                return Err(KronroeError::internal(format!(
                     "invalid RFC3339 fractional seconds: {time}"
                 )));
             }
             let padded = format!("{raw:0<6}");
             padded
                 .parse::<u32>()
-                .map_err(|_| KronroeError::Internal(format!("invalid RFC3339 time: {time}")))?
+                .map_err(|_| KronroeError::internal(format!("invalid RFC3339 time: {time}")))?
         }
     };
 
@@ -413,16 +409,16 @@ fn parse_offset(sign: char, offset: &str) -> Result<i64> {
     let mut parts = offset.split(':');
     let hours = parts
         .next()
-        .ok_or_else(|| KronroeError::Internal(format!("invalid RFC3339 offset: {offset}")))?
+        .ok_or_else(|| KronroeError::internal(format!("invalid RFC3339 offset: {offset}")))?
         .parse::<i64>()
-        .map_err(|_| KronroeError::Internal(format!("invalid RFC3339 offset: {offset}")))?;
+        .map_err(|_| KronroeError::internal(format!("invalid RFC3339 offset: {offset}")))?;
     let minutes = parts
         .next()
-        .ok_or_else(|| KronroeError::Internal(format!("invalid RFC3339 offset: {offset}")))?
+        .ok_or_else(|| KronroeError::internal(format!("invalid RFC3339 offset: {offset}")))?
         .parse::<i64>()
-        .map_err(|_| KronroeError::Internal(format!("invalid RFC3339 offset: {offset}")))?;
+        .map_err(|_| KronroeError::internal(format!("invalid RFC3339 offset: {offset}")))?;
     if parts.next().is_some() || hours > 23 || minutes > 59 {
-        return Err(KronroeError::Internal(format!(
+        return Err(KronroeError::internal(format!(
             "invalid RFC3339 offset: {offset}"
         )));
     }
@@ -430,7 +426,7 @@ fn parse_offset(sign: char, offset: &str) -> Result<i64> {
         '+' => 1_i64,
         '-' => -1_i64,
         _ => {
-            return Err(KronroeError::Internal(format!(
+            return Err(KronroeError::internal(format!(
                 "invalid RFC3339 offset sign: {sign}"
             )))
         }
@@ -440,13 +436,13 @@ fn parse_offset(sign: char, offset: &str) -> Result<i64> {
 
 fn validate_date(year: i32, month: u32, day: u32) -> Result<()> {
     if !(1..=12).contains(&month) {
-        return Err(KronroeError::Internal(format!(
+        return Err(KronroeError::internal(format!(
             "invalid RFC3339 month: {month}"
         )));
     }
     let max_day = days_in_month(year, month);
     if day == 0 || day > max_day {
-        return Err(KronroeError::Internal(format!(
+        return Err(KronroeError::internal(format!(
             "invalid RFC3339 day: {day}"
         )));
     }
@@ -455,7 +451,7 @@ fn validate_date(year: i32, month: u32, day: u32) -> Result<()> {
 
 fn validate_time(hour: u32, minute: u32, second: u32, micros: u32) -> Result<()> {
     if hour > 23 || minute > 59 || second > 59 || micros > 999_999 {
-        return Err(KronroeError::Internal("invalid RFC3339 time".into()));
+        return Err(KronroeError::internal("invalid RFC3339 time"));
     }
     Ok(())
 }

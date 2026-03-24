@@ -315,7 +315,7 @@ impl<'a> RecallOptions<'a> {
 
 fn normalize_min_confidence(min_confidence: f32) -> Result<f32> {
     if !min_confidence.is_finite() {
-        return Err(Error::Search(format!(
+        return Err(Error::search(format!(
             "minimum confidence must be a finite number in [0.0, 1.0], got {min_confidence}"
         )));
     }
@@ -325,7 +325,7 @@ fn normalize_min_confidence(min_confidence: f32) -> Result<f32> {
 
 fn normalize_fact_confidence(confidence: f32) -> Result<f32> {
     if !confidence.is_finite() {
-        return Err(Error::Search(
+        return Err(Error::search(
             "fact confidence must be finite and in [0.0, 1.0], got non-finite value".to_string(),
         ));
     }
@@ -731,7 +731,7 @@ impl AgentMemory {
         #[cfg(not(feature = "hybrid"))] _query_embedding: Option<&[f32]>,
     ) -> Result<RecallForTaskReport> {
         if limit == 0 {
-            return Err(Error::Search(
+            return Err(Error::search(
                 "recall_for_task limit must be >= 1".to_string(),
             ));
         }
@@ -758,7 +758,7 @@ impl AgentMemory {
         };
         #[cfg(not(feature = "hybrid"))]
         if _query_embedding.is_some() {
-            return Err(Error::Search(
+            return Err(Error::search(
                 "query_embedding requires the hybrid feature".to_string(),
             ));
         }
@@ -1333,7 +1333,7 @@ impl AgentMemory {
                     return Ok(Vec::new());
                 }
                 if opts.max_scored_rows == 0 {
-                    return Err(Error::Search(
+                    return Err(Error::search(
                         "max_scored_rows must be at least 1".to_string(),
                     ));
                 }
@@ -2358,8 +2358,12 @@ mod tests {
         for confidence in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
             let err = mem.assert_with_confidence("alice", "works_at", "Rust", confidence);
             match err {
-                Err(Error::Search(msg)) => {
-                    assert!(msg.contains("finite"), "unexpected search error: {msg}")
+                Err(ref e) if e.is_search() => {
+                    assert!(
+                        e.message().contains("finite"),
+                        "unexpected search error: {}",
+                        e.message()
+                    )
                 }
                 _ => panic!("expected search error for confidence={confidence:?}"),
             }
@@ -2501,13 +2505,12 @@ mod tests {
             .with_limit(2)
             .with_min_confidence(f32::NAN);
         let err = mem.recall_scored_with_options(&opts).unwrap_err();
-        match err {
-            Error::Search(msg) => assert!(
-                msg.contains("minimum confidence"),
-                "unexpected search error: {msg}"
-            ),
-            _ => panic!("expected search error for NaN min confidence, got {err:?}"),
-        }
+        assert!(err.is_search());
+        assert!(
+            err.message().contains("minimum confidence"),
+            "unexpected search error: {}",
+            err.message()
+        );
     }
 
     #[test]
@@ -2594,13 +2597,12 @@ mod tests {
             .with_min_confidence(0.0)
             .with_max_scored_rows(0);
         let err = mem.recall_scored_with_options(&opts).unwrap_err();
-        match err {
-            Error::Search(msg) => assert!(
-                msg.contains("max_scored_rows"),
-                "unexpected search error: {msg}"
-            ),
-            _ => panic!("expected search error for max_scored_rows=0, got {err:?}"),
-        }
+        assert!(err.is_search());
+        assert!(
+            err.message().contains("max_scored_rows"),
+            "unexpected search error: {}",
+            err.message()
+        );
     }
 
     #[test]

@@ -53,15 +53,15 @@ impl VectorIndex {
     /// from the first embedding ever inserted into this index.
     pub fn insert(&mut self, id: FactId, embedding: Vec<f32>) -> Result<()> {
         if embedding.is_empty() {
-            return Err(KronroeError::InvalidEmbedding(
-                "embedding must not be empty".into(),
+            return Err(KronroeError::invalid_embedding(
+                "embedding must not be empty",
             ));
         }
 
         match self.dim {
             None => self.dim = Some(embedding.len()),
             Some(d) if embedding.len() != d => {
-                return Err(KronroeError::InvalidEmbedding(format!(
+                return Err(KronroeError::invalid_embedding(format!(
                     "embedding dimension mismatch: expected {d}, got {}",
                     embedding.len()
                 )));

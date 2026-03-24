@@ -27,7 +27,6 @@ getrandom = "0.3"
 libc = "0.2"
 
 # Error handling
-thiserror = "2"
 anyhow = "1"
 pyo3 = { version = "0.24", features = ["abi3-py39", "extension-module"] }
 
