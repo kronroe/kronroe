@@ -796,7 +796,7 @@
         width: 2.25rem;
         height: 2.25rem;
         border-radius: 50%;
-        background: var(--violet-bg);
+        background: var(--bg);
         border: 1.5px solid var(--violet-border);
         display: flex;
         align-items: center;
@@ -809,12 +809,13 @@
         position: relative;
         z-index: 3;
         transition: background 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s;
+        box-shadow: 0 0 0 4px var(--bg);
       }
       .step-badge.beam-active {
         background: var(--violet);
         border-color: var(--violet);
         color: #fff;
-        box-shadow: 0 0 12px rgba(124, 92, 252, 0.4);
+        box-shadow: 0 0 0 4px var(--bg), 0 0 12px rgba(124, 92, 252, 0.4);
       }
       .step-body {
         background: var(--surface);
