@@ -382,11 +382,12 @@ mod entropy {
                 })?;
             let get_random_values = js_sys::Reflect::get(&crypto, &"getRandomValues".into())
                 .ok()
+                .filter(|v| v.is_function())
                 .map(js_sys::Function::from)
                 .ok_or_else(|| {
                     std::io::Error::new(
                         std::io::ErrorKind::Unsupported,
-                        "crypto.getRandomValues not found",
+                        "crypto.getRandomValues not found or not callable",
                     )
                 })?;
             self.crypto_fn = Some((get_random_values, crypto));
