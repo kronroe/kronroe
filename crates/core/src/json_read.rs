@@ -35,6 +35,7 @@ impl JsonValue {
     }
 
     /// Parse a JSON value from a string.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn parse_str(input: &str) -> Result<Self, ParseError> {
         Self::parse(input.as_bytes())
     }
@@ -74,6 +75,7 @@ impl JsonValue {
     }
 
     /// Extract an array value.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn as_array(&self) -> Option<&[JsonValue]> {
         match self {
             JsonValue::Array(a) => Some(a),
