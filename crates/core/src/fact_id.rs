@@ -101,7 +101,7 @@ impl FactId {
         drop(state);
 
         let mut entropy_bytes = [0u8; 8];
-        fill_random(&mut entropy_bytes)?;
+        entropy::fill_random(&mut entropy_bytes)?;
         let entropy = u64::from_be_bytes(entropy_bytes);
 
         Ok(Self::from_parts(timestamp_ms, sequence, entropy))
@@ -265,43 +265,157 @@ fn decode_char(ch: char) -> Option<u8> {
 }
 
 // ---------------------------------------------------------------------------
-// Platform-native entropy — replaces the `getrandom` crate
+// Platform-native entropy pool — replaces the `getrandom` crate
 // ---------------------------------------------------------------------------
+//
+// Instead of opening `/dev/urandom` per Fact ID, we maintain a buffered
+// entropy pool. One OS read fills 256 bytes (32 Fact IDs worth of entropy),
+// amortising the syscall cost across batch operations like `remember()`.
 
-/// Fill `buf` with cryptographically secure random bytes.
-///
-/// - **Unix (macOS, Linux, iOS, Android):** reads from `/dev/urandom`
-/// - **WASM:** delegates to `Crypto.getRandomValues()`
+/// Pool size in bytes. 256 = 32 × 8-byte entropy values per refill.
+const ENTROPY_POOL_SIZE: usize = 256;
+
 #[cfg(not(target_arch = "wasm32"))]
-fn fill_random(buf: &mut [u8]) -> Result<(), std::io::Error> {
+mod entropy {
+    use std::cell::RefCell;
     use std::io::Read;
-    let mut f = std::fs::File::open("/dev/urandom")?;
-    f.read_exact(buf)
+
+    use super::ENTROPY_POOL_SIZE;
+
+    struct EntropyPool {
+        buf: [u8; ENTROPY_POOL_SIZE],
+        cursor: usize, // next byte to hand out; when == ENTROPY_POOL_SIZE, refill
+    }
+
+    impl EntropyPool {
+        fn new() -> Self {
+            Self {
+                buf: [0u8; ENTROPY_POOL_SIZE],
+                cursor: ENTROPY_POOL_SIZE, // force refill on first use
+            }
+        }
+
+        fn fill(&mut self, out: &mut [u8]) -> Result<(), std::io::Error> {
+            let mut written = 0;
+            while written < out.len() {
+                if self.cursor >= ENTROPY_POOL_SIZE {
+                    self.refill()?;
+                }
+                let available = ENTROPY_POOL_SIZE - self.cursor;
+                let needed = out.len() - written;
+                let chunk = available.min(needed);
+                out[written..written + chunk]
+                    .copy_from_slice(&self.buf[self.cursor..self.cursor + chunk]);
+                self.cursor += chunk;
+                written += chunk;
+            }
+            Ok(())
+        }
+
+        fn refill(&mut self) -> Result<(), std::io::Error> {
+            let mut f = std::fs::File::open("/dev/urandom")?;
+            f.read_exact(&mut self.buf)?;
+            self.cursor = 0;
+            Ok(())
+        }
+    }
+
+    thread_local! {
+        static POOL: RefCell<EntropyPool> = RefCell::new(EntropyPool::new());
+    }
+
+    pub(super) fn fill_random(buf: &mut [u8]) -> Result<(), std::io::Error> {
+        POOL.with(|pool| pool.borrow_mut().fill(buf))
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
-fn fill_random(buf: &mut [u8]) -> Result<(), std::io::Error> {
-    let crypto = js_sys::Reflect::get(&js_sys::global(), &"crypto".into())
-        .ok()
-        .and_then(|v| if v.is_undefined() { None } else { Some(v) })
-        .ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "Web Crypto API unavailable",
-            )
-        })?;
-    let array = js_sys::Uint8Array::new_with_length(buf.len() as u32);
-    js_sys::Reflect::get(&crypto, &"getRandomValues".into())
-        .ok()
-        .and_then(|f| js_sys::Function::from(f).call1(&crypto, &array).ok())
-        .ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "crypto.getRandomValues() failed",
-            )
-        })?;
-    array.copy_to(buf);
-    Ok(())
+mod entropy {
+    use std::cell::RefCell;
+
+    use super::ENTROPY_POOL_SIZE;
+
+    struct WasmEntropyPool {
+        buf: [u8; ENTROPY_POOL_SIZE],
+        cursor: usize,
+        crypto_fn: Option<(js_sys::Function, wasm_bindgen::JsValue)>,
+    }
+
+    impl WasmEntropyPool {
+        fn new() -> Self {
+            Self {
+                buf: [0u8; ENTROPY_POOL_SIZE],
+                cursor: ENTROPY_POOL_SIZE,
+                crypto_fn: None,
+            }
+        }
+
+        fn fill(&mut self, out: &mut [u8]) -> Result<(), std::io::Error> {
+            let mut written = 0;
+            while written < out.len() {
+                if self.cursor >= ENTROPY_POOL_SIZE {
+                    self.refill()?;
+                }
+                let available = ENTROPY_POOL_SIZE - self.cursor;
+                let needed = out.len() - written;
+                let chunk = available.min(needed);
+                out[written..written + chunk]
+                    .copy_from_slice(&self.buf[self.cursor..self.cursor + chunk]);
+                self.cursor += chunk;
+                written += chunk;
+            }
+            Ok(())
+        }
+
+        fn ensure_crypto(&mut self) -> Result<(), std::io::Error> {
+            if self.crypto_fn.is_some() {
+                return Ok(());
+            }
+            let crypto = js_sys::Reflect::get(&js_sys::global(), &"crypto".into())
+                .ok()
+                .and_then(|v| if v.is_undefined() { None } else { Some(v) })
+                .ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::Unsupported,
+                        "Web Crypto API unavailable",
+                    )
+                })?;
+            let get_random_values = js_sys::Reflect::get(&crypto, &"getRandomValues".into())
+                .ok()
+                .map(js_sys::Function::from)
+                .ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::Unsupported,
+                        "crypto.getRandomValues not found",
+                    )
+                })?;
+            self.crypto_fn = Some((get_random_values, crypto));
+            Ok(())
+        }
+
+        fn refill(&mut self) -> Result<(), std::io::Error> {
+            self.ensure_crypto()?;
+            let (func, crypto) = self.crypto_fn.as_ref().unwrap();
+            let array = js_sys::Uint8Array::new_with_length(ENTROPY_POOL_SIZE as u32);
+            func.call1(crypto, &array).map_err(|_| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "crypto.getRandomValues() call failed",
+                )
+            })?;
+            array.copy_to(&mut self.buf);
+            self.cursor = 0;
+            Ok(())
+        }
+    }
+
+    thread_local! {
+        static POOL: RefCell<WasmEntropyPool> = RefCell::new(WasmEntropyPool::new());
+    }
+
+    pub(super) fn fill_random(buf: &mut [u8]) -> Result<(), std::io::Error> {
+        POOL.with(|pool| pool.borrow_mut().fill(buf))
+    }
 }
 
 #[cfg(test)]

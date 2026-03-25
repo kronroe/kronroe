@@ -300,9 +300,17 @@ impl LockFileGuard {
                     path.display()
                 ))
             })?;
-        let rc = unsafe { flock(file.as_raw_fd(), LOCK_EX | LOCK_NB) };
-        if rc != 0 {
+        // Retry on EINTR — flock() can be interrupted by signals on mobile
+        // (iOS app backgrounding, Android memory pressure notifications).
+        loop {
+            let rc = unsafe { flock(file.as_raw_fd(), LOCK_EX | LOCK_NB) };
+            if rc == 0 {
+                break;
+            }
             let error = std::io::Error::last_os_error();
+            if error.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
             return Err(KronroeError::storage(format!(
                 "append-log is already open for write by another process: {} ({error})",
                 path.display()
