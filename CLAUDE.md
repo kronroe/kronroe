@@ -119,7 +119,7 @@ Additional fact metadata fields:
 | `ErrorCode` | Stable numeric error codes (`repr(u16)`): 1xxx storage, 2xxx validation, 3xxx query, 4xxx temporal, 9xxx internal. Safe for FFI consumers. |
 | `ErrorContext` | Extension trait enabling `.context()` on `Result<T, KronroeError>` for ergonomic error chaining (zero-dep replacement for `anyhow::Context`). |
 | `OptionContext` | Extension trait enabling `.context()` on `Option<T>`, converting `None` to `KronroeError::invalid_input`. |
-| `KronroeError` | Error type with built-in context chaining, predicate methods (`is_storage()`, `is_not_found()`, `is_invalid_input()`, etc.), and structured accessors (`.contradictions()`, `.schema_versions()`, `.code()`). Niche-optimised: `Result<(), KronroeError>` is 8 bytes. `From` impls for `io::Error`, `serde_json::Error`, `ParseIntError`, `TryFromIntError`. |
+| `KronroeError` | Error type with built-in context chaining, predicate methods (`is_storage()`, `is_not_found()`, `is_invalid_input()`, etc.), and structured accessors (`.contradictions()`, `.schema_versions()`, `.code()`). Niche-optimised: `Result<(), KronroeError>` is 8 bytes. `From` impls for `io::Error`, `json_read::ParseError`, `ParseIntError`, `TryFromIntError`. |
 
 `Entity(String)` is a reference to another entity's canonical name — this is how graph edges are expressed.
 
