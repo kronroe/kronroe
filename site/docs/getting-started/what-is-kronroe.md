@@ -6,18 +6,18 @@ Every fact stored in Kronroe carries four timestamps that track both *when somet
 
 ```rust
 use kronroe::{TemporalGraph, Value};
-use chrono::Utc;
+use kronroe::KronroeTimestamp;
 
 let db = TemporalGraph::open("./memory.kronroe")?;
 
 // Assert a temporal fact
-let id = db.assert_fact("alice", "works_at", Value::Text("Acme".into()), Utc::now())?;
+let id = db.assert_fact("alice", "works_at", Value::Text("Acme".into()), KronroeTimestamp::now_utc())?;
 
 // Point-in-time query — first-class operation, not a WHERE clause trick
 let employer = db.facts_at("alice", "works_at", past_date)?;
 
 // Invalidation preserves history — old fact gets expired_at set, never deleted
-db.invalidate_fact(&id, Utc::now())?;
+db.invalidate_fact(&id, KronroeTimestamp::now_utc())?;
 
 // Full-text search across all current facts
 let results = db.search("where does Alice work", 10)?;
@@ -128,14 +128,14 @@ Kronroe stores facts as subject-predicate-value triples. Graph edges are express
 use kronroe::Value;
 
 // A property: Alice's job title is "Engineer"
-db.assert_fact("alice", "job_title", Value::Text("Engineer".into()), Utc::now())?;
+db.assert_fact("alice", "job_title", Value::Text("Engineer".into()), KronroeTimestamp::now_utc())?;
 
 // A relationship: Alice works at Acme (an edge to another entity)
-db.assert_fact("alice", "works_at", Value::Entity("acme".into()), Utc::now())?;
+db.assert_fact("alice", "works_at", Value::Entity("acme".into()), KronroeTimestamp::now_utc())?;
 
 // Other value types
-db.assert_fact("alice", "age", Value::Number(30.0), Utc::now())?;
-db.assert_fact("alice", "active", Value::Boolean(true), Utc::now())?;
+db.assert_fact("alice", "age", Value::Number(30.0), KronroeTimestamp::now_utc())?;
+db.assert_fact("alice", "active", Value::Boolean(true), KronroeTimestamp::now_utc())?;
 ```
 
 Every fact gets a `FactId` (`kf_...` prefix) that is lexicographically sortable and monotonically ordered by insertion time.

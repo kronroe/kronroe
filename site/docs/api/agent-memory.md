@@ -46,7 +46,7 @@ Controls explicit temporal positioning for `_with_params` method variants.
 
 ```rust
 pub struct AssertParams {
-    pub valid_from: DateTime<Utc>,
+    pub valid_from: KronroeTimestamp,
 }
 ```
 
@@ -62,7 +62,7 @@ pub struct AssertParams {
 | Method | Signature | Feature | Description |
 |---|---|---|---|
 | `facts_about` | `fn facts_about(&self, entity: &str) -> Result<Vec<Fact>>` | base | Get all currently known facts about an entity across all predicates. |
-| `facts_about_at` | `fn facts_about_at(&self, entity: &str, predicate: &str, at: DateTime<Utc>) -> Result<Vec<Fact>>` | base | Point-in-time query for a specific entity and predicate. |
+| `facts_about_at` | `fn facts_about_at(&self, entity: &str, predicate: &str, at: KronroeTimestamp) -> Result<Vec<Fact>>` | base | Point-in-time query for a specific entity and predicate. |
 | `current_facts` | `fn current_facts(&self, entity: &str, predicate: &str) -> Result<Vec<Fact>>` | base | Get currently valid facts for one (entity, predicate) pair. |
 | `search` | `fn search(&self, query: &str, limit: usize) -> Result<Vec<Fact>>` | base | Full-text search across all facts. |
 
@@ -189,9 +189,9 @@ Controls which confidence signal is used when `min_confidence` is set on `Recall
 
 | Method | Signature | Feature | Description |
 |---|---|---|---|
-| `what_changed` | `fn what_changed(&self, entity: &str, since: DateTime<Utc>, predicate_filter: Option<&str>) -> Result<WhatChangedReport>` | base | Summary of changes since a timestamp: new facts, invalidations, corrections, and confidence shifts. |
+| `what_changed` | `fn what_changed(&self, entity: &str, since: KronroeTimestamp, predicate_filter: Option<&str>) -> Result<WhatChangedReport>` | base | Summary of changes since a timestamp: new facts, invalidations, corrections, and confidence shifts. |
 | `memory_health` | `fn memory_health(&self, entity: &str, predicate_filter: Option<&str>, low_confidence_threshold: f32, stale_after_days: i64) -> Result<MemoryHealthReport>` | base | Health snapshot: low-confidence facts, stale high-impact facts, contradiction counts, recommended actions. |
-| `recall_for_task` | `fn recall_for_task(&self, task: &str, subject: Option<&str>, now: Option<DateTime<Utc>>, horizon_days: Option<i64>, limit: usize, query_embedding: Option<&[f32]>) -> Result<RecallForTaskReport>` | base (embedding requires `hybrid`) | Decision-ready recall context scoped to a task. Includes key facts, watchouts, and recommended next checks. |
+| `recall_for_task` | `fn recall_for_task(&self, task: &str, subject: Option<&str>, now: Option<KronroeTimestamp>, horizon_days: Option<i64>, limit: usize, query_embedding: Option<&[f32]>) -> Result<RecallForTaskReport>` | base (embedding requires `hybrid`) | Decision-ready recall context scoped to a task. Includes key facts, watchouts, and recommended next checks. |
 
 ## Contradiction Detection
 
@@ -210,7 +210,7 @@ All methods require the `uncertainty` feature flag.
 |---|---|---|
 | `register_volatility` | `fn register_volatility(&self, predicate: &str, half_life_days: f64) -> Result<()>` | Register a predicate half-life. After `half_life_days`, age decay = 0.5. Use `f64::INFINITY` for stable predicates. |
 | `register_source_weight` | `fn register_source_weight(&self, source: &str, weight: f32) -> Result<()>` | Register a source authority weight. Clamped to [0.0, 2.0]. `1.0` = neutral. |
-| `effective_confidence_for_fact` | `fn effective_confidence_for_fact(&self, fact: &Fact, at: DateTime<Utc>) -> Result<Option<f32>>` | Compute effective confidence at a point in time. Returns `None` when the `uncertainty` feature is not enabled. |
+| `effective_confidence_for_fact` | `fn effective_confidence_for_fact(&self, fact: &Fact, at: KronroeTimestamp) -> Result<Option<f32>>` | Compute effective confidence at a point in time. Returns `None` when the `uncertainty` feature is not enabled. |
 
 ## Feature Flag Summary
 

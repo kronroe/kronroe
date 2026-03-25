@@ -37,19 +37,19 @@ Kronroe treats bi-temporal facts as a **type-level design primitive enforced by 
 
 ```rust
 // Assert a temporal fact — valid time is part of the engine, not your schema
-db.assert_fact("alice", "works_at", "Acme", Utc::now())?;
+db.assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())?;
 
 // Point-in-time query — first-class operation, not a WHERE clause trick
 let employer = db.facts_at("alice", "works_at", past_date)?;
 
 // Invalidation — old fact gets valid_to set; history is preserved, never deleted
-db.invalidate_fact(&fact_id, Utc::now())?;
+db.invalidate_fact(&fact_id, KronroeTimestamp::now_utc())?;
 
 // Full-text search across all current facts
 let results = db.search("where does Alice work", 10)?;
 
 // Semantic vector search — pass pre-computed embeddings, temporal filtering included
-db.assert_fact_with_embedding("alice", "bio", "Software engineer", Utc::now(), embedding)?;
+db.assert_fact_with_embedding("alice", "bio", "Software engineer", KronroeTimestamp::now_utc(), embedding)?;
 let nearest = db.search_by_vector(query_vec, 5, None)?;
 ```
 
