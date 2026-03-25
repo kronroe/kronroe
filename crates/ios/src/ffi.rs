@@ -308,7 +308,11 @@ pub unsafe extern "C" fn kronroe_graph_assert_fact(
         }
     };
 
-    let conf = if confidence < 0.0 { 1.0 } else { confidence };
+    let conf = if confidence < 0.0 || confidence.is_nan() {
+        1.0
+    } else {
+        confidence
+    };
 
     let graph = unsafe { &*handle };
     let result = if let Some(src) = source_str {

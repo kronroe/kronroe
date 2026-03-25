@@ -4,14 +4,20 @@ import KronroeFFI
 public enum KronroeError: Error, LocalizedError {
     case openFailed(String)
     case assertFailed(String)
+    case correctionFailed(String)
+    case invalidationFailed(String)
     case queryFailed(String)
+    case searchFailed(String)
     case invalidUTF8
 
     public var errorDescription: String? {
         switch self {
         case .openFailed(let msg): return "Open failed: \(msg)"
         case .assertFailed(let msg): return "Assert failed: \(msg)"
+        case .correctionFailed(let msg): return "Correction failed: \(msg)"
+        case .invalidationFailed(let msg): return "Invalidation failed: \(msg)"
         case .queryFailed(let msg): return "Query failed: \(msg)"
+        case .searchFailed(let msg): return "Search failed: \(msg)"
         case .invalidUTF8: return "Received invalid UTF-8 from Kronroe"
         }
     }
@@ -161,12 +167,12 @@ public final class KronroeGraph {
     /// Full-text search across all current facts.
     public func searchJSON(query: String, limit: UInt32 = 10) throws -> String {
         guard let handle else {
-            throw KronroeError.queryFailed("graph handle is nil")
+            throw KronroeError.searchFailed("graph handle is nil")
         }
         guard let raw = query.withCString({ cQuery in
             kronroe_graph_search_json(handle, cQuery, limit)
         }) else {
-            throw KronroeError.queryFailed(Self.lastErrorMessage())
+            throw KronroeError.searchFailed(Self.lastErrorMessage())
         }
         defer { kronroe_string_free(raw) }
         guard let s = String(validatingUTF8: raw) else {
@@ -180,14 +186,14 @@ public final class KronroeGraph {
     @discardableResult
     public func correctFact(factId: String, newObject: String) throws -> String {
         guard let handle else {
-            throw KronroeError.assertFailed("graph handle is nil")
+            throw KronroeError.correctionFailed("graph handle is nil")
         }
         guard let raw = factId.withCString({ cFactId in
             newObject.withCString { cNewObject in
                 kronroe_graph_correct_fact(handle, cFactId, cNewObject)
             }
         }) else {
-            throw KronroeError.assertFailed(Self.lastErrorMessage())
+            throw KronroeError.correctionFailed(Self.lastErrorMessage())
         }
         defer { kronroe_string_free(raw) }
         guard let s = String(validatingUTF8: raw) else {
@@ -199,13 +205,13 @@ public final class KronroeGraph {
     /// Invalidate (retire) a fact by its ID. History is preserved.
     public func invalidateFact(factId: String) throws {
         guard let handle else {
-            throw KronroeError.assertFailed("graph handle is nil")
+            throw KronroeError.invalidationFailed("graph handle is nil")
         }
         let ok = factId.withCString { cFactId in
             kronroe_graph_invalidate_fact(handle, cFactId)
         }
         if !ok {
-            throw KronroeError.assertFailed(Self.lastErrorMessage())
+            throw KronroeError.invalidationFailed(Self.lastErrorMessage())
         }
     }
 
