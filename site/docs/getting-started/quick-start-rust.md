@@ -26,18 +26,18 @@ Every fact is a subject-predicate-object triple with bi-temporal metadata. The e
 
 ```rust
 use kronroe::{TemporalGraph, Value};
-use chrono::Utc;
+use kronroe::KronroeTimestamp;
 
 let db = TemporalGraph::open("./my-graph.kronroe")?;
 
 // Assert a fact — returns a FactId (kf_... format)
-let fact_id = db.assert_fact("alice", "works_at", "Acme", Utc::now())?;
+let fact_id = db.assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())?;
 
 // Values convert automatically from &str, String, f64, and bool
-db.assert_fact("alice", "age", Value::Number(32.0), Utc::now())?;
+db.assert_fact("alice", "age", Value::Number(32.0), KronroeTimestamp::now_utc())?;
 
 // Entity references create graph edges
-db.assert_fact("alice", "reports_to", Value::Entity("bob".into()), Utc::now())?;
+db.assert_fact("alice", "reports_to", Value::Entity("bob".into()), KronroeTimestamp::now_utc())?;
 
 // Query current facts for a subject + predicate
 let facts = db.current_facts("alice", "works_at")?;
@@ -59,16 +59,16 @@ Kronroe never deletes data. Corrections and invalidations preserve full history.
 
 ```rust
 use kronroe::{TemporalGraph, Value};
-use chrono::Utc;
+use kronroe::KronroeTimestamp;
 
 let db = TemporalGraph::open("./my-graph.kronroe")?;
-let fact_id = db.assert_fact("alice", "works_at", "Acme", Utc::now())?;
+let fact_id = db.assert_fact("alice", "works_at", "Acme", KronroeTimestamp::now_utc())?;
 
 // Correct a fact — invalidates the old value, asserts a new one, returns the new FactId
-let new_id = db.correct_fact(&fact_id, "Initech", Utc::now())?;
+let new_id = db.correct_fact(&fact_id, "Initech", KronroeTimestamp::now_utc())?;
 
 // Invalidate a fact — sets valid_to on the old fact, nothing new is asserted
-db.invalidate_fact(&new_id, Utc::now())?;
+db.invalidate_fact(&new_id, KronroeTimestamp::now_utc())?;
 ```
 
 ## Full-text search
@@ -79,8 +79,8 @@ Full-text search is enabled by default via the `fulltext` feature (BM25 + fuzzy 
 use kronroe::TemporalGraph;
 
 let db = TemporalGraph::open_in_memory()?;
-db.assert_fact("alice", "works_at", "Acme Corp", chrono::Utc::now())?;
-db.assert_fact("bob", "works_at", "Globex", chrono::Utc::now())?;
+db.assert_fact("alice", "works_at", "Acme Corp", chrono::KronroeTimestamp::now_utc())?;
+db.assert_fact("bob", "works_at", "Globex", chrono::KronroeTimestamp::now_utc())?;
 
 // Search across all current facts — returns up to `limit` results ranked by BM25
 let results = db.search("where does Alice work", 10)?;

@@ -12,10 +12,10 @@ pub struct Fact {
     pub subject: String,
     pub predicate: String,
     pub object: Value,
-    pub valid_from: DateTime<Utc>,
-    pub valid_to: Option<DateTime<Utc>>,
-    pub recorded_at: DateTime<Utc>,
-    pub expired_at: Option<DateTime<Utc>>,
+    pub valid_from: KronroeTimestamp,
+    pub valid_to: Option<KronroeTimestamp>,
+    pub recorded_at: KronroeTimestamp,
+    pub expired_at: Option<KronroeTimestamp>,
     pub confidence: f32,
     pub source: Option<String>,
 }
@@ -39,7 +39,7 @@ pub struct Fact {
 Facts support chaining via builder methods:
 
 ```rust
-let fact = Fact::new("alice", "works_at", "Acme", Utc::now())
+let fact = Fact::new("alice", "works_at", "Acme", KronroeTimestamp::now_utc())
     .with_confidence(0.9)
     .with_source("user:owner");
 ```
@@ -85,7 +85,7 @@ alice --[works_at]--> acme-corp
 This is represented as:
 
 ```rust
-db.assert_fact("alice", "works_at", Value::Entity("acme-corp".into()), Utc::now())?;
+db.assert_fact("alice", "works_at", Value::Entity("acme-corp".into()), KronroeTimestamp::now_utc())?;
 ```
 
 The predicate names the relationship. The subject and the `Entity` reference are both entity identifiers -- there is no separate entity registration step. Entities come into existence implicitly when they appear as a subject or an `Entity` reference.
