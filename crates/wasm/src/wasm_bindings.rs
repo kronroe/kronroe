@@ -34,6 +34,11 @@ fn to_js_err(e: kronroe::KronroeError) -> JsValue {
     JsValue::from_str(&e.to_string())
 }
 
+fn facts_to_json_array(facts: &[kronroe::Fact]) -> String {
+    let parts: Vec<String> = facts.iter().map(|f| f.to_json_string()).collect();
+    format!("[{}]", parts.join(","))
+}
+
 fn parse_valid_from(iso: &str) -> Result<KronroeTimestamp, JsValue> {
     KronroeTimestamp::parse_rfc3339(iso).map_err(|e| JsValue::from_str(&e.to_string()))
 }
@@ -365,7 +370,7 @@ impl WasmGraph {
             .inner
             .current_facts(subject, predicate)
             .map_err(to_js_err)?;
-        serde_json::to_string(&facts).map_err(|e| JsValue::from_str(&e.to_string()))
+        Ok(facts_to_json_array(&facts))
     }
 
     /// Get facts valid at a specific point in time (ISO 8601) as JSON.
@@ -381,14 +386,14 @@ impl WasmGraph {
             .inner
             .facts_about_at(subject, predicate, at)
             .map_err(to_js_err)?;
-        serde_json::to_string(&facts).map_err(|e| JsValue::from_str(&e.to_string()))
+        Ok(facts_to_json_array(&facts))
     }
 
     /// Get every fact ever recorded about an entity as JSON.
     #[wasm_bindgen]
     pub fn all_facts_about(&self, subject: &str) -> Result<String, JsValue> {
         let facts = self.inner.facts_about(subject).map_err(to_js_err)?;
-        serde_json::to_string(&facts).map_err(|e| JsValue::from_str(&e.to_string()))
+        Ok(facts_to_json_array(&facts))
     }
 
     /// Alias for `all_facts_about`.
@@ -417,7 +422,7 @@ impl WasmGraph {
             .inner
             .recall(query, embedding.as_deref(), limit)
             .map_err(to_js_err)?;
-        serde_json::to_string(&facts).map_err(|e| JsValue::from_str(&e.to_string()))
+        Ok(facts_to_json_array(&facts))
     }
 
     /// Recall facts with score metadata as JSON.
@@ -519,14 +524,17 @@ impl WasmGraph {
             .inner
             .recall_scored_with_options(&opts)
             .map_err(to_js_err)?;
-        let mut rows = Vec::with_capacity(scored.len());
-        for (fact, score) in scored {
-            rows.push(json!({
-                "fact": fact,
-                "score": recall_score_payload(&score),
-            }));
+        let mut row_strings = Vec::with_capacity(scored.len());
+        for (fact, score) in &scored {
+            let score_json = serde_json::to_string(&recall_score_payload(score))
+                .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            row_strings.push(format!(
+                "{{\"fact\":{},\"score\":{}}}",
+                fact.to_json_string(),
+                score_json
+            ));
         }
-        serde_json::to_string(&rows).map_err(|e| JsValue::from_str(&e.to_string()))
+        Ok(format!("[{}]", row_strings.join(",")))
     }
 
     /// Build a memory-anchored prompt context from recalled facts.

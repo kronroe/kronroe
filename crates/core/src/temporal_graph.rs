@@ -30,6 +30,8 @@
 
 mod error;
 mod fact_id;
+pub(crate) mod json_read;
+pub(crate) mod json_write;
 mod kronroe_time;
 #[cfg(feature = "fulltext")]
 mod lexical;
@@ -63,7 +65,6 @@ pub use fact_id::{FactId, FactIdParseError};
 pub use kronroe_time::{
     default_clock, FixedClock, KronroeClock, KronroeSpan, KronroeTimestamp, SystemClock,
 };
-use serde::{Deserialize, Serialize};
 #[cfg(all(feature = "hybrid-experimental", feature = "vector"))]
 use std::cmp::Ordering;
 #[cfg(any(
@@ -82,8 +83,7 @@ pub type Result<T> = std::result::Result<T, KronroeError>;
 /// The value stored in a fact's object position.
 ///
 /// A fact's object can be a scalar value or a reference to another entity.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", content = "value")]
+#[derive(Debug, Clone)]
 pub enum Value {
     /// A text string.
     Text(String),
@@ -126,6 +126,83 @@ impl std::fmt::Display for Value {
     }
 }
 
+// -- Kronroe-native JSON codec for Value --
+// Format: {"type":"Text","value":"..."} (serde-compatible internally-tagged)
+impl Value {
+    /// Write this value as JSON to a writer.
+    pub fn write_json(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        use json_write::*;
+        w.write_all(b"{")?;
+        match self {
+            Value::Text(s) => {
+                write_kv_string(w, "type", "Text")?;
+                w.write_all(b",")?;
+                write_kv_string(w, "value", s)?;
+            }
+            Value::Number(n) => {
+                write_kv_string(w, "type", "Number")?;
+                w.write_all(b",")?;
+                write_string(w, "value")?;
+                w.write_all(b":")?;
+                write_f64(w, *n)?;
+            }
+            Value::Boolean(b) => {
+                write_kv_string(w, "type", "Boolean")?;
+                w.write_all(b",")?;
+                write_string(w, "value")?;
+                w.write_all(b":")?;
+                write_bool(w, *b)?;
+            }
+            Value::Entity(s) => {
+                write_kv_string(w, "type", "Entity")?;
+                w.write_all(b",")?;
+                write_kv_string(w, "value", s)?;
+            }
+        }
+        w.write_all(b"}")
+    }
+
+    pub(crate) fn from_json(val: &json_read::JsonValue) -> Result<Self> {
+        let typ = val
+            .get("type")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| KronroeError::serialization("Value missing 'type' field"))?;
+        match typ {
+            "Text" => {
+                let s = val
+                    .get("value")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| KronroeError::serialization("Value::Text missing 'value'"))?;
+                Ok(Value::Text(s.to_string()))
+            }
+            "Number" => {
+                let n = val
+                    .get("value")
+                    .and_then(|v| v.as_f64())
+                    .ok_or_else(|| KronroeError::serialization("Value::Number missing 'value'"))?;
+                Ok(Value::Number(n))
+            }
+            "Boolean" => {
+                let b = val
+                    .get("value")
+                    .and_then(|v| v.as_bool())
+                    .ok_or_else(|| KronroeError::serialization("Value::Boolean missing 'value'"))?;
+                Ok(Value::Boolean(b))
+            }
+            "Entity" => {
+                let s = val
+                    .get("value")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| KronroeError::serialization("Value::Entity missing 'value'"))?;
+                Ok(Value::Entity(s.to_string()))
+            }
+            other => Err(KronroeError::serialization(format!(
+                "unknown Value type: {other}"
+            ))),
+        }
+    }
+}
+
 /// The core primitive: a bi-temporal subject-predicate-object triple.
 ///
 /// # Bi-temporal model
@@ -141,7 +218,7 @@ impl std::fmt::Display for Value {
 ///   fact and creates a new one — so you can query "what did we *believe*
 ///   about Alice's employer on 2024-03-01?" separately from "who was Alice's
 ///   employer on 2024-03-01?"
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Fact {
     /// Stable time-sortable ID.
     pub id: FactId,
@@ -223,6 +300,124 @@ impl Fact {
             && self.valid_to.is_none_or(|t| t > at)
             && self.expired_at.is_none_or(|t| t > at)
     }
+
+    // -- Kronroe-native JSON codec for Fact --
+
+    /// Serialize this fact as a JSON string.
+    pub fn to_json_string(&self) -> String {
+        let mut buf = Vec::new();
+        self.write_json(&mut buf)
+            .expect("Vec<u8> write is infallible");
+        // SAFETY: write_json produces valid UTF-8 — JSON structural characters
+        // are ASCII, and string values pass through raw UTF-8 bytes unchanged.
+        unsafe { String::from_utf8_unchecked(buf) }
+    }
+
+    /// Write this fact as JSON to a writer.
+    pub fn write_json(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        use json_write::*;
+        w.write_all(b"{")?;
+        write_kv_string(w, "id", self.id.as_str())?;
+        w.write_all(b",")?;
+        write_kv_string(w, "subject", &self.subject)?;
+        w.write_all(b",")?;
+        write_kv_string(w, "predicate", &self.predicate)?;
+        w.write_all(b",")?;
+        write_string(w, "object")?;
+        w.write_all(b":")?;
+        self.object.write_json(w)?;
+        w.write_all(b",")?;
+        write_kv_string(w, "valid_from", &self.valid_from.to_rfc3339_z())?;
+        w.write_all(b",")?;
+        write_string(w, "valid_to")?;
+        w.write_all(b":")?;
+        match &self.valid_to {
+            Some(t) => write_string(w, &t.to_rfc3339_z())?,
+            None => write_null(w)?,
+        }
+        w.write_all(b",")?;
+        write_kv_string(w, "recorded_at", &self.recorded_at.to_rfc3339_z())?;
+        w.write_all(b",")?;
+        write_string(w, "expired_at")?;
+        w.write_all(b":")?;
+        match &self.expired_at {
+            Some(t) => write_string(w, &t.to_rfc3339_z())?,
+            None => write_null(w)?,
+        }
+        w.write_all(b",")?;
+        write_kv_f32(w, "confidence", self.confidence)?;
+        w.write_all(b",")?;
+        write_kv_option_string(w, "source", &self.source)?;
+        w.write_all(b"}")
+    }
+
+    pub(crate) fn from_json(val: &json_read::JsonValue) -> Result<Self> {
+        let get_str = |key: &str| -> Result<String> {
+            val.get(key)
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| KronroeError::serialization(format!("Fact missing '{key}'")))
+        };
+
+        let id = FactId::parse(&get_str("id")?)
+            .map_err(|e| KronroeError::serialization(format!("Fact id: {e}")))?;
+        let subject = get_str("subject")?;
+        let predicate = get_str("predicate")?;
+        let object = Value::from_json(
+            val.get("object")
+                .ok_or_else(|| KronroeError::serialization("Fact missing 'object'"))?,
+        )?;
+
+        let valid_from = KronroeTimestamp::parse_rfc3339(&get_str("valid_from")?)
+            .map_err(|e| KronroeError::serialization(format!("Fact valid_from: {e}")))?;
+        let valid_to = match val.get("valid_to") {
+            Some(v) if !v.is_null() => {
+                let s = v
+                    .as_str()
+                    .ok_or_else(|| KronroeError::serialization("Fact valid_to: not a string"))?;
+                Some(
+                    KronroeTimestamp::parse_rfc3339(s)
+                        .map_err(|e| KronroeError::serialization(format!("Fact valid_to: {e}")))?,
+                )
+            }
+            _ => None,
+        };
+        let recorded_at = KronroeTimestamp::parse_rfc3339(&get_str("recorded_at")?)
+            .map_err(|e| KronroeError::serialization(format!("Fact recorded_at: {e}")))?;
+        let expired_at =
+            match val.get("expired_at") {
+                Some(v) if !v.is_null() => {
+                    let s = v.as_str().ok_or_else(|| {
+                        KronroeError::serialization("Fact expired_at: not a string")
+                    })?;
+                    Some(KronroeTimestamp::parse_rfc3339(s).map_err(|e| {
+                        KronroeError::serialization(format!("Fact expired_at: {e}"))
+                    })?)
+                }
+                _ => None,
+            };
+
+        let confidence = val
+            .get("confidence")
+            .and_then(|v| v.as_f32())
+            .unwrap_or(1.0);
+        let source = val
+            .get("source")
+            .and_then(|v| v.as_str().map(|s| s.to_string()));
+
+        Ok(Self {
+            id,
+            subject,
+            predicate,
+            object,
+            valid_from,
+            valid_to,
+            recorded_at,
+            expired_at,
+            confidence,
+            source,
+        })
+    }
 }
 
 /// Kronroe temporal property graph database.
@@ -299,16 +494,13 @@ impl TemporalGraph {
         let contradiction_detector = {
             let mut det = contradiction::ContradictionDetector::new();
             for (predicate, encoded) in storage.load_predicate_registry_entries()? {
-                let (cardinality, policy) = serde_json::from_str::<(
-                    contradiction::PredicateCardinality,
-                    contradiction::ConflictPolicy,
-                )>(&encoded)
-                .map_err(|e| {
-                    KronroeError::storage(format!(
-                        "invalid predicate registry entry for '{}': {e}",
-                        predicate
-                    ))
-                })?;
+                let (cardinality, policy) = contradiction::decode_predicate_registry(&encoded)
+                    .map_err(|e| {
+                        KronroeError::storage(format!(
+                            "invalid predicate registry entry for '{}': {e}",
+                            predicate
+                        ))
+                    })?;
                 det.register(&predicate, cardinality, policy);
             }
             std::sync::Mutex::new(det)
@@ -317,8 +509,8 @@ impl TemporalGraph {
         let uncertainty_engine = {
             let mut engine = uncertainty::UncertaintyEngine::new();
             for (predicate, encoded) in storage.load_volatility_registry_entries()? {
-                let vol: uncertainty::PredicateVolatility = serde_json::from_str(&encoded)
-                    .map_err(|e| {
+                let vol =
+                    uncertainty::PredicateVolatility::from_json_str(&encoded).map_err(|e| {
                         KronroeError::storage(format!(
                             "invalid volatility registry entry for predicate '{}': {e}",
                             predicate
@@ -327,13 +519,12 @@ impl TemporalGraph {
                 engine.register_volatility(&predicate, vol);
             }
             for (source, encoded) in storage.load_source_weight_registry_entries()? {
-                let sw: uncertainty::SourceWeight =
-                    serde_json::from_str(&encoded).map_err(|e| {
-                        KronroeError::storage(format!(
-                            "invalid source-weight registry entry for source '{}': {e}",
-                            source
-                        ))
-                    })?;
+                let sw = uncertainty::SourceWeight::from_json_str(&encoded).map_err(|e| {
+                    KronroeError::storage(format!(
+                        "invalid source-weight registry entry for source '{}': {e}",
+                        source
+                    ))
+                })?;
                 engine.register_source_weight(&source, sw);
             }
             std::sync::Mutex::new(engine)
@@ -664,7 +855,7 @@ impl TemporalGraph {
         policy: ConflictPolicy,
     ) -> Result<()> {
         let cardinality = PredicateCardinality::Singleton;
-        let encoded = serde_json::to_string(&(cardinality, policy))?;
+        let encoded = contradiction::encode_predicate_registry(cardinality, policy);
         self.storage
             .write_predicate_registry_entry(predicate, encoded.as_str())?;
 
@@ -1198,7 +1389,7 @@ impl TemporalGraph {
         predicate: &str,
         volatility: uncertainty::PredicateVolatility,
     ) -> Result<()> {
-        let encoded = serde_json::to_string(&volatility)?;
+        let encoded = volatility.to_json_string();
         self.storage
             .write_volatility_registry_entry(predicate, encoded.as_str())?;
         let mut engine = self
@@ -1234,7 +1425,7 @@ impl TemporalGraph {
         source: &str,
         weight: uncertainty::SourceWeight,
     ) -> Result<()> {
-        let encoded = serde_json::to_string(&weight)?;
+        let encoded = weight.to_json_string();
         self.storage
             .write_source_weight_registry_entry(source, encoded.as_str())?;
         let mut engine = self

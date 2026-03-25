@@ -202,12 +202,13 @@ fn read_message<R: BufRead>(reader: &mut R) -> Result<Option<JsonValue>> {
     let mut payload = vec![0_u8; len];
     reader.read_exact(&mut payload)?;
     let value: JsonValue = serde_json::from_slice(&payload)
-        .map_err(|e| KronroeError::from(e).context("invalid JSON payload"))?;
+        .map_err(|e| KronroeError::serialization(e.to_string()).context("invalid JSON payload"))?;
     Ok(Some(value))
 }
 
 fn write_message<W: Write>(writer: &mut W, value: &JsonValue) -> Result<()> {
-    let payload = serde_json::to_vec(value)?;
+    let payload =
+        serde_json::to_vec(value).map_err(|e| KronroeError::serialization(e.to_string()))?;
     write!(writer, "Content-Length: {}\r\n\r\n", payload.len())?;
     writer.write_all(&payload)?;
     writer.flush()?;

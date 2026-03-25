@@ -1,5 +1,4 @@
 use crate::{KronroeError, Result};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
@@ -104,25 +103,6 @@ impl std::str::FromStr for KronroeTimestamp {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         Self::parse_rfc3339(s)
-    }
-}
-
-impl Serialize for KronroeTimestamp {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_rfc3339_z())
-    }
-}
-
-impl<'de> Deserialize<'de> for KronroeTimestamp {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let raw = String::deserialize(deserializer)?;
-        KronroeTimestamp::parse_rfc3339(&raw).map_err(serde::de::Error::custom)
     }
 }
 

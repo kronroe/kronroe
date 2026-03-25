@@ -58,7 +58,8 @@ impl KronroeGraphHandle {
             .graph
             .all_facts_about(entity)
             .map_err(|e| e.to_string())?;
-        serde_json::to_string(&facts).map_err(|e| e.to_string())
+        let json_parts: Vec<String> = facts.iter().map(|f| f.to_json_string()).collect();
+        Ok(format!("[{}]", json_parts.join(",")))
     }
 }
 

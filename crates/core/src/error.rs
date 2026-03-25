@@ -103,7 +103,7 @@ struct ErrorInner {
 
 enum ErrorKind {
     Storage(String),
-    Serialization(serde_json::Error),
+    Serialization(String),
     NotFound(String),
     Search(String),
     InvalidFactId(String),
@@ -141,8 +141,8 @@ impl KronroeError {
     /// JSON serialization or deserialization error.
     #[cold]
     #[inline(never)]
-    pub fn serialization(err: serde_json::Error) -> Self {
-        Self::from_kind(ErrorKind::Serialization(err))
+    pub fn serialization(msg: impl Into<String>) -> Self {
+        Self::from_kind(ErrorKind::Serialization(msg.into()))
     }
 
     /// Entity or fact not found.
@@ -495,11 +495,8 @@ impl std::error::Error for KronroeError {
         if let Some(cause) = &self.inner.cause {
             return Some(cause);
         }
-        // For leaf nodes, expose the underlying serde_json::Error if present.
-        match &self.inner.kind {
-            ErrorKind::Serialization(err) => Some(err),
-            _ => None,
-        }
+        // Serialization errors are now String-based, no foreign error to expose.
+        None
     }
 }
 
@@ -507,11 +504,11 @@ impl std::error::Error for KronroeError {
 // From conversions
 // ---------------------------------------------------------------------------
 
-impl From<serde_json::Error> for KronroeError {
+impl From<crate::json_read::ParseError> for KronroeError {
     #[cold]
     #[inline(never)]
-    fn from(err: serde_json::Error) -> Self {
-        Self::serialization(err)
+    fn from(err: crate::json_read::ParseError) -> Self {
+        Self::serialization(err.to_string())
     }
 }
 
@@ -649,9 +646,9 @@ mod tests {
     }
 
     #[test]
-    fn from_serde_json_error() {
-        let json_err = serde_json::from_str::<String>("not-json").unwrap_err();
-        let err = KronroeError::from(json_err);
+    fn from_parse_error() {
+        let parse_err = crate::json_read::ParseError("bad json".into());
+        let err = KronroeError::from(parse_err);
         assert!(err.is_serialization());
         assert_eq!(err.code(), ErrorCode::Serialization);
     }
@@ -698,13 +695,12 @@ mod tests {
     }
 
     #[test]
-    fn source_returns_serde_error_for_leaf() {
-        let json_err = serde_json::from_str::<String>("not-json").unwrap_err();
-        let err = KronroeError::from(json_err);
-
-        // Leaf serialization node should expose the serde_json::Error
-        let source = std::error::Error::source(&err).unwrap();
-        assert!(source.downcast_ref::<serde_json::Error>().is_some());
+    fn serialization_error_from_string() {
+        let err = KronroeError::serialization("malformed JSON at position 5");
+        assert!(err.is_serialization());
+        assert!(err.message().contains("malformed JSON"));
+        // source() returns None for string-based serialization errors
+        assert!(std::error::Error::source(&err).is_none());
     }
 
     #[test]
