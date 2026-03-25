@@ -1,9 +1,14 @@
 # Changelog
 
+## 2026-03-25
+
+- Replaced `thiserror` and `anyhow` with Kronroe-native error system — zero external error deps across all 7 crates.
+- New `ErrorCode` (stable `repr(u16)` codes for FFI), `ErrorContext` / `OptionContext` traits, structured accessors.
+- Fixed 3 non-interpolated error messages in MCP server (audit finding).
+
 ## 2026-03-24
 
-- Bumped workspace to `0.3.1` — patch release so published crates include `thiserror ^2` (0.3.0 was published before the bump was pulled locally).
-- Updated `thiserror` 1 → 2 across workspace.
+- Bumped workspace to `0.3.1`.
 - Published `kronroe-mcp` pip shim to PyPI.
 - Added `mcp-shim-publish.yml` workflow for trusted publishing of the pip shim.
 - Fixed site footer version badge.
