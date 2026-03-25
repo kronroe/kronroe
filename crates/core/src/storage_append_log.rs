@@ -173,7 +173,10 @@ impl AppendLogRecord {
         Ok(())
     }
 
-    fn from_json(val: &JsonValue) -> Result<Self> {
+    /// Parse an AppendLogRecord from JSON. Returns `Ok(None)` for unknown
+    /// variants to support forward compatibility — older builds can open
+    /// files written by newer versions that add new record types.
+    fn from_json(val: &JsonValue) -> Result<Option<Self>> {
         // Externally tagged: {"VariantName": {...fields...}}
         let obj = match val {
             JsonValue::Object(map) if map.len() == 1 => map,
@@ -191,7 +194,7 @@ impl AppendLogRecord {
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| KronroeError::serialization("Header missing 'magic'"))?
                     .to_string();
-                Ok(AppendLogRecord::Header { magic })
+                Ok(Some(AppendLogRecord::Header { magic }))
             }
             "SchemaVersion" => {
                 let version = inner
@@ -200,7 +203,7 @@ impl AppendLogRecord {
                     .ok_or_else(|| {
                         KronroeError::serialization("SchemaVersion missing 'version'")
                     })?;
-                Ok(AppendLogRecord::SchemaVersion { version })
+                Ok(Some(AppendLogRecord::SchemaVersion { version }))
             }
             "UpsertFact" => {
                 let key = inner
@@ -212,7 +215,7 @@ impl AppendLogRecord {
                     Fact::from_json(inner.get("fact").ok_or_else(|| {
                         KronroeError::serialization("UpsertFact missing 'fact'")
                     })?)?;
-                Ok(AppendLogRecord::UpsertFact { key, fact })
+                Ok(Some(AppendLogRecord::UpsertFact { key, fact }))
             }
             "UpsertFactAndIdempotency" => {
                 let key = inner
@@ -234,11 +237,11 @@ impl AppendLogRecord {
                         )
                     })?
                     .to_string();
-                Ok(AppendLogRecord::UpsertFactAndIdempotency {
+                Ok(Some(AppendLogRecord::UpsertFactAndIdempotency {
                     key,
                     fact,
                     idempotency_key,
-                })
+                }))
             }
             "ReplaceFact" => {
                 let key = inner
@@ -250,7 +253,7 @@ impl AppendLogRecord {
                     Fact::from_json(inner.get("fact").ok_or_else(|| {
                         KronroeError::serialization("ReplaceFact missing 'fact'")
                     })?)?;
-                Ok(AppendLogRecord::ReplaceFact { key, fact })
+                Ok(Some(AppendLogRecord::ReplaceFact { key, fact }))
             }
             #[cfg(feature = "vector")]
             "UpsertFactWithEmbedding" => {
@@ -277,11 +280,11 @@ impl AppendLogRecord {
                         })
                     })
                     .collect::<Result<Vec<f32>>>()?;
-                Ok(AppendLogRecord::UpsertFactWithEmbedding {
+                Ok(Some(AppendLogRecord::UpsertFactWithEmbedding {
                     key,
                     fact,
                     embedding,
-                })
+                }))
             }
             #[cfg(feature = "contradiction")]
             "UpsertPredicateRegistryEntry" => {
@@ -303,7 +306,10 @@ impl AppendLogRecord {
                         )
                     })?
                     .to_string();
-                Ok(AppendLogRecord::UpsertPredicateRegistryEntry { predicate, encoded })
+                Ok(Some(AppendLogRecord::UpsertPredicateRegistryEntry {
+                    predicate,
+                    encoded,
+                }))
             }
             #[cfg(feature = "uncertainty")]
             "UpsertVolatilityRegistryEntry" => {
@@ -325,7 +331,10 @@ impl AppendLogRecord {
                         )
                     })?
                     .to_string();
-                Ok(AppendLogRecord::UpsertVolatilityRegistryEntry { predicate, encoded })
+                Ok(Some(AppendLogRecord::UpsertVolatilityRegistryEntry {
+                    predicate,
+                    encoded,
+                }))
             }
             #[cfg(feature = "uncertainty")]
             "UpsertSourceWeightRegistryEntry" => {
@@ -347,14 +356,16 @@ impl AppendLogRecord {
                         )
                     })?
                     .to_string();
-                Ok(AppendLogRecord::UpsertSourceWeightRegistryEntry { source, encoded })
+                Ok(Some(AppendLogRecord::UpsertSourceWeightRegistryEntry {
+                    source,
+                    encoded,
+                }))
             }
-            other => {
+            _other => {
                 // Unknown record types are silently skipped during replay
-                // to support forward compatibility.
-                Err(KronroeError::serialization(format!(
-                    "unknown AppendLogRecord variant: {other}"
-                )))
+                // to support forward compatibility — older builds can open
+                // files written by newer versions that add new record types.
+                Ok(None)
             }
         }
     }
@@ -749,7 +760,12 @@ impl AppendLogBackend {
                 .map_err(KronroeError::from)
                 .and_then(|val| AppendLogRecord::from_json(&val));
             let record = match parsed {
-                Ok(record) => record,
+                Ok(Some(record)) => record,
+                Ok(None) => {
+                    // Unknown record type — skip for forward compatibility.
+                    saw_valid_record = true;
+                    continue;
+                }
                 Err(error) => {
                     if saw_valid_record && is_last_segment && !ends_with_newline {
                         return Ok(state);

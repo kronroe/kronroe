@@ -308,7 +308,8 @@ impl Fact {
         let mut buf = Vec::new();
         self.write_json(&mut buf)
             .expect("Vec<u8> write is infallible");
-        // SAFETY: write_json only produces valid UTF-8 (ASCII JSON)
+        // SAFETY: write_json produces valid UTF-8 — JSON structural characters
+        // are ASCII, and string values pass through raw UTF-8 bytes unchanged.
         unsafe { String::from_utf8_unchecked(buf) }
     }
 

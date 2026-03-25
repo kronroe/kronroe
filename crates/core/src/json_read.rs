@@ -148,6 +148,22 @@ impl<'a> Parser<'a> {
         self.expect(b'"')?;
         let mut result = String::new();
         loop {
+            // Fast path: scan for the next special character (quote, backslash)
+            // and copy the entire literal run at once. This correctly handles
+            // multi-byte UTF-8 because we slice the validated &str directly
+            // rather than interpreting individual bytes as characters.
+            let run_start = self.pos;
+            while self.pos < self.input.len() {
+                let b = self.input.as_bytes()[self.pos];
+                if b == b'"' || b == b'\\' {
+                    break;
+                }
+                self.pos += 1;
+            }
+            if self.pos > run_start {
+                result.push_str(&self.input[run_start..self.pos]);
+            }
+
             match self.next_byte() {
                 Some(b'"') => return Ok(result),
                 Some(b'\\') => {
@@ -188,8 +204,8 @@ impl<'a> Parser<'a> {
                         None => return Err(self.error("unterminated string escape".into())),
                     }
                 }
-                Some(b) => result.push(b as char),
                 None => return Err(self.error("unterminated string".into())),
+                _ => unreachable!("scan loop only stops at quote, backslash, or EOF"),
             }
         }
     }
@@ -407,6 +423,24 @@ mod tests {
         assert_eq!(
             JsonValue::parse_str(r#""\u0041""#).unwrap(),
             JsonValue::Str("A".into())
+        );
+    }
+
+    #[test]
+    fn parse_multibyte_utf8() {
+        // This is the critical regression test for Bug 1 — multi-byte UTF-8
+        // must survive a write→read round-trip without corruption.
+        assert_eq!(
+            JsonValue::parse_str(r#""café""#).unwrap(),
+            JsonValue::Str("café".into())
+        );
+        assert_eq!(
+            JsonValue::parse_str("\"日本語\"").unwrap(),
+            JsonValue::Str("日本語".into())
+        );
+        assert_eq!(
+            JsonValue::parse_str("\"emoji: 🦀\"").unwrap(),
+            JsonValue::Str("emoji: 🦀".into())
         );
     }
 
