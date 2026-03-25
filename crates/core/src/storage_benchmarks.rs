@@ -1,7 +1,6 @@
 use super::*;
 use crate::storage::KronroeStorage;
 use crate::storage_observability::{StorageEvent, StorageObserver, StorageOperation};
-use serde::Serialize;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
@@ -93,20 +92,18 @@ impl StorageObserver for RecordingObserver {
     }
 }
 
-#[derive(Serialize)]
 struct StorageBenchmarkReport {
     generated_at: String,
     scale: &'static str,
     workloads: Vec<WorkloadReport>,
 }
 
-#[derive(Clone, Copy, Serialize)]
+#[derive(Clone, Copy)]
 enum BenchmarkBackendMode {
     InMemory,
     OnDisk,
 }
 
-#[derive(Serialize)]
 struct WorkloadReport {
     workload: String,
     backend_mode: BenchmarkBackendMode,
@@ -117,7 +114,6 @@ struct WorkloadReport {
     operations: Vec<OperationSummary>,
 }
 
-#[derive(Serialize)]
 struct OperationSummary {
     operation: StorageOperation,
     count: usize,
@@ -537,11 +533,110 @@ fn build_storage_benchmark_report(scale: BenchmarkScale) -> StorageBenchmarkRepo
 }
 
 fn emit_report(report: &StorageBenchmarkReport) {
-    let json = serde_json::to_string_pretty(report).unwrap();
+    let json = format_benchmark_report(report);
     if let Ok(path) = std::env::var("KRONROE_STORAGE_BENCHMARK_OUTPUT") {
         fs::write(path, &json).unwrap();
     }
     println!("{json}");
+}
+
+fn format_benchmark_report(report: &StorageBenchmarkReport) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+    writeln!(out, "{{").unwrap();
+    writeln!(out, "  \"generated_at\": {:?},", report.generated_at).unwrap();
+    writeln!(out, "  \"scale\": {:?},", report.scale).unwrap();
+    writeln!(out, "  \"workloads\": [").unwrap();
+    for (wi, w) in report.workloads.iter().enumerate() {
+        writeln!(out, "    {{").unwrap();
+        writeln!(out, "      \"workload\": {:?},", w.workload).unwrap();
+        writeln!(
+            out,
+            "      \"backend_mode\": {:?},",
+            match w.backend_mode {
+                BenchmarkBackendMode::InMemory => "InMemory",
+                BenchmarkBackendMode::OnDisk => "OnDisk",
+            }
+        )
+        .unwrap();
+        writeln!(out, "      \"wall_duration_ms\": {},", w.wall_duration_ms).unwrap();
+        writeln!(
+            out,
+            "      \"wall_duration_micros\": {},",
+            w.wall_duration_micros
+        )
+        .unwrap();
+        write!(out, "      \"parameters\": {{").unwrap();
+        for (pi, (k, v)) in w.parameters.iter().enumerate() {
+            if pi > 0 {
+                write!(out, ",").unwrap();
+            }
+            write!(out, " {:?}: {}", k, v).unwrap();
+        }
+        writeln!(out, " }},").unwrap();
+        write!(out, "      \"notes\": {{").unwrap();
+        for (ni, (k, v)) in w.notes.iter().enumerate() {
+            if ni > 0 {
+                write!(out, ",").unwrap();
+            }
+            write!(out, " {:?}: {:?}", k, v).unwrap();
+        }
+        writeln!(out, " }},").unwrap();
+        writeln!(out, "      \"operations\": [").unwrap();
+        for (oi, op) in w.operations.iter().enumerate() {
+            writeln!(out, "        {{").unwrap();
+            writeln!(out, "          \"operation\": \"{:?}\",", op.operation).unwrap();
+            writeln!(out, "          \"count\": {},", op.count).unwrap();
+            writeln!(out, "          \"success_count\": {},", op.success_count).unwrap();
+            writeln!(out, "          \"failure_count\": {},", op.failure_count).unwrap();
+            writeln!(
+                out,
+                "          \"total_duration_ms\": {},",
+                op.total_duration_ms
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "          \"max_duration_ms\": {},",
+                op.max_duration_ms
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "          \"total_duration_micros\": {},",
+                op.total_duration_micros
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "          \"max_duration_micros\": {},",
+                op.max_duration_micros
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "          \"total_rows_scanned\": {}",
+                op.total_rows_scanned
+            )
+            .unwrap();
+            write!(out, "        }}").unwrap();
+            if oi + 1 < w.operations.len() {
+                writeln!(out, ",").unwrap();
+            } else {
+                writeln!(out).unwrap();
+            }
+        }
+        writeln!(out, "      ]").unwrap();
+        write!(out, "    }}").unwrap();
+        if wi + 1 < report.workloads.len() {
+            writeln!(out, ",").unwrap();
+        } else {
+            writeln!(out).unwrap();
+        }
+    }
+    writeln!(out, "  ]").unwrap();
+    write!(out, "}}").unwrap();
+    out
 }
 
 #[test]

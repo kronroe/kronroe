@@ -1,4 +1,3 @@
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::sync::{Mutex, OnceLock};
 #[cfg(not(target_arch = "wasm32"))]
@@ -188,25 +187,6 @@ impl fmt::Display for FactId {
 impl AsRef<str> for FactId {
     fn as_ref(&self) -> &str {
         self.as_str()
-    }
-}
-
-impl Serialize for FactId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for FactId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let text = String::deserialize(deserializer)?;
-        Self::parse(&text).map_err(de::Error::custom)
     }
 }
 

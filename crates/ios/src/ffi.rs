@@ -172,19 +172,17 @@ pub unsafe extern "C" fn kronroe_graph_facts_about_json(
     let graph = unsafe { &*handle };
 
     match graph.graph.all_facts_about(&entity) {
-        Ok(facts) => match serde_json::to_string(&facts) {
-            Ok(s) => match CString::new(s) {
+        Ok(facts) => {
+            let json_parts: Vec<String> = facts.iter().map(|f| f.to_json_string()).collect();
+            let json_str = format!("[{}]", json_parts.join(","));
+            match CString::new(json_str) {
                 Ok(cs) => cs.into_raw(),
                 Err(_) => {
                     set_last_error("failed to encode facts JSON".to_string());
                     ptr::null_mut()
                 }
-            },
-            Err(err) => {
-                set_last_error(err.to_string());
-                ptr::null_mut()
             }
-        },
+        }
         Err(err) => {
             set_last_error(err.to_string());
             ptr::null_mut()

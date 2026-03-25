@@ -12,7 +12,6 @@
 //! All math is pure Rust, zero external dependencies, works on every target.
 
 use crate::{Fact, KronroeTimestamp};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
@@ -24,92 +23,11 @@ use std::collections::HashMap;
 /// A `works_at` fact might have a 2-year half-life (730 days): after 2 years
 /// the age-decay multiplier drops to 0.5. A `born_in` fact is essentially
 /// stable (`half_life_days = f64::INFINITY`).
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PredicateVolatility {
     /// Half-life in days.  After this many days, the age-decay multiplier
     /// equals 0.5. `f64::INFINITY` means no decay (stable predicate).
-    #[serde(
-        serialize_with = "serialize_half_life",
-        deserialize_with = "deserialize_half_life"
-    )]
     pub half_life_days: f64,
-}
-
-// JSON compatibility for stability:
-// serde_json cannot represent infinity as a number, so encode `f64::INFINITY`
-// as the string "inf". For backward compatibility, `null` is also treated as
-// stable.
-fn serialize_half_life<S>(value: &f64, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    if !value.is_finite() {
-        serializer.serialize_str("inf")
-    } else {
-        serializer.serialize_f64(*value)
-    }
-}
-
-fn deserialize_half_life<'de, D>(deserializer: D) -> Result<f64, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    use serde::de::{self, Visitor};
-    use std::fmt;
-
-    struct HalfLifeVisitor;
-
-    impl<'de> Visitor<'de> for HalfLifeVisitor {
-        type Value = f64;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a finite number of days, or the string \"inf\" for stable")
-        }
-
-        fn visit_f64<E>(self, value: f64) -> Result<f64, E>
-        where
-            E: de::Error,
-        {
-            Ok(PredicateVolatility::new(value).half_life_days)
-        }
-
-        fn visit_u64<E>(self, value: u64) -> Result<f64, E>
-        where
-            E: de::Error,
-        {
-            Ok(PredicateVolatility::new(value as f64).half_life_days)
-        }
-
-        fn visit_i64<E>(self, value: i64) -> Result<f64, E>
-        where
-            E: de::Error,
-        {
-            Ok(PredicateVolatility::new(value as f64).half_life_days)
-        }
-
-        fn visit_str<E>(self, value: &str) -> Result<f64, E>
-        where
-            E: de::Error,
-        {
-            let lower = value.to_ascii_lowercase();
-            if lower == "inf" || lower == "infinity" {
-                Ok(f64::INFINITY)
-            } else {
-                Err(E::custom(format!(
-                    "invalid half-life string '{value}'; expected 'inf' for stable"
-                )))
-            }
-        }
-
-        fn visit_unit<E>(self) -> Result<f64, E>
-        where
-            E: de::Error,
-        {
-            Ok(f64::INFINITY)
-        }
-    }
-
-    deserializer.deserialize_any(HalfLifeVisitor)
 }
 
 impl PredicateVolatility {
@@ -139,64 +57,10 @@ impl PredicateVolatility {
 /// A trusted source like `"user:owner"` might have weight 1.5 (boosted),
 /// while an uncertain source like `"api:guess"` might have weight 0.5
 /// (penalised). Default for unknown sources is 1.0 (neutral).
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SourceWeight {
     /// Multiplier in \[0.0, 2.0\]. 1.0 = neutral.
-    #[serde(deserialize_with = "deserialize_source_weight")]
     pub weight: f32,
-}
-
-fn deserialize_source_weight<'de, D>(deserializer: D) -> Result<f32, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    use serde::de::{self, Visitor};
-    use std::fmt;
-
-    struct SourceWeightVisitor;
-
-    impl<'de> Visitor<'de> for SourceWeightVisitor {
-        type Value = f32;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a finite number")
-        }
-
-        fn visit_f64<E>(self, value: f64) -> Result<f32, E>
-        where
-            E: de::Error,
-        {
-            Ok(SourceWeight::new(value as f32).weight)
-        }
-
-        fn visit_u64<E>(self, value: u64) -> Result<f32, E>
-        where
-            E: de::Error,
-        {
-            Ok(SourceWeight::new(value as f32).weight)
-        }
-
-        fn visit_i64<E>(self, value: i64) -> Result<f32, E>
-        where
-            E: de::Error,
-        {
-            Ok(SourceWeight::new(value as f32).weight)
-        }
-
-        fn visit_str<E>(self, value: &str) -> Result<f32, E>
-        where
-            E: de::Error,
-        {
-            let parsed = value.parse::<f32>().map_err(|_| {
-                E::custom(format!(
-                    "invalid source weight string '{value}'; expected a finite number"
-                ))
-            })?;
-            Ok(SourceWeight::new(parsed).weight)
-        }
-    }
-
-    deserializer.deserialize_any(SourceWeightVisitor)
 }
 
 impl SourceWeight {
@@ -209,6 +73,63 @@ impl SourceWeight {
                 1.0
             },
         }
+    }
+}
+
+// -- Registry codecs for PredicateVolatility and SourceWeight --
+// Format matches serde_json output for backward compatibility:
+// PredicateVolatility: {"half_life_days":730.0} or {"half_life_days":"inf"}
+// SourceWeight: {"weight":1.5}
+
+impl PredicateVolatility {
+    pub(crate) fn to_json_string(self) -> String {
+        if self.half_life_days.is_finite() {
+            format!("{{\"half_life_days\":{}}}", self.half_life_days)
+        } else {
+            "{\"half_life_days\":\"inf\"}".to_string()
+        }
+    }
+
+    pub(crate) fn from_json_str(s: &str) -> crate::Result<Self> {
+        let val = crate::json_read::JsonValue::parse_str(s)?;
+        let hl = val.get("half_life_days").ok_or_else(|| {
+            crate::KronroeError::serialization("PredicateVolatility missing 'half_life_days'")
+        })?;
+        let days = match hl {
+            crate::json_read::JsonValue::Str(s) => {
+                let lower = s.to_ascii_lowercase();
+                if lower == "inf" || lower == "infinity" {
+                    f64::INFINITY
+                } else {
+                    return Err(crate::KronroeError::serialization(format!(
+                        "invalid half_life_days string: '{s}'"
+                    )));
+                }
+            }
+            crate::json_read::JsonValue::Number(n) => *n,
+            crate::json_read::JsonValue::Null => f64::INFINITY,
+            _ => {
+                return Err(crate::KronroeError::serialization(
+                    "half_life_days: unexpected type",
+                ))
+            }
+        };
+        Ok(PredicateVolatility::new(days))
+    }
+}
+
+impl SourceWeight {
+    pub(crate) fn to_json_string(self) -> String {
+        format!("{{\"weight\":{}}}", self.weight)
+    }
+
+    pub(crate) fn from_json_str(s: &str) -> crate::Result<Self> {
+        let val = crate::json_read::JsonValue::parse_str(s)?;
+        let w = val
+            .get("weight")
+            .and_then(|v| v.as_f32())
+            .ok_or_else(|| crate::KronroeError::serialization("SourceWeight missing 'weight'"))?;
+        Ok(SourceWeight::new(w))
     }
 }
 

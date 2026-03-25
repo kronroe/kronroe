@@ -243,8 +243,6 @@ name = "kronroe"
 version = "0.3.1"
 dependencies = [
  "js-sys",
- "serde",
- "serde_json",
  "tempfile",
 ]
 

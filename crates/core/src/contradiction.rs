@@ -16,7 +16,7 @@ use std::collections::HashMap;
 // ---------------------------------------------------------------------------
 
 /// Whether a predicate allows multiple concurrent values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PredicateCardinality {
     /// At most one active value at any point in time (e.g. "works_at").
     Singleton,
@@ -36,7 +36,7 @@ pub enum ConflictSeverity {
 }
 
 /// What the engine should do when a contradiction is detected at write time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ConflictPolicy {
     /// Store the fact regardless — caller handles conflicts downstream.
     #[default]
@@ -45,6 +45,82 @@ pub enum ConflictPolicy {
     Warn,
     /// Reject the fact if it contradicts existing facts.
     Reject,
+}
+
+// -- Registry codec: encodes as JSON array ["Singleton","Warn"] --
+impl PredicateCardinality {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            PredicateCardinality::Singleton => "Singleton",
+            PredicateCardinality::MultiValued => "MultiValued",
+        }
+    }
+
+    pub(crate) fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "Singleton" => Some(PredicateCardinality::Singleton),
+            "MultiValued" => Some(PredicateCardinality::MultiValued),
+            _ => None,
+        }
+    }
+}
+
+impl ConflictPolicy {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            ConflictPolicy::Allow => "Allow",
+            ConflictPolicy::Warn => "Warn",
+            ConflictPolicy::Reject => "Reject",
+        }
+    }
+
+    pub(crate) fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "Allow" => Some(ConflictPolicy::Allow),
+            "Warn" => Some(ConflictPolicy::Warn),
+            "Reject" => Some(ConflictPolicy::Reject),
+            _ => None,
+        }
+    }
+}
+
+/// Encode a (PredicateCardinality, ConflictPolicy) pair as a JSON string.
+/// Format: `["Singleton","Warn"]` — matches serde_json output for backward compat.
+pub(crate) fn encode_predicate_registry(
+    cardinality: PredicateCardinality,
+    policy: ConflictPolicy,
+) -> String {
+    format!("[\"{}\",\"{}\"]", cardinality.as_str(), policy.as_str())
+}
+
+/// Decode a (PredicateCardinality, ConflictPolicy) pair from a JSON string.
+pub(crate) fn decode_predicate_registry(
+    encoded: &str,
+) -> crate::Result<(PredicateCardinality, ConflictPolicy)> {
+    let val = crate::json_read::JsonValue::parse_str(encoded)?;
+    let arr = val
+        .as_array()
+        .ok_or_else(|| crate::KronroeError::serialization("predicate registry: expected array"))?;
+    if arr.len() != 2 {
+        return Err(crate::KronroeError::serialization(
+            "predicate registry: expected 2-element array",
+        ));
+    }
+    let cardinality_str = arr[0].as_str().ok_or_else(|| {
+        crate::KronroeError::serialization("predicate registry: cardinality not a string")
+    })?;
+    let policy_str = arr[1].as_str().ok_or_else(|| {
+        crate::KronroeError::serialization("predicate registry: policy not a string")
+    })?;
+    let cardinality = PredicateCardinality::from_str(cardinality_str).ok_or_else(|| {
+        crate::KronroeError::serialization(format!(
+            "unknown PredicateCardinality: {cardinality_str}"
+        ))
+    })?;
+    let policy = ConflictPolicy::from_str(policy_str).ok_or_else(|| {
+        crate::KronroeError::serialization(format!("unknown ConflictPolicy: {policy_str}"))
+    })?;
+    Ok((cardinality, policy))
 }
 
 /// Suggested resolution for a contradiction.
@@ -86,8 +162,6 @@ pub struct Contradiction {
 // ---------------------------------------------------------------------------
 // Pure functions
 // ---------------------------------------------------------------------------
-
-use serde::{Deserialize, Serialize};
 
 /// Compute valid-time overlap between two active facts.
 ///
