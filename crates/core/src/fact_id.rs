@@ -338,7 +338,7 @@ mod entropy {
     struct WasmEntropyPool {
         buf: [u8; ENTROPY_POOL_SIZE],
         cursor: usize,
-        crypto_fn: Option<(js_sys::Function, wasm_bindgen::JsValue)>,
+        crypto_fn: Option<(js_sys::Function, js_sys::wasm_bindgen::JsValue)>,
     }
 
     impl WasmEntropyPool {
