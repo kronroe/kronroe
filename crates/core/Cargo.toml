@@ -27,8 +27,6 @@ uncertainty = []
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
-getrandom = { workspace = true }
-libc = { workspace = true }
 
 # WASM needs js-sys for wall-clock time (SystemTime::now() is unsupported on
 # wasm32-unknown-unknown).  js-sys is already a transitive dep via wasm-bindgen

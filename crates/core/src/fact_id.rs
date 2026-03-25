@@ -1,4 +1,3 @@
-use getrandom::fill as fill_random;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::sync::{Mutex, OnceLock};
@@ -93,7 +92,7 @@ impl FactId {
         Self::try_new().expect("OS randomness unavailable for Kronroe Fact ID generation")
     }
 
-    pub fn try_new() -> Result<Self, getrandom::Error> {
+    pub fn try_new() -> Result<Self, std::io::Error> {
         let generator = GENERATOR.get_or_init(|| Mutex::new(GeneratorState::new()));
         let mut state = generator
             .lock()
@@ -263,6 +262,46 @@ fn decode_char(ch: char) -> Option<u8> {
         .iter()
         .position(|candidate| *candidate as char == upper)
         .map(|idx| idx as u8)
+}
+
+// ---------------------------------------------------------------------------
+// Platform-native entropy — replaces the `getrandom` crate
+// ---------------------------------------------------------------------------
+
+/// Fill `buf` with cryptographically secure random bytes.
+///
+/// - **Unix (macOS, Linux, iOS, Android):** reads from `/dev/urandom`
+/// - **WASM:** delegates to `Crypto.getRandomValues()`
+#[cfg(not(target_arch = "wasm32"))]
+fn fill_random(buf: &mut [u8]) -> Result<(), std::io::Error> {
+    use std::io::Read;
+    let mut f = std::fs::File::open("/dev/urandom")?;
+    f.read_exact(buf)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn fill_random(buf: &mut [u8]) -> Result<(), std::io::Error> {
+    let crypto = js_sys::Reflect::get(&js_sys::global(), &"crypto".into())
+        .ok()
+        .and_then(|v| if v.is_undefined() { None } else { Some(v) })
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "Web Crypto API unavailable",
+            )
+        })?;
+    let array = js_sys::Uint8Array::new_with_length(buf.len() as u32);
+    js_sys::Reflect::get(&crypto, &"getRandomValues".into())
+        .ok()
+        .and_then(|f| js_sys::Function::from(f).call1(&crypto, &array).ok())
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "crypto.getRandomValues() failed",
+            )
+        })?;
+    array.copy_to(buf);
+    Ok(())
 }
 
 #[cfg(test)]

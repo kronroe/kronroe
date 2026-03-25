@@ -8,6 +8,21 @@ use std::fs::{self, File};
 use std::io::Write;
 #[cfg(not(target_arch = "wasm32"))]
 use std::os::fd::AsRawFd;
+
+// Direct flock FFI — replaces the `libc` crate dependency.
+// flock() is POSIX and available on all our non-WASM targets
+// (macOS, Linux, iOS, Android).
+#[cfg(not(target_arch = "wasm32"))]
+const LOCK_EX: i32 = 2; // Exclusive lock
+#[cfg(not(target_arch = "wasm32"))]
+const LOCK_NB: i32 = 4; // Non-blocking
+#[cfg(not(target_arch = "wasm32"))]
+const LOCK_UN: i32 = 8; // Unlock
+
+#[cfg(not(target_arch = "wasm32"))]
+unsafe extern "C" {
+    fn flock(fd: i32, operation: i32) -> i32;
+}
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
@@ -285,7 +300,7 @@ impl LockFileGuard {
                     path.display()
                 ))
             })?;
-        let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+        let rc = unsafe { flock(file.as_raw_fd(), LOCK_EX | LOCK_NB) };
         if rc != 0 {
             let error = std::io::Error::last_os_error();
             return Err(KronroeError::storage(format!(
@@ -303,7 +318,7 @@ impl LockFileGuard {
 #[cfg(not(target_arch = "wasm32"))]
 impl Drop for LockFileGuard {
     fn drop(&mut self) {
-        let _ = unsafe { libc::flock(self.file.as_raw_fd(), libc::LOCK_UN) };
+        let _ = unsafe { flock(self.file.as_raw_fd(), LOCK_UN) };
         let _ = fs::remove_file(&self.path);
     }
 }
