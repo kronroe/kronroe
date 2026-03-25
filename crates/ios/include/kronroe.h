@@ -51,6 +51,59 @@ char *kronroe_graph_facts_about_json(KronroeGraphHandle *handle, const char *ent
 const char *kronroe_last_error_message(void);
 
 /**
+ * Assert a fact with full control over confidence, source, and valid_from.
+ * confidence: 0.0–1.0 (negative = default 1.0).
+ * source: provenance marker, or NULL for none.
+ * valid_from_iso: RFC 3339 timestamp, or NULL for current time.
+ * Returns fact ID string, or NULL on error. Free with `kronroe_string_free`.
+ */
+char *kronroe_graph_assert_fact(KronroeGraphHandle *handle,
+                                const char *subject,
+                                const char *predicate,
+                                const char *object,
+                                float confidence,
+                                const char *source,
+                                const char *valid_from_iso);
+
+/**
+ * Return currently valid facts for (entity, predicate) as JSON array.
+ * Free with `kronroe_string_free`.
+ */
+char *kronroe_graph_current_facts_json(KronroeGraphHandle *handle,
+                                       const char *entity,
+                                       const char *predicate);
+
+/**
+ * Full-text search across all current facts. Returns JSON array.
+ * Free with `kronroe_string_free`.
+ */
+char *kronroe_graph_search_json(KronroeGraphHandle *handle,
+                                const char *query,
+                                unsigned int limit);
+
+/**
+ * Correct a fact: invalidate old value, assert new one. Preserves history.
+ * Returns new fact ID, or NULL on error. Free with `kronroe_string_free`.
+ */
+char *kronroe_graph_correct_fact(KronroeGraphHandle *handle,
+                                 const char *fact_id,
+                                 const char *new_object);
+
+/**
+ * Invalidate (retire) a fact by ID. Sets valid_to to now.
+ * Returns false on error.
+ */
+bool kronroe_graph_invalidate_fact(KronroeGraphHandle *handle,
+                                   const char *fact_id);
+
+/**
+ * Look up a single fact by its kf_... ID. Returns JSON or NULL.
+ * Free with `kronroe_string_free`.
+ */
+char *kronroe_graph_fact_by_id_json(KronroeGraphHandle *handle,
+                                    const char *fact_id);
+
+/**
  * Free strings returned from Kronroe FFI.
  */
 void kronroe_string_free(char *ptr);
