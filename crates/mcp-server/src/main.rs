@@ -1,7 +1,8 @@
-use anyhow::{Context, Result};
 #[cfg(test)]
 use kronroe::FactId;
-use kronroe::{Fact, KronroeSpan, KronroeTimestamp, Value};
+use kronroe::{
+    ErrorContext, Fact, KronroeError, KronroeSpan, KronroeTimestamp, OptionContext, Value,
+};
 #[cfg(feature = "hybrid")]
 use kronroe::{TemporalIntent, TemporalOperator};
 use kronroe_agent_memory::{
@@ -11,6 +12,8 @@ use kronroe_agent_memory::{
 use serde_json::{json, Map, Value as JsonValue};
 use std::env;
 use std::io::{self, BufRead, BufReader, Write};
+
+type Result<T> = std::result::Result<T, KronroeError>;
 
 const MAX_MESSAGE_BYTES: usize = 1_048_576; // 1 MiB
 const MAX_TEXT_BYTES: usize = 32 * 1024; // 32 KiB
@@ -123,7 +126,14 @@ impl AppState {
     }
 }
 
-fn main() -> Result<()> {
+fn main() {
+    if let Err(err) = run() {
+        eprintln!("kronroe-mcp: {err}");
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<()> {
     let mut state = AppState::open().context("failed to open kronroe database")?;
     let stdin = io::stdin();
     let mut reader = BufReader::new(stdin.lock());
@@ -176,7 +186,7 @@ fn read_message<R: BufRead>(reader: &mut R) -> Result<Option<JsonValue>> {
                     value
                         .trim()
                         .parse::<usize>()
-                        .context("invalid Content-Length")?,
+                        .map_err(|_| KronroeError::invalid_input("invalid Content-Length"))?,
                 );
             }
         }
@@ -184,12 +194,15 @@ fn read_message<R: BufRead>(reader: &mut R) -> Result<Option<JsonValue>> {
 
     let len = content_length.context("missing Content-Length header")?;
     if len > MAX_MESSAGE_BYTES {
-        anyhow::bail!("Content-Length {len} exceeds max allowed {MAX_MESSAGE_BYTES} bytes");
+        return Err(KronroeError::invalid_input(format!(
+            "Content-Length {len} exceeds max allowed {MAX_MESSAGE_BYTES} bytes",
+        )));
     }
 
     let mut payload = vec![0_u8; len];
     reader.read_exact(&mut payload)?;
-    let value: JsonValue = serde_json::from_slice(&payload).context("invalid JSON payload")?;
+    let value: JsonValue = serde_json::from_slice(&payload)
+        .map_err(|e| KronroeError::from(e).context("invalid JSON payload"))?;
     Ok(Some(value))
 }
 
@@ -256,8 +269,9 @@ fn handle_request(state: &mut AppState, req: &JsonValue) -> Option<JsonValue> {
                             "jsonrpc": "2.0",
                             "id": id_val,
                             "result": {
-                                "content": [{ "type": "text", "text": format!("tool error: {err}") }],
-                                "isError": true
+                                "content": [{ "type": "text", "text": format!("[{}] {err}", err.code()) }],
+                                "isError": true,
+                                "errorCode": err.code().as_u16()
                             }
                         }),
                     }
@@ -445,9 +459,9 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
             let idempotency_key = args.get("idempotency_key").and_then(JsonValue::as_str);
 
             if idempotency_key.is_some() && (confidence.is_some() || source.is_some()) {
-                anyhow::bail!(
-                    "idempotency_key cannot be used with confidence or source in this endpoint"
-                );
+                return Err(KronroeError::invalid_input(
+                    "idempotency_key cannot be used with confidence or source in this endpoint",
+                ));
             }
 
             let fact_id = if let Some(key) = idempotency_key {
@@ -515,7 +529,7 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
         "what_changed" => call_tool_what_changed(state, &args),
         "memory_health" => call_tool_memory_health(state, &args),
         "recall_for_task" => call_tool_recall_for_task(state, &args),
-        _ => anyhow::bail!("unknown tool: {name}"),
+        _ => Err(KronroeError::invalid_input(format!("unknown tool: {name}"))),
     }
 }
 
@@ -525,7 +539,9 @@ fn call_tool_remember(state: &mut AppState, args: &JsonValue) -> Result<JsonValu
         .and_then(JsonValue::as_str)
         .context("text is required")?;
     if text.len() > MAX_TEXT_BYTES {
-        anyhow::bail!("text exceeds max allowed size ({} bytes)", MAX_TEXT_BYTES);
+        return Err(KronroeError::invalid_input(format!(
+            "text exceeds max allowed size ({MAX_TEXT_BYTES} bytes)"
+        )));
     }
 
     let episode_id = args
@@ -533,25 +549,25 @@ fn call_tool_remember(state: &mut AppState, args: &JsonValue) -> Result<JsonValu
         .and_then(JsonValue::as_str)
         .unwrap_or("default");
     if episode_id.len() > MAX_EPISODE_ID_BYTES {
-        anyhow::bail!(
-            "episode_id exceeds max allowed size ({} bytes)",
-            MAX_EPISODE_ID_BYTES
-        );
+        return Err(KronroeError::invalid_input(format!(
+            "episode_id exceeds max allowed size ({MAX_EPISODE_ID_BYTES} bytes)"
+        )));
     }
 
     let idempotency_key = args.get("idempotency_key").and_then(JsonValue::as_str);
     if let Some(key) = idempotency_key {
         if key.len() > MAX_IDEMPOTENCY_KEY_BYTES {
-            anyhow::bail!(
-                "idempotency_key exceeds max allowed size ({} bytes)",
-                MAX_IDEMPOTENCY_KEY_BYTES
-            );
+            return Err(KronroeError::invalid_input(format!(
+                "idempotency_key exceeds max allowed size ({MAX_IDEMPOTENCY_KEY_BYTES} bytes)"
+            )));
         }
     }
 
     let query_embedding = parse_embedding(args.get("query_embedding"))?;
     if idempotency_key.is_some() && query_embedding.is_some() {
-        anyhow::bail!("idempotency_key is not supported with query_embedding in remember");
+        return Err(KronroeError::invalid_input(
+            "idempotency_key is not supported with query_embedding in remember",
+        ));
     }
 
     let note_id = if let Some(key) = idempotency_key {
@@ -574,7 +590,9 @@ fn call_tool_remember(state: &mut AppState, args: &JsonValue) -> Result<JsonValu
         }
         #[cfg(not(feature = "hybrid"))]
         {
-            anyhow::bail!("query_embedding is unavailable without hybrid feature");
+            return Err(KronroeError::invalid_input(
+                "query_embedding is unavailable without hybrid feature",
+            ));
         }
     } else {
         state
@@ -622,7 +640,9 @@ fn call_tool_recall(
         .and_then(JsonValue::as_str)
         .context("query is required")?;
     if query.len() > MAX_QUERY_BYTES {
-        anyhow::bail!("query exceeds max allowed size ({} bytes)", MAX_QUERY_BYTES);
+        return Err(KronroeError::invalid_input(format!(
+            "query exceeds max allowed size ({MAX_QUERY_BYTES} bytes)"
+        )));
     }
     let (limit, include_scores) = {
         let limit = match args.get("limit") {
@@ -630,16 +650,21 @@ fn call_tool_recall(
                 let raw_limit = value
                     .as_u64()
                     .context("limit must be an integer greater than or equal to 1")?;
-                let parsed = usize::try_from(raw_limit).context("limit must be a valid integer")?;
+                let parsed = usize::try_from(raw_limit)
+                    .map_err(|_| KronroeError::invalid_input("limit must be a valid integer"))?;
                 if parsed == 0 {
-                    anyhow::bail!("limit must be greater than or equal to 1");
+                    return Err(KronroeError::invalid_input(
+                        "limit must be greater than or equal to 1",
+                    ));
                 }
                 parsed
             }
             None => 10,
         };
         if limit > MAX_RECALL_LIMIT {
-            anyhow::bail!("limit exceeds max allowed value ({MAX_RECALL_LIMIT})");
+            return Err(KronroeError::invalid_input(format!(
+                "limit exceeds max allowed value ({MAX_RECALL_LIMIT})",
+            )));
         }
         let include_scores = if scored_only {
             true
@@ -671,21 +696,31 @@ fn call_tool_recall(
         #[cfg(not(feature = "hybrid"))]
         {
             if use_hybrid == Some(true) {
-                anyhow::bail!("hybrid is unavailable in this build");
+                return Err(KronroeError::invalid_input(
+                    "hybrid is unavailable in this build",
+                ));
             }
             if args.get("temporal_intent").is_some() || args.get("temporal_operator").is_some() {
-                anyhow::bail!("temporal controls are unavailable without hybrid feature");
+                return Err(KronroeError::invalid_input(
+                    "temporal controls are unavailable without hybrid feature",
+                ));
             }
             if args.get("query_embedding").is_some() {
-                anyhow::bail!("query_embedding is unavailable without hybrid feature");
+                return Err(KronroeError::invalid_input(
+                    "query_embedding is unavailable without hybrid feature",
+                ));
             }
         }
     } else if use_hybrid == Some(true) {
-        anyhow::bail!("use_hybrid requires query_embedding");
+        return Err(KronroeError::invalid_input(
+            "use_hybrid requires query_embedding",
+        ));
     } else {
         #[cfg(feature = "hybrid")]
         if args.get("temporal_intent").is_some() || args.get("temporal_operator").is_some() {
-            anyhow::bail!("temporal_intent and temporal_operator require query_embedding");
+            return Err(KronroeError::invalid_input(
+                "temporal_intent and temporal_operator require query_embedding",
+            ));
         }
         // Text-only path preserves historical behavior.
     }
@@ -695,12 +730,14 @@ fn call_tool_recall(
             .as_u64()
             .context("max_scored_rows must be an integer greater than or equal to 1")?;
         if max_scored_rows == 0 {
-            anyhow::bail!("max_scored_rows must be greater than or equal to 1");
+            return Err(KronroeError::invalid_input(
+                "max_scored_rows must be greater than or equal to 1",
+            ));
         }
         opts = opts.with_max_scored_rows(
             max_scored_rows
                 .try_into()
-                .context("max_scored_rows too large")?,
+                .map_err(|_| KronroeError::invalid_input("max_scored_rows too large"))?,
         );
     }
 
@@ -709,7 +746,9 @@ fn call_tool_recall(
         .get("confidence_filter_mode")
         .and_then(JsonValue::as_str);
     if confidence_filter_mode.is_some() && min_confidence.is_none() {
-        anyhow::bail!("confidence_filter_mode requires min_confidence");
+        return Err(KronroeError::invalid_input(
+            "confidence_filter_mode requires min_confidence",
+        ));
     }
     if let Some(min) = min_confidence {
         let mode = confidence_filter_mode.unwrap_or("base");
@@ -722,10 +761,16 @@ fn call_tool_recall(
                 }
                 #[cfg(not(feature = "uncertainty"))]
                 {
-                    anyhow::bail!("effective confidence mode requires uncertainty feature")
+                    return Err(KronroeError::invalid_input(
+                        "effective confidence mode requires uncertainty feature",
+                    ));
                 }
             }
-            _ => anyhow::bail!("invalid confidence_filter_mode: {mode}"),
+            _ => {
+                return Err(KronroeError::invalid_input(format!(
+                    "invalid confidence_filter_mode: {mode}"
+                )))
+            }
         }
     }
 
@@ -760,16 +805,18 @@ fn call_tool_assemble_context(state: &mut AppState, args: &JsonValue) -> Result<
         .and_then(JsonValue::as_str)
         .context("query is required")?;
     if query.len() > MAX_QUERY_BYTES {
-        anyhow::bail!("query exceeds max allowed size ({} bytes)", MAX_QUERY_BYTES);
+        return Err(KronroeError::invalid_input(format!(
+            "query exceeds max allowed size ({MAX_QUERY_BYTES} bytes)"
+        )));
     }
     let max_tokens_raw = args
         .get("max_tokens")
         .and_then(JsonValue::as_u64)
         .context("max_tokens is required")?;
     let max_tokens = usize::try_from(max_tokens_raw)
-        .map_err(|_| anyhow::anyhow!("max_tokens value too large for this platform"))?;
+        .map_err(|_| KronroeError::invalid_input("max_tokens value too large for this platform"))?;
     if max_tokens == 0 {
-        anyhow::bail!("max_tokens must be >= 1");
+        return Err(KronroeError::invalid_input("max_tokens must be >= 1"));
     }
 
     let query_embedding = parse_embedding(args.get("query_embedding"))?;
@@ -792,7 +839,7 @@ fn call_tool_what_changed(state: &mut AppState, args: &JsonValue) -> Result<Json
         .and_then(JsonValue::as_str)
         .context("since is required")?
         .parse::<KronroeTimestamp>()
-        .context("since must be RFC3339")?;
+        .map_err(|_| KronroeError::invalid_input("since must be RFC3339"))?;
     let predicate = args.get("predicate").and_then(JsonValue::as_str);
 
     let report = state.memory.what_changed(entity, since, predicate)?;
@@ -825,10 +872,14 @@ fn call_tool_memory_health(state: &mut AppState, args: &JsonValue) -> Result<Jso
                 .as_f64()
                 .context("low_confidence_threshold must be a number")?;
             if !threshold.is_finite() {
-                anyhow::bail!("low_confidence_threshold must be finite");
+                return Err(KronroeError::invalid_input(
+                    "low_confidence_threshold must be finite",
+                ));
             }
             if !(0.0..=1.0).contains(&threshold) {
-                anyhow::bail!("low_confidence_threshold must be between 0.0 and 1.0");
+                return Err(KronroeError::invalid_input(
+                    "low_confidence_threshold must be between 0.0 and 1.0",
+                ));
             }
             threshold as f32
         }
@@ -841,7 +892,7 @@ fn call_tool_memory_health(state: &mut AppState, args: &JsonValue) -> Result<Jso
                 .as_i64()
                 .context("stale_after_days must be an integer")?;
             if days < 0 {
-                anyhow::bail!("stale_after_days must be >= 0");
+                return Err(KronroeError::invalid_input("stale_after_days must be >= 0"));
             }
             days
         }
@@ -879,7 +930,9 @@ fn call_tool_recall_for_task(state: &mut AppState, args: &JsonValue) -> Result<J
         .and_then(JsonValue::as_str)
         .context("task is required")?;
     if task.len() > MAX_QUERY_BYTES {
-        anyhow::bail!("task exceeds max allowed size ({} bytes)", MAX_QUERY_BYTES);
+        return Err(KronroeError::invalid_input(format!(
+            "task exceeds max allowed size ({MAX_QUERY_BYTES} bytes)"
+        )));
     }
 
     let subject = args.get("subject").and_then(JsonValue::as_str);
@@ -888,14 +941,14 @@ fn call_tool_recall_for_task(state: &mut AppState, args: &JsonValue) -> Result<J
         .and_then(JsonValue::as_str)
         .map(|raw| {
             raw.parse::<KronroeTimestamp>()
-                .context("now must be RFC3339 when provided")
+                .map_err(|_| KronroeError::invalid_input("now must be RFC3339 when provided"))
         })
         .transpose()?;
     let horizon_days = match args.get("horizon_days") {
         Some(value) => {
             let days = value.as_i64().context("horizon_days must be an integer")?;
             if days < 1 {
-                anyhow::bail!("horizon_days must be >= 1");
+                return Err(KronroeError::invalid_input("horizon_days must be >= 1"));
             }
             days
         }
@@ -903,12 +956,17 @@ fn call_tool_recall_for_task(state: &mut AppState, args: &JsonValue) -> Result<J
     };
     let limit = {
         let raw_limit = args.get("limit").and_then(JsonValue::as_u64).unwrap_or(8);
-        let limit = usize::try_from(raw_limit).context("limit must be a valid integer")?;
+        let limit = usize::try_from(raw_limit)
+            .map_err(|_| KronroeError::invalid_input("limit must be a valid integer"))?;
         if limit == 0 {
-            anyhow::bail!("limit must be greater than or equal to 1");
+            return Err(KronroeError::invalid_input(
+                "limit must be greater than or equal to 1",
+            ));
         }
         if limit > MAX_RECALL_LIMIT {
-            anyhow::bail!("limit exceeds max allowed value ({MAX_RECALL_LIMIT})");
+            return Err(KronroeError::invalid_input(format!(
+                "limit exceeds max allowed value ({MAX_RECALL_LIMIT})",
+            )));
         }
         limit
     };
@@ -918,7 +976,9 @@ fn call_tool_recall_for_task(state: &mut AppState, args: &JsonValue) -> Result<J
 
     #[cfg(not(feature = "hybrid"))]
     if query_embedding.is_some() || use_hybrid == Some(true) {
-        anyhow::bail!("hybrid task recall controls are unavailable without hybrid feature");
+        return Err(KronroeError::invalid_input(
+            "hybrid task recall controls are unavailable without hybrid feature",
+        ));
     }
 
     #[cfg(feature = "hybrid")]
@@ -962,7 +1022,9 @@ fn parse_embedding(v: Option<&JsonValue>) -> Result<Option<Vec<f32>>> {
 
     let arr = v.as_array().context("query_embedding must be an array")?;
     if arr.is_empty() {
-        anyhow::bail!("query_embedding must not be empty");
+        return Err(KronroeError::invalid_input(
+            "query_embedding must not be empty",
+        ));
     }
     let mut out = Vec::with_capacity(arr.len());
     for item in arr {
@@ -970,11 +1032,15 @@ fn parse_embedding(v: Option<&JsonValue>) -> Result<Option<Vec<f32>>> {
             .as_f64()
             .context("query_embedding values must be numbers")?;
         if !n.is_finite() {
-            anyhow::bail!("query_embedding values must be finite");
+            return Err(KronroeError::invalid_input(
+                "query_embedding values must be finite",
+            ));
         }
         let narrowed = n as f32;
         if !narrowed.is_finite() {
-            anyhow::bail!("query_embedding values overflow f32 range");
+            return Err(KronroeError::invalid_input(
+                "query_embedding values overflow f32 range",
+            ));
         }
         out.push(narrowed);
     }
@@ -989,7 +1055,9 @@ fn parse_confidence(v: Option<&JsonValue>) -> Result<Option<f32>> {
         .as_f64()
         .context("min_confidence/confidence must be a number")?;
     if !n.is_finite() {
-        anyhow::bail!("min_confidence/confidence must be finite");
+        return Err(KronroeError::invalid_input(
+            "min_confidence/confidence must be finite",
+        ));
     }
     Ok(Some(n as f32))
 }
@@ -1004,7 +1072,11 @@ fn parse_temporal_intent(v: Option<&JsonValue>) -> Result<Option<TemporalIntent>
         "current_state" => TemporalIntent::CurrentState,
         "historical_point" => TemporalIntent::HistoricalPoint,
         "historical_interval" => TemporalIntent::HistoricalInterval,
-        other => anyhow::bail!("invalid temporal_intent '{other}'"),
+        other => {
+            return Err(KronroeError::invalid_input(format!(
+                "invalid temporal_intent '{other}'"
+            )))
+        }
     };
     Ok(Some(parsed))
 }
@@ -1022,7 +1094,11 @@ fn parse_temporal_operator(v: Option<&JsonValue>) -> Result<Option<TemporalOpera
         "after" => TemporalOperator::After,
         "current" => TemporalOperator::Current,
         "unknown" => TemporalOperator::Unknown,
-        other => anyhow::bail!("invalid temporal_operator '{other}'"),
+        other => {
+            return Err(KronroeError::invalid_input(format!(
+                "invalid temporal_operator '{other}'"
+            )))
+        }
     };
     Ok(Some(parsed))
 }
@@ -1057,20 +1133,20 @@ fn parse_valid_from(v: Option<&JsonValue>) -> Result<KronroeTimestamp> {
     match v.and_then(JsonValue::as_str) {
         Some(s) => Ok(s
             .parse::<KronroeTimestamp>()
-            .context("valid_from must be RFC3339")?),
+            .map_err(|_| KronroeError::invalid_input("valid_from must be RFC3339"))?),
         None => Ok(KronroeTimestamp::now_utc()),
     }
 }
 
-fn json_to_value(v: &JsonValue) -> anyhow::Result<Value> {
+fn json_to_value(v: &JsonValue) -> Result<Value> {
     match v {
         JsonValue::Bool(v) => Ok(Value::Boolean(*v)),
         JsonValue::Number(v) => Ok(Value::Number(v.as_f64().unwrap_or_default())),
         JsonValue::String(v) => Ok(Value::Text(v.clone())),
-        JsonValue::Null => anyhow::bail!("object must not be null"),
-        _ => anyhow::bail!(
-            "object must be a scalar (string, number, or boolean), not an array or object"
-        ),
+        JsonValue::Null => Err(KronroeError::invalid_input("object must not be null")),
+        _ => Err(KronroeError::invalid_input(
+            "object must be a scalar (string, number, or boolean), not an array or object",
+        )),
     }
 }
 

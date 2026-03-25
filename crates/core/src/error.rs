@@ -8,6 +8,8 @@
 //! - Structured metadata accessors (contradictions, schema versions)
 
 use std::fmt;
+use std::io;
+use std::num::{ParseIntError, TryFromIntError};
 
 #[cfg(feature = "contradiction")]
 use crate::contradiction::Contradiction;
@@ -45,6 +47,8 @@ pub enum ErrorCode {
     InvalidFactId = 2002,
     /// Embedding vector is invalid (empty, wrong dimension, non-finite).
     InvalidEmbedding = 2003,
+    /// Caller-provided input is invalid (missing field, out of range, wrong type).
+    InvalidInput = 2004,
 
     // 3xxx — Query
     /// Search or query error.
@@ -104,6 +108,7 @@ enum ErrorKind {
     Search(String),
     InvalidFactId(String),
     InvalidEmbedding(String),
+    InvalidInput(String),
     Internal(String),
     #[cfg(feature = "contradiction")]
     ContradictionRejected(Vec<Contradiction>),
@@ -168,6 +173,13 @@ impl KronroeError {
         Self::from_kind(ErrorKind::InvalidEmbedding(msg.into()))
     }
 
+    /// Invalid input from caller (missing field, out of range, wrong type).
+    #[cold]
+    #[inline(never)]
+    pub fn invalid_input(msg: impl Into<String>) -> Self {
+        Self::from_kind(ErrorKind::InvalidInput(msg.into()))
+    }
+
     /// Internal error (lock poisoned, arithmetic overflow, etc.).
     #[cold]
     #[inline(never)]
@@ -225,6 +237,7 @@ impl KronroeError {
             ErrorCode::NotFound => ErrorKind::NotFound(msg.into()),
             ErrorCode::InvalidFactId => ErrorKind::InvalidFactId(msg.into()),
             ErrorCode::InvalidEmbedding => ErrorKind::InvalidEmbedding(msg.into()),
+            ErrorCode::InvalidInput => ErrorKind::InvalidInput(msg.into()),
             ErrorCode::Search => ErrorKind::Search(msg.into()),
             ErrorCode::Internal => ErrorKind::Internal(msg.into()),
             // ContradictionRejected wraps as Internal (the Vec<Contradiction>
@@ -280,6 +293,7 @@ impl KronroeError {
             ErrorKind::Search(_) => ErrorCode::Search,
             ErrorKind::InvalidFactId(_) => ErrorCode::InvalidFactId,
             ErrorKind::InvalidEmbedding(_) => ErrorCode::InvalidEmbedding,
+            ErrorKind::InvalidInput(_) => ErrorCode::InvalidInput,
             ErrorKind::Internal(_) => ErrorCode::Internal,
             #[cfg(feature = "contradiction")]
             ErrorKind::ContradictionRejected(_) => ErrorCode::ContradictionRejected,
@@ -378,6 +392,12 @@ impl KronroeError {
         matches!(self.inner.kind, ErrorKind::InvalidEmbedding(_))
     }
 
+    /// True if this is an invalid input error.
+    #[inline]
+    pub fn is_invalid_input(&self) -> bool {
+        matches!(self.inner.kind, ErrorKind::InvalidInput(_))
+    }
+
     /// True if this is an internal error.
     #[inline]
     pub fn is_internal(&self) -> bool {
@@ -412,6 +432,7 @@ impl KronroeError {
             ErrorKind::Search(msg) => write!(f, "search error: {msg}"),
             ErrorKind::InvalidFactId(msg) => write!(f, "invalid fact id: {msg}"),
             ErrorKind::InvalidEmbedding(msg) => write!(f, "invalid embedding: {msg}"),
+            ErrorKind::InvalidInput(msg) => write!(f, "invalid input: {msg}"),
             ErrorKind::Internal(msg) => write!(f, "internal error: {msg}"),
             #[cfg(feature = "contradiction")]
             ErrorKind::ContradictionRejected(_) => {
@@ -494,6 +515,54 @@ impl From<serde_json::Error> for KronroeError {
     }
 }
 
+impl From<io::Error> for KronroeError {
+    #[cold]
+    #[inline(never)]
+    fn from(err: io::Error) -> Self {
+        Self::storage(err.to_string())
+    }
+}
+
+impl From<ParseIntError> for KronroeError {
+    #[cold]
+    #[inline(never)]
+    fn from(err: ParseIntError) -> Self {
+        Self::invalid_input(err.to_string())
+    }
+}
+
+impl From<TryFromIntError> for KronroeError {
+    #[cold]
+    #[inline(never)]
+    fn from(err: TryFromIntError) -> Self {
+        Self::invalid_input(err.to_string())
+    }
+}
+
+/// Extension trait to add `.context()` to `Option<T>`, converting `None` to `KronroeError`.
+///
+/// This replaces the `anyhow::Context` impl on `Option` — the most common pattern
+/// in the MCP server for extracting required JSON fields.
+pub trait OptionContext<T> {
+    /// If `None`, return `Err(KronroeError::invalid_input(msg))`.
+    fn context(self, msg: impl Into<String>) -> std::result::Result<T, KronroeError>;
+
+    /// Lazy version — only evaluates the message closure on `None`.
+    fn with_context(self, f: impl FnOnce() -> String) -> std::result::Result<T, KronroeError>;
+}
+
+impl<T> OptionContext<T> for Option<T> {
+    #[inline]
+    fn context(self, msg: impl Into<String>) -> std::result::Result<T, KronroeError> {
+        self.ok_or_else(|| KronroeError::invalid_input(msg))
+    }
+
+    #[inline]
+    fn with_context(self, f: impl FnOnce() -> String) -> std::result::Result<T, KronroeError> {
+        self.ok_or_else(|| KronroeError::invalid_input(f()))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -510,6 +579,7 @@ mod tests {
         assert_eq!(ErrorCode::NotFound.as_u16(), 2001);
         assert_eq!(ErrorCode::InvalidFactId.as_u16(), 2002);
         assert_eq!(ErrorCode::InvalidEmbedding.as_u16(), 2003);
+        assert_eq!(ErrorCode::InvalidInput.as_u16(), 2004);
         assert_eq!(ErrorCode::Search.as_u16(), 3001);
         assert_eq!(ErrorCode::Internal.as_u16(), 9001);
     }
@@ -638,6 +708,47 @@ mod tests {
     }
 
     #[test]
+    fn invalid_input_error() {
+        let err = KronroeError::invalid_input("limit must be >= 1");
+        assert!(err.is_invalid_input());
+        assert_eq!(err.code(), ErrorCode::InvalidInput);
+        assert!(err.message().contains("limit must be >= 1"));
+    }
+
+    #[test]
+    fn from_io_error() {
+        let io_err = io::Error::new(io::ErrorKind::PermissionDenied, "access denied");
+        let err = KronroeError::from(io_err);
+        assert!(err.is_storage());
+        assert_eq!(err.code(), ErrorCode::Storage);
+        assert!(err.message().contains("access denied"));
+    }
+
+    #[test]
+    fn from_parse_int_error() {
+        let parse_err = "not_a_number".parse::<usize>().unwrap_err();
+        let err = KronroeError::from(parse_err);
+        assert!(err.is_invalid_input());
+        assert_eq!(err.code(), ErrorCode::InvalidInput);
+    }
+
+    #[test]
+    fn option_context_some() {
+        let val: Option<u32> = Some(42);
+        let result = val.context("should not fail");
+        assert_eq!(result.unwrap(), 42);
+    }
+
+    #[test]
+    fn option_context_none() {
+        let val: Option<u32> = None;
+        let result = val.context("field is required");
+        let err = result.unwrap_err();
+        assert!(err.is_invalid_input());
+        assert!(err.message().contains("field is required"));
+    }
+
+    #[test]
     fn predicates_are_exclusive() {
         let err = KronroeError::search("bad query");
         assert!(err.is_search());
@@ -646,6 +757,7 @@ mod tests {
         assert!(!err.is_internal());
         assert!(!err.is_invalid_fact_id());
         assert!(!err.is_invalid_embedding());
+        assert!(!err.is_invalid_input());
         assert!(!err.is_serialization());
         assert!(!err.is_schema_mismatch());
     }
