@@ -194,9 +194,9 @@ fn read_message<R: BufRead>(reader: &mut R) -> Result<Option<JsonValue>> {
 
     let len = content_length.context("missing Content-Length header")?;
     if len > MAX_MESSAGE_BYTES {
-        return Err(KronroeError::invalid_input(
+        return Err(KronroeError::invalid_input(format!(
             "Content-Length {len} exceeds max allowed {MAX_MESSAGE_BYTES} bytes",
-        ));
+        )));
     }
 
     let mut payload = vec![0_u8; len];
@@ -529,7 +529,7 @@ fn call_tool(state: &mut AppState, params: Option<&JsonValue>) -> Result<JsonVal
         "what_changed" => call_tool_what_changed(state, &args),
         "memory_health" => call_tool_memory_health(state, &args),
         "recall_for_task" => call_tool_recall_for_task(state, &args),
-        _ => Err(KronroeError::invalid_input(format!("unknown tool: {name}")))?,
+        _ => Err(KronroeError::invalid_input(format!("unknown tool: {name}"))),
     }
 }
 
@@ -662,9 +662,9 @@ fn call_tool_recall(
             None => 10,
         };
         if limit > MAX_RECALL_LIMIT {
-            return Err(KronroeError::invalid_input(
+            return Err(KronroeError::invalid_input(format!(
                 "limit exceeds max allowed value ({MAX_RECALL_LIMIT})",
-            ));
+            )));
         }
         let include_scores = if scored_only {
             true
@@ -964,9 +964,9 @@ fn call_tool_recall_for_task(state: &mut AppState, args: &JsonValue) -> Result<J
             ));
         }
         if limit > MAX_RECALL_LIMIT {
-            return Err(KronroeError::invalid_input(
+            return Err(KronroeError::invalid_input(format!(
                 "limit exceeds max allowed value ({MAX_RECALL_LIMIT})",
-            ));
+            )));
         }
         limit
     };
