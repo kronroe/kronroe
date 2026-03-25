@@ -177,7 +177,7 @@ Future crates will layer on top.
 
 - Compiles to `wasm32-unknown-unknown` via `wasm-pack build --target web`
 - Uses the in-memory append-log backend — no file I/O in browser
-- `getrandom` with `wasm_js` feature provides `Crypto.getRandomValues` for Kronroe Fact ID generation
+- Kronroe-native entropy pool uses `Crypto.getRandomValues` (via `js-sys`) for Fact ID generation — no `getrandom` crate
 - The `wasm` crate builds with `--no-default-features`, so browser builds exclude the optional
   full-text engine while keeping the rest of core available; full-text search in core remains
   gated with `#[cfg(feature = "fulltext")]`
