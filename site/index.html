@@ -28,25 +28,25 @@
       });
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Embedded bi-temporal graph database with hybrid search and on-device AI memory. Every fact stored and queried on-device — no cloud, no server, no data risk. Eleven MCP tools out of the box. Pure Rust, under 6 MB." />
+    <meta name="description" content="Private, bi-temporal AI memory with hybrid search and eleven MCP tools. Runs on-device across Rust, iOS, Android, Python, and WASM — no server, no cloud, no data risk." />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#2A1D12" />
+    <meta name="theme-color" content="#171311" />
     <link rel="canonical" href="https://kronroe.dev/" />
     <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
     <!-- Open Graph -->
     <meta property="og:type"        content="website" />
     <meta property="og:url"         content="https://kronroe.dev/" />
     <meta property="og:site_name"   content="Kronroe" />
-    <meta property="og:title"       content="Kronroe — Bi-temporal AI memory, on device" />
-    <meta property="og:description" content="Embedded bi-temporal graph database with hybrid search and on-device AI memory. Every fact stored and queried on-device — no cloud, no server, no data risk. Eleven MCP tools out of the box." />
+    <meta property="og:title"       content="Kronroe — Bi-temporal AI memory, built to stay private" />
+    <meta property="og:description" content="Private, bi-temporal AI memory with hybrid search and eleven MCP tools. Runs on-device across Rust, iOS, Android, Python, and WASM — no server, no cloud, no data risk." />
     <meta property="og:image"       content="https://kronroe.dev/png/social-og-image-light.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt"   content="Kronroe — Bi-temporal Graph Database" />
+    <meta property="og:image:alt"   content="Kronroe logo and product interface" />
     <!-- Twitter Card -->
     <meta name="twitter:card"        content="summary_large_image" />
-    <meta name="twitter:title"       content="Kronroe — Bi-temporal AI memory, on device" />
-    <meta name="twitter:description" content="Embedded bi-temporal graph database with hybrid search and on-device AI memory. Every fact stored and queried on-device — no cloud, no server, no data risk." />
+    <meta name="twitter:title"       content="Kronroe — Bi-temporal AI memory, built to stay private" />
+    <meta name="twitter:description" content="Private, bi-temporal AI memory with hybrid search and eleven MCP tools. Runs on-device across Rust, iOS, Android, Python, and WASM." />
     <meta name="twitter:image"       content="https://kronroe.dev/png/social-og-image-light.png" />
     <!-- Structured data -->
     <script type="application/ld+json">
@@ -55,7 +55,7 @@
       "@type": "SoftwareApplication",
       "name": "Kronroe",
       "url": "https://kronroe.dev/",
-      "description": "Embedded bi-temporal graph database with hybrid search and on-device AI memory. Every fact stored and queried on-device — no cloud, no server, no data risk. Eleven MCP tools out of the box. Pure Rust, under 6 MB.",
+      "description": "Private, bi-temporal AI memory with hybrid search and eleven MCP tools. Runs on-device across Rust, iOS, Android, Python, and WASM — no server, no cloud, no data risk.",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "Any",
       "offers": [
@@ -90,7 +90,7 @@
       }
     }
     </script>
-    <title>Kronroe — Bi-temporal AI memory, on device</title>
+    <title>Kronroe — Bi-temporal AI memory, built to stay private</title>
     <link rel="icon" type="image/x-icon"  href="/favicon/favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32"  href="/favicon/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16"  href="/favicon/favicon-16x16.png" />
@@ -133,12 +133,12 @@
       }
 
       :root {
-        --bg:         #FBF8F2;
-        --surface:    #FFFFFF;
-        --surface-2:  #F7F3ED;
-        --border:     rgba(26, 21, 16, 0.10);
-        --border-hi:  rgba(26, 21, 16, 0.18);
-        --espresso:       #2A1D12;
+        --bg:         #F5EFE6;
+        --surface:    #FFFDF8;
+        --surface-2:  #EFE7DA;
+        --border:     rgba(22, 18, 14, 0.09);
+        --border-hi:  rgba(22, 18, 14, 0.18);
+        --espresso:       #171311;
         --violet:         #7C5CFC;
         --violet-bg:      rgba(124, 92, 252, 0.08);
         --violet-border:  rgba(124, 92, 252, 0.22);
@@ -158,9 +158,9 @@
         --orange:         #C04800;
         --orange-bg:      rgba(192, 72, 0, 0.08);
         --orange-border:  rgba(192, 72, 0, 0.20);
-        --text:     #2A1D12;
-        --text-mid: rgba(26, 21, 16, 0.65);
-        --text-dim: rgba(26, 21, 16, 0.46);
+        --text:     #1A1510;
+        --text-mid: rgba(26, 21, 16, 0.68);
+        --text-dim: rgba(26, 21, 16, 0.48);
         --green: #2E7D4F;
         --red:   #C53030;
         --body:    "Quicksand", system-ui, sans-serif;
@@ -205,8 +205,10 @@
       body::before {
         content: "";
         position: fixed; inset: 0;
-        background-image: radial-gradient(circle, rgba(124, 92, 252, 0.08) 1px, transparent 1px);
-        background-size: 34px 34px;
+        background:
+          radial-gradient(circle at 12% 8%, rgba(124, 92, 252, 0.08), transparent 28%),
+          radial-gradient(circle at 88% 6%, rgba(232, 125, 74, 0.08), transparent 26%),
+          radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.62), transparent 35%);
         pointer-events: none; z-index: 0;
       }
 
@@ -223,7 +225,9 @@
         display: flex;
         align-items: center;
         gap: 1rem;
-        background: #2A1D12;
+        background: rgba(23, 19, 17, 0.82);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
         transition: box-shadow 0.3s;
       }
       header.header-scrolled {
@@ -287,9 +291,9 @@
       .header-nav {
         margin-left: auto;
         display: flex;
-        gap: 2rem;
+        gap: 1.25rem;
         font-family: var(--body);
-        font-size: 0.88rem;
+        font-size: 0.84rem;
         font-weight: var(--w-label);
       }
 
@@ -342,14 +346,51 @@
         border-color: #6B4AE8;
       }
 
+      .section-tabs {
+        position: sticky;
+        top: 64px;
+        z-index: 95;
+        display: flex;
+        justify-content: center;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+        padding: 0.6rem 1rem;
+        background: rgba(245, 239, 230, 0.9);
+        border-bottom: 1px solid var(--border);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+      .section-tabs a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.38rem 0.75rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        color: var(--text-mid);
+        background: rgba(255,255,255,0.65);
+        font-family: var(--body);
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+      }
+      .section-tabs a:hover,
+      .section-tabs a:focus-visible {
+        color: var(--violet);
+        border-color: var(--violet-border);
+        background: var(--violet-bg);
+      }
+
       /* ── Hero section — centred single column ── */
       .hero {
         position: relative;
         z-index: 1;
         width: 100%;
-        background: var(--bg);
-        background-image: radial-gradient(circle, rgba(124, 92, 252, 0.17) 1.2px, transparent 1.2px);
-        background-size: 28px 28px;
+        background:
+          radial-gradient(circle at 18% 18%, rgba(124, 92, 252, 0.08), transparent 28%),
+          radial-gradient(circle at 82% 12%, rgba(232, 125, 74, 0.10), transparent 25%),
+          linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0) 36%);
         overflow: hidden;
       }
 
@@ -359,6 +400,7 @@
         z-index: 1;
         pointer-events: none;
         overflow: hidden;
+        opacity: 0.42;
       }
       .graph-bg svg {
         width: 100%;
@@ -368,43 +410,85 @@
       .hero-inner {
         position: relative;
         z-index: 2;
-        max-width: 1100px;
+        max-width: 1260px;
         margin: 0 auto;
-        padding: 4rem 2.5rem 2.5rem;
-        text-align: center;
+        padding: 4.5rem 2.5rem 3rem;
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+        grid-template-areas:
+          "announce card"
+          "title card"
+          "facts card"
+          "sweep card"
+          "install card"
+          "cta card";
+        gap: 1.1rem 2.75rem;
+        align-items: center;
+        text-align: left;
+      }
+      .hero,
+      .explain,
+      .why,
+      .stats-strip,
+      .use-cases,
+      .features-strip,
+      .playground-section {
+        scroll-margin-top: 92px;
+      }
+
+      .hero-inner > .announce-pill {
+        grid-area: announce;
+        justify-self: start;
+        margin: 0 0 0.1rem;
       }
 
       .hero h1 {
+        grid-area: title;
         font-family: var(--body);
-        font-size: clamp(2.6rem, 6.5vw, 4.2rem);
+        font-size: clamp(2.9rem, 6.9vw, 5.1rem);
         font-weight: var(--w-heading);
         line-height: 1.05;
         letter-spacing: -0.035em;
-        text-align: center;
-        max-width: 850px;
-        margin: 0 auto 0.15rem;
+        text-align: left;
+        max-width: 780px;
+        margin: 0;
         color: var(--text);
       }
 
       .hero-handwritten {
+        grid-area: facts;
         font-family: var(--hand);
-        font-size: clamp(1.6rem, 4vw, 2.8rem);
+        font-size: clamp(1.1rem, 2.8vw, 1.75rem);
         color: var(--copper);
         line-height: 1.25;
-        display: block;
-        text-align: center;
-        margin-bottom: 1.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        margin-bottom: 0.25rem;
+        max-width: 760px;
+      }
+
+      .hero-fact {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.45rem 0.8rem;
+        border-radius: 999px;
+        border: 1px solid var(--border-hi);
+        background: rgba(255, 253, 248, 0.8);
+        color: var(--copper);
+        box-shadow: 0 10px 30px rgba(22, 18, 14, 0.05);
       }
 
       .hero-sweep {
+        grid-area: sweep;
         font-family: var(--body);
-        font-size: clamp(0.88rem, 1.3vw, 1.02rem);
+        font-size: clamp(0.95rem, 1.35vw, 1.08rem);
         font-weight: var(--w-body);
         color: var(--text-mid);
         max-width: 580px;
-        margin: 0 auto 1.75rem;
+        margin: 0 0 0.5rem;
         line-height: 1.65;
-        text-align: center;
+        text-align: left;
       }
 
       .temporal-accent {
@@ -550,22 +634,38 @@
         50% { opacity: 0.5; transform: scale(0.75); }
       }
 
-      .hero-install { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 1rem; margin-bottom: 0.25rem; }
+      .hero-install { display: flex; align-items: center; justify-content: flex-start; gap: 0.75rem; margin-top: 0.45rem; margin-bottom: 0; }
+      .hero-install { grid-area: install; }
       .install-cmd { font-family: var(--mono); font-size: 0.78rem; font-weight: 500; padding: 0.35rem 0.75rem; border-radius: 6px; background: var(--espresso); color: rgba(255,255,255,0.9); cursor: pointer; transition: background 0.15s; user-select: all; }
-      .install-cmd:hover { background: #2A1D12; }
+      .install-cmd:hover { background: #171311; }
       .install-cmd[data-copied="1"] { background: var(--green); }
       .install-sep { font-family: var(--hand); font-size: 0.85rem; color: var(--text-dim); }
-      .hero-cta { display: flex; justify-content: center; gap: 0.75rem; margin-top: 1.25rem; }
-      .hero-btn { display: inline-flex; align-items: center; text-decoration: none; padding: 0.55rem 1.25rem; font-size: 0.85rem; border-radius: 8px; font-family: var(--body); font-weight: var(--w-label); transition: all 0.1s; }
+      .hero-cta { grid-area: cta; display: flex; justify-content: flex-start; gap: 0.75rem; margin-top: 1rem; }
+      .hero-btn { display: inline-flex; align-items: center; text-decoration: none; padding: 0.55rem 1.25rem; font-size: 0.85rem; border-radius: 8px; font-family: var(--body); font-weight: var(--w-label); transition: all 0.18s ease; }
+      .hero-btn-primary {
+        background: linear-gradient(135deg, var(--violet) 0%, var(--copper) 100%);
+        color: #fff;
+        border: 1.5px solid rgba(255,255,255,0.12);
+        box-shadow: 0 14px 30px rgba(124,92,252,0.22), 0 8px 18px rgba(232,125,74,0.14);
+      }
+      .hero-btn-primary:hover {
+        transform: translateY(-1px);
+        filter: saturate(1.05) brightness(1.03);
+      }
+      .hero-btn-primary:focus-visible {
+        outline-color: color-mix(in srgb, #fff 35%, var(--violet));
+      }
 
       /* ── Fact timeline card ── */
       .tl-card {
+        grid-area: card;
         background: var(--espresso);
-        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 20px;
         padding: 1.25rem 1.5rem 1.5rem;
-        max-width: 820px;
-        margin: 2.5rem auto 0;
-        box-shadow: 0 24px 48px rgba(46, 33, 28, 0.15);
+        max-width: 100%;
+        margin: 0;
+        box-shadow: 0 30px 60px rgba(24, 17, 13, 0.22);
         text-align: left;
       }
       .tl-top {
@@ -781,10 +881,10 @@
         color: rgba(255,255,255,0.30);
       }
 
-      a.btn-primary { background: #6B4AE8; color: #fff; border: 1.5px solid var(--espresso); padding: 0.65rem 1.5rem; font-size: 0.9rem; font-weight: 600; }
-      a.btn-primary:hover { background: #7C5CFC; }
-      a.btn-ghost { background: transparent; border: 1.5px solid rgba(26,21,16,0.40); color: var(--text); }
-      a.btn-ghost:hover { border-color: var(--espresso); background: rgba(26,21,16,0.05); color: var(--text); }
+      a.btn-primary { background: #2B2A64; color: #fff; border: 1.5px solid #2B2A64; padding: 0.65rem 1.5rem; font-size: 0.9rem; font-weight: 600; }
+      a.btn-primary:hover { background: #3A3790; }
+      a.btn-ghost { background: transparent; border: 1.5px solid rgba(22,18,14,0.28); color: var(--text); }
+      a.btn-ghost:hover { border-color: var(--espresso); background: rgba(22,18,14,0.04); color: var(--text); }
 
       /* ── Scroll reveals — progressive enhancement ── */
       /* Elements are visible by default. The JS adds `animations-ready` to <html>
@@ -808,7 +908,7 @@
       /* ── Trust marquee strip ── */
       .trust-strip {
         width: 100%;
-        background: #2A1D12;
+        background: #171311;
         border-top: 1px solid rgba(255,255,255,0.06);
         border-bottom: 1px solid rgba(255,255,255,0.06);
         padding: 0.7rem 0;
@@ -825,8 +925,8 @@
         z-index: 2;
         pointer-events: none;
       }
-      .trust-strip::before { left: 0;  background: linear-gradient(to right, #2A1D12, transparent); }
-      .trust-strip::after  { right: 0; background: linear-gradient(to left,  #2A1D12, transparent); }
+      .trust-strip::before { left: 0;  background: linear-gradient(to right, #171311, transparent); }
+      .trust-strip::after  { right: 0; background: linear-gradient(to left,  #171311, transparent); }
       .trust-track {
         display: flex;
         width: max-content;
@@ -1579,14 +1679,14 @@
       .entity-body { border-top: 1px solid var(--border); padding: 0.35rem 0.55rem 0.5rem; display: grid; gap: 0.25rem; font-family: var(--mono); font-size: 0.6rem; color: var(--text-mid); }
       .entity-line { display: flex; align-items: center; gap: 0.28rem; }
       .entity-line .k { color: var(--text-dim); min-width: 56px; }
-      .loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.25rem; z-index: 200; transition: opacity 0.35s ease; }
+      .loading-overlay { position: fixed; inset: 0; background: var(--espresso); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.25rem; z-index: 200; transition: opacity 0.35s ease; }
       .loading-overlay.hidden { opacity: 0; pointer-events: none; }
       .loading-logo { opacity: 0; animation: loading-fade-in 0.5s ease forwards; }
       @keyframes loading-fade-in { to { opacity: 1; } }
       .loading-track { width: 140px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
       .loading-fill { height: 100%; width: 55%; background: linear-gradient(90deg, var(--violet), var(--orchid)); border-radius: 1px; animation: track 1.4s ease-in-out infinite alternate; transform-origin: left; will-change: transform; }
       @keyframes track { from { transform: scaleX(0.15) translateX(0); } to { transform: scaleX(1) translateX(82%); } }
-      .loading-label { font-family: var(--body); font-size: 0.68rem; color: var(--text-dim); letter-spacing: 0.04em; }
+      .loading-label { font-family: var(--body); font-size: 0.68rem; color: rgba(255,255,255,0.62); letter-spacing: 0.04em; }
 
       /* ── Section intro prose ── */
       .section-intro {
@@ -1674,7 +1774,7 @@
         position: relative;
         z-index: 1;
         width: 100%;
-        background: #2A1D12;
+        background: linear-gradient(180deg, #171311 0%, #1F1713 100%);
         border-top: 1px solid rgba(255,255,255,0.05);
         padding: 5rem 2.5rem 5.5rem;
         text-align: center;
@@ -1685,9 +1785,9 @@
         position: absolute;
         inset: -50%;
         background:
-          radial-gradient(ellipse 40% 40% at 30% 20%, rgba(124,92,252,0.22), transparent 70%),
-          radial-gradient(ellipse 35% 35% at 70% 60%, rgba(180,92,252,0.16), transparent 70%),
-          radial-gradient(ellipse 30% 30% at 50% 80%, rgba(192,72,0,0.12), transparent 70%);
+          radial-gradient(ellipse 40% 40% at 30% 20%, rgba(124,92,252,0.20), transparent 70%),
+          radial-gradient(ellipse 35% 35% at 70% 60%, rgba(180,92,252,0.14), transparent 70%),
+          radial-gradient(ellipse 30% 30% at 50% 80%, rgba(232,125,74,0.10), transparent 70%);
         animation: cta-mesh-drift 12s ease-in-out infinite alternate;
         pointer-events: none;
       }
@@ -1708,7 +1808,7 @@
         font-weight: 600;
         letter-spacing: 0.12em;
         text-transform: uppercase;
-        color: rgba(124,92,252,0.8);
+        color: rgba(180,92,252,0.84);
         display: block;
         margin-bottom: 1rem;
       }
@@ -1803,6 +1903,17 @@
       @media (max-width: 840px) {
         .playground { grid-template-columns: 1fr; padding: 1.5rem 1.25rem; gap: 1.25rem; }
         .hero-guide { grid-column: 1; }
+        .hero-inner {
+          grid-template-columns: 1fr;
+          grid-template-areas:
+            "announce"
+            "title"
+            "facts"
+            "sweep"
+            "install"
+            "cta"
+            "card";
+        }
         .stream-body { min-height: 300px; }
         header { padding: 0 1.25rem; }
         .header-cta { display: none; }
@@ -1825,6 +1936,25 @@
       }
       @media (max-width: 700px) {
         .hero-inner { padding: 2.5rem 1.5rem 0; }
+        .hero-inner { gap: 1rem; }
+        .hero h1 {
+          font-size: clamp(2.35rem, 10.5vw, 3.25rem);
+          max-width: 11ch;
+        }
+        .hero-sweep {
+          max-width: 34ch;
+          font-size: 0.94rem;
+        }
+        .announce-pill {
+          font-size: 0.66rem;
+          max-width: 100%;
+        }
+        .hero-handwritten {
+          gap: 0.5rem;
+        }
+        .hero-fact {
+          padding: 0.4rem 0.72rem;
+        }
         .frow-time { display: none; }
         .use-case-grid { grid-template-columns: 1fr; }
         .features-grid { grid-template-columns: 1fr; }
@@ -1867,7 +1997,7 @@
         <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5"/>
         <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
         <circle cx="136" cy="82" r="5" fill="#7C5CFC"/>
-        <text x="168" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#2A1D12">Kron</text>
+        <text x="168" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#FFFFFF">Kron</text>
         <text x="282" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#E87D4A">roe</text>
       </svg>
       <div class="loading-track"><div class="loading-fill"></div></div>
@@ -1902,12 +2032,11 @@
       </div>
       <div class="badge" role="status" aria-label="WebAssembly build active">WASM</div>
       <nav class="header-nav">
-        <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
         <a href="/docs/">Docs</a>
-        <a href="https://pypi.org/project/kronroe/" target="_blank" rel="noopener noreferrer">PyPI</a>
-        <a href="https://crates.io/crates/kronroe" target="_blank" rel="noopener noreferrer">crates.io</a>
-        <span class="nav-divider" aria-hidden="true"></span>
-        <a href="https://www.linkedin.com/company/kronroe" target="_blank" rel="noopener" class="nav-icon" aria-label="Kronroe on LinkedIn" title="LinkedIn"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+        <a href="/blog/">Blog</a>
+        <a href="/community/">Community</a>
+        <a href="/about/">About</a>
+        <a href="/faq/">FAQ</a>
       </nav>
       <a href="#playground" class="header-cta">Try playground</a>
     </header>
@@ -1915,7 +2044,7 @@
     <main id="main-content">
 
     <!-- Hero — DARK FULL-WIDTH -->
-    <section class="hero">
+    <section class="hero" id="overview">
       <!-- Ambient graph background (faint, behind everything) -->
       <div class="graph-bg" aria-hidden="true">
         <svg viewBox="0 0 1280 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
@@ -1968,36 +2097,27 @@
            target="_blank" rel="noopener"
            class="announce-pill">
           <span class="announce-dot"></span>
-          Hybrid retrieval now stable / on-device / eleven MCP tools
+          Private by default / on-device / eleven MCP tools
         </a>
 
         <!-- 2. Headline -->
-        <h1><span class="hero-word">Bi-</span><span class="temporal-accent temporal-shiny hero-word">temporal</span><span class="hero-word"> AI memory.</span></h1>
+        <h1><span class="hero-word">Bi-temporal</span><span class="temporal-accent temporal-shiny hero-word"> AI memory</span><span class="hero-word"> built to stay private.</span></h1>
 
         <!-- 3. Handwritten line — each sentence is a fact assertion -->
-        <span class="hero-handwritten"><span class="hero-fact">No cloud.</span> <span class="hero-fact">No server.</span> <span class="hero-fact">No data risk.</span></span>
+        <span class="hero-handwritten"><span class="hero-fact">No cloud.</span> <span class="hero-fact">No server.</span> <span class="hero-fact">No data leaves the device.</span></span>
 
         <!-- 4. Capabilities sweep -->
         <p class="hero-sweep">
-          Embedded graph database with hybrid BM25 + vector search, temporal reranking,
-          and eleven MCP tools. Every fact stored and queried on-device — built for
-          healthcare, education, and systems where privacy isn't optional.
+          Hybrid BM25 + vector search, point-in-time queries, and eleven MCP tools
+          for apps that need memory without the cloud.
         </p>
 
-        <!-- 5. Install commands -->
-        <div class="hero-install">
-          <code class="install-cmd" role="button" tabindex="0" title="Click to copy" aria-label="Copy: pip install kronroe">pip install kronroe</code>
-          <span class="install-sep">or</span>
-          <code class="install-cmd" role="button" tabindex="0" title="Click to copy" aria-label="Copy: cargo add kronroe">cargo add kronroe</code>
-        </div>
-
-        <!-- 6. CTA buttons -->
+        <!-- 5. CTA button -->
         <div class="hero-cta">
-          <a href="#playground" class="btn-primary hero-btn">Try the playground ↓</a>
-          <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer" class="btn-ghost hero-btn">View on GitHub</a>
+          <a href="#playground" class="hero-btn hero-btn-primary">Try the playground ↓</a>
         </div>
 
-        <!-- 7. Fact timeline card + time scrubber (unified) -->
+        <!-- 6. Fact timeline card + time scrubber (unified) -->
         <div class="tl-card" id="tl-card">
           <div class="tl-top">
             <div class="tl-tabs">
@@ -2102,6 +2222,14 @@
       </div>
     </div>
 
+    <nav class="section-tabs" aria-label="Homepage sections">
+      <a href="#overview">Overview</a>
+      <a href="#why">Why</a>
+      <a href="#use-cases">Use cases</a>
+      <a href="#playground">Playground</a>
+      <a href="#technical">Technical</a>
+    </nav>
+
     <!-- Explain -->
     <section class="explain" id="explain" aria-labelledby="heading-explain">
       <div class="explain-inner">
@@ -2190,15 +2318,15 @@
     <section class="why" id="why" aria-labelledby="heading-why">
       <div class="why-inner">
         <h2 class="section-title reveal-on-scroll" id="heading-why">Why Kronroe?</h2>
-        <p class="section-sub reveal-on-scroll">The only embedded, mobile-ready temporal graph engine</p>
-        <p class="section-intro reveal-on-scroll">Every existing embedded graph database treats time as your problem. Kronroe redesigns the engine for temporal knowledge evolution — the same leap DuckDB made for analytical workloads. Bi-temporal storage means every write captures both real-world time and recording time. Corrections are non-destructive: the full audit trail is always available. Pure Rust. Zero C dependencies.</p>
+        <p class="section-sub reveal-on-scroll">Temporal memory without the server tax</p>
+        <p class="section-intro reveal-on-scroll">Kronroe treats time as a first-class primitive. It keeps history intact, runs on-device, and gives private apps a clearer engine for memory, search, and correction.</p>
 
         <!-- Bento Grid replaces comparison table -->
         <div class="bento-grid">
           <div class="bento-tile bento-tile--wide bento-tile--violet reveal-on-scroll">
             <div class="bento-eyebrow">Core engine</div>
-            <h3 class="bento-title">Bi-temporal by design — every fact, four timestamps</h3>
-            <p class="bento-body">valid_from, valid_to, recorded_at, expired_at. Query any point in real-world time or transaction time. Corrections are non-destructive: the full audit trail is always available, timestamped when each change was recorded.</p>
+            <h3 class="bento-title">Bi-temporal by design</h3>
+            <p class="bento-body">valid_from, valid_to, recorded_at, expired_at. Query any point in real-world time or transaction time and keep the audit trail intact when facts change.</p>
             <div class="bento-timeline">
               <div class="bento-timeline-row">
                 <span class="bento-timeline-label">valid time</span>
@@ -2217,8 +2345,8 @@
 
           <div class="bento-tile bento-tile--orange reveal-on-scroll">
             <div class="bento-eyebrow">Deployment</div>
-            <h3 class="bento-title">Zero server required</h3>
-            <p class="bento-body">Single .kronroe file. No Neo4j, no Docker, no network. Runs embedded inside your process or in-browser via WebAssembly.</p>
+            <h3 class="bento-title">No server required</h3>
+            <p class="bento-body">Single .kronroe file. No Neo4j, no Docker, no network. Runs embedded inside your app or in-browser via WebAssembly.</p>
             <div class="bento-vs">
               <span class="bento-vs-item bento-vs--no">Graphiti: requires Neo4j</span>
               <span class="bento-vs-item bento-vs--ok">mcp-memory: no server ✓</span>
@@ -2228,7 +2356,7 @@
           <div class="bento-tile bento-tile--rose reveal-on-scroll">
             <div class="bento-eyebrow">Platforms</div>
             <h3 class="bento-title">iOS · Android · WASM</h3>
-            <p class="bento-body">The Rust engine compiles to native on every platform. Under 6 MB. No C dependencies. Privacy-first — all data stays on-device.</p>
+            <p class="bento-body">The Rust engine ships natively across iOS, Android, Python, and WASM. Everything stays on-device, and every target shares the same storage model.</p>
             <div class="bento-platform-badges">
               <span class="bento-badge">Swift</span>
               <span class="bento-badge">Kotlin</span>
@@ -2245,7 +2373,7 @@
           <div class="bento-tile bento-tile--orchid reveal-on-scroll">
             <div class="bento-eyebrow">Cost</div>
             <h3 class="bento-title">No LLM required</h3>
-            <p class="bento-body">Structural and temporal reasoning is engine-native. Zero tokens spent storing or retrieving graph facts.</p>
+            <p class="bento-body">Storage and retrieval stay engine-native, so you do not spend tokens just to remember facts.</p>
             <div class="bento-vs">
               <span class="bento-vs-item bento-vs--no">Graphiti: LLM required</span>
               <span class="bento-vs-item bento-vs--ok">mcp-memory: no LLM ✓</span>
@@ -2255,7 +2383,7 @@
           <div class="bento-tile bento-tile--lime reveal-on-scroll">
             <div class="bento-eyebrow">Integrity</div>
             <h3 class="bento-title">Engine-native contradiction detection</h3>
-            <p class="bento-body">Allen's interval algebra detects conflicting facts at write time. Register singleton predicates, get immediate structural feedback. No LLM required.</p>
+            <p class="bento-body">Allen's interval algebra catches conflicting facts at write time. You can allow, warn, or reject contradictions without calling an LLM.</p>
             <div class="bento-vs">
               <span class="bento-vs-item bento-vs--partial">Graphiti: LLM-based</span>
               <span class="bento-vs-item bento-vs--no">mcp-memory: none</span>
@@ -2265,7 +2393,7 @@
           <div class="bento-tile bento-tile--wide-full reveal-on-scroll">
             <div class="bento-eyebrow">Retrieval</div>
             <h3 class="bento-title">BM25 + vector + hybrid search</h3>
-            <p class="bento-body">Kronroe BM25 full-text fused with cosine vector via RRF. Intent-gated two-stage temporal reranker. Bi-temporal filtering excludes invalidated facts.</p>
+            <p class="bento-body">BM25 and vector search are fused with temporal filtering, so current and historical facts stay distinct while results stay relevant.</p>
             <div class="bento-vs">
               <span class="bento-vs-item bento-vs--partial">Graphiti: via Neo4j</span>
               <span class="bento-vs-item bento-vs--partial">mcp-memory: embeddings only</span>
@@ -2308,10 +2436,8 @@
       <div class="use-cases-inner">
         <h2 class="section-title reveal-on-scroll" id="heading-use-cases">Built for</h2>
         <p class="section-intro reveal-on-scroll">
-          Kronroe is built for teams where data privacy isn't optional — healthcare
-          providers, schools, care platforms, and legal tools where sensitive records
-          cannot touch a third-party server. And for developers building mobile and
-          offline-first apps that need AI memory without network dependency.
+          Kronroe is for teams that cannot move sensitive memory into a cloud service,
+          and for apps that need private memory on device.
         </p>
         <div class="use-case-grid">
           <div class="use-case-card reveal-on-scroll">
@@ -2326,7 +2452,7 @@
               </svg>
             </div>
             <h3>AI agent memory</h3>
-            <p>Give your agents persistent memory that tracks how knowledge evolves over time. No server required, no LLM calls to store or retrieve facts — just assert structured facts and query any point in time. Hybrid BM25 and vector recall surfaces the most relevant memories with confidence scores. A token-budget context assembler formats results directly for LLM prompts.</p>
+            <p>Persistent memory for agents that need to remember how knowledge changes over time. Assert structured facts, query any point in time, and surface relevant memories with hybrid recall.</p>
           </div>
           <div class="use-case-card reveal-on-scroll">
             <div class="use-case-icon">
@@ -2339,12 +2465,9 @@
             </div>
             <h3>Privacy-first mobile apps</h3>
             <p>
-              Healthcare, care homes, schools, and legal apps can't send sensitive
-              data to the cloud. Kronroe gives them AI memory that runs entirely
-              on-device — no server, no API keys, no data leaves the device. Ships
-              as a Swift Package for iOS and a Kotlin/JNI library for Android, under
-              6 MB. Works offline: on planes, in hospitals, anywhere without wifi.
-              GDPR, HIPAA, and Ofsted-friendly by architecture.
+              Healthcare, education, legal, and care apps get AI memory without
+              sending sensitive records to a server. Ships for iOS, Android, Python,
+              Rust, and WASM, and works offline when the network is not available.
             </p>
           </div>
           <div class="use-case-card reveal-on-scroll">
@@ -2359,52 +2482,52 @@
               </svg>
             </div>
             <h3>MCP tool memory</h3>
-            <p>Drop-in persistent memory for Claude Desktop, Cursor, and any MCP-compatible client. Eleven tools ship out of the box: remember, recall, recall_scored, assemble_context, facts_about, assert_fact, correct_fact, invalidate_fact, what_changed, memory_health, and recall_for_task. Install the native <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">kronroe-mcp</code> binary directly, or use <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">pip install kronroe-mcp</code> as a thin launcher to that binary. Facts persist across sessions in a local .kronroe file.</p>
+            <p>Drop-in memory for Claude Desktop, Cursor, and other MCP clients. Eleven tools ship out of the box, and facts persist across sessions in a local <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">.kronroe</code> file.</p>
           </div>
         </div>
       </div>
     </section>
 
     <!-- Engine features -->
-    <section class="features-strip" aria-labelledby="heading-features">
+    <section class="features-strip" id="technical" aria-labelledby="heading-features">
       <div class="features-strip-inner">
         <h2 class="section-title reveal-on-scroll" id="heading-features">Under the hood</h2>
-        <p class="section-sub reveal-on-scroll">Pure Rust. ACID storage. Zero dependencies on C, network, or LLM.</p>
+        <p class="section-sub reveal-on-scroll">Pure Rust. ACID storage. No C, no network, no LLM.</p>
         <div class="features-grid">
           <details class="feature-item reveal-on-scroll">
             <summary>
               <div class="feature-item-label">Retrieval</div>
               <div class="feature-item-title">BM25 + vector + hybrid search</div>
             </summary>
-            <div class="feature-item-body"><div><p class="feature-item-desc">Full-text search via the Kronroe lexical engine with BM25 ranking and fuzzy matching. Flat cosine vector search with bi-temporal filtering — invalidated facts are excluded from current queries but remain available for historical point-in-time lookups. Hybrid mode fuses both channels with Reciprocal Rank Fusion and a two-stage intent-gated temporal reranker.</p></div></div>
+            <div class="feature-item-body"><div><p class="feature-item-desc">Full-text search via the Kronroe lexical engine with BM25 ranking and fuzzy matching. Cosine vector search stays bi-temporal, so invalidated facts drop out of current queries but remain available for historical point-in-time lookups. Hybrid mode fuses both channels with Reciprocal Rank Fusion and a two-stage intent-gated temporal reranker.</p></div></div>
           </details>
           <details class="feature-item reveal-on-scroll">
             <summary>
               <div class="feature-item-label">Integrity</div>
               <div class="feature-item-title">Contradiction detection</div>
             </summary>
-            <div class="feature-item-body"><div><p class="feature-item-desc">Register predicates as singletons and Kronroe detects conflicting facts at write time using Allen's interval algebra. Conflict severity is graded by temporal overlap — full containment, partial overlap, or edge contact. Write-time policies let you allow, warn, or reject contradictions. No LLM required.</p></div></div>
+            <div class="feature-item-body"><div><p class="feature-item-desc">Register predicates as singletons and Kronroe detects conflicting facts at write time using Allen's interval algebra. Conflict severity is graded by temporal overlap. Write-time policies let you allow, warn, or reject contradictions without an LLM.</p></div></div>
           </details>
           <details class="feature-item reveal-on-scroll">
             <summary>
               <div class="feature-item-label">Confidence</div>
               <div class="feature-item-title">Uncertainty model</div>
             </summary>
-            <div class="feature-item-body"><div><p class="feature-item-desc">Every fact carries a base confidence score. At query time, Kronroe computes effective confidence by applying exponential age decay (per-predicate half-life) and source authority weights. Volatile predicates like job titles decay faster than stable ones like date of birth. Pure Rust math, nothing stored back — always fresh at read time.</p></div></div>
+            <div class="feature-item-body"><div><p class="feature-item-desc">Every fact carries a base confidence score. At query time, Kronroe applies age decay and source authority weights so volatile predicates like job titles decay faster than stable ones like date of birth. The math stays in Rust and is recomputed at read time.</p></div></div>
           </details>
           <details class="feature-item reveal-on-scroll">
             <summary>
               <div class="feature-item-label">Storage</div>
               <div class="feature-item-title">ACID, no C dependencies</div>
             </summary>
-            <div class="feature-item-body"><div><p class="feature-item-desc">Backed by Kronroe's native append-log storage engine with atomic fact, registry, and embedding persistence. File-backed or fully in-memory. Every fact is identified by a Kronroe Fact ID for lexicographically sortable, monotonic insertion order. No C dependencies, no external processes, no separate database server to manage.</p></div></div>
+            <div class="feature-item-body"><div><p class="feature-item-desc">Backed by Kronroe's native append-log storage engine with atomic fact, registry, and embedding persistence. File-backed or fully in-memory. Every fact gets a Kronroe Fact ID for lexicographically sortable, monotonic insertion order. No C dependencies, no external processes, no separate database server to manage.</p></div></div>
           </details>
           <details class="feature-item reveal-on-scroll">
             <summary>
               <div class="feature-item-label">Platforms</div>
               <div class="feature-item-title">Rust, Python, iOS, Android, WASM</div>
             </summary>
-            <div class="feature-item-body"><div><p class="feature-item-desc">One engine, every platform. Use the core Rust crate directly, the PyO3 Python bindings, a Swift Package on iOS, a JNI library on Android with a Kotlin wrapper, or the WebAssembly build in-browser. All targets share the same bi-temporal engine and ACID storage model.</p></div></div>
+            <div class="feature-item-body"><div><p class="feature-item-desc">One engine, every platform. Use the core Rust crate directly, the PyO3 Python bindings, a Swift Package on iOS, a JNI library on Android with a Kotlin wrapper, or the WebAssembly build in-browser. Every target shares the same bi-temporal engine and ACID storage model.</p></div></div>
           </details>
         </div>
       </div>
@@ -2414,7 +2537,7 @@
     <section class="playground-section" id="playground" aria-labelledby="heading-playground">
       <div class="playground-section-hdr">
         <h2 class="section-title reveal-on-scroll" id="heading-playground">Try it live</h2>
-        <p class="section-sub reveal-on-scroll">Pure Rust compiled to WebAssembly — the same bi-temporal graph engine that runs on iOS, Android, and native Rust. Every fact is stored and queried entirely inside your browser. Nothing is sent to a server.</p>
+        <p class="section-sub reveal-on-scroll">Pure Rust compiled to WebAssembly — the same bi-temporal graph engine that runs on iOS, Android, and native Rust. Every fact is stored and queried entirely inside your browser, with nothing sent to a server.</p>
       </div>
 
       <!-- macOS window chrome wraps the playground -->
@@ -2560,14 +2683,13 @@
     <!-- Footer CTA -->
     <section class="footer-cta" aria-labelledby="heading-footer-cta">
       <div class="footer-cta-inner">
-        <span class="footer-cta-eyebrow">Get started in seconds</span>
+        <span class="footer-cta-eyebrow">Deploy privately</span>
         <h2 class="footer-cta-headline reveal-on-scroll" id="heading-footer-cta">
-          AI memory.<br>Private by design.
+          Private memory.<br>Built to stay local.
         </h2>
         <p class="footer-cta-sub reveal-on-scroll">
-          On-device AI memory. Every fact timestamped, every query private.
-          Ships on iOS, Android, Python, Rust, and WASM —
-          no server, no cloud, no compromise.
+          On-device memory with full history and point-in-time queries. Ships on iOS,
+          Android, Python, Rust, and WASM — no server, no cloud, no compromise.
         </p>
         <div class="footer-cta-chips reveal-on-scroll">
           <code class="install-chip" role="button" tabindex="0" aria-label="Copy: pip install kronroe">pip install kronroe</code>
@@ -2575,7 +2697,7 @@
           <code class="install-chip" role="button" tabindex="0" aria-label="Copy: cargo install --path crates/mcp-server">cargo install --path crates/mcp-server</code>
         </div>
         <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer" class="footer-cta-btn reveal-on-scroll">
-          View on GitHub →
+          View the code →
         </a>
       </div>
     </section>
@@ -2586,14 +2708,18 @@
       <div class="footer-inner">
         <div class="footer-left">
           <span>Kronroe</span><span class="sep">·</span>
-          <span class="version-badge">v0.3.0</span><span class="sep">·</span>
+          <span class="version-badge">v0.3.1</span><span class="sep">·</span>
           <span class="footer-licence">Free for open source. <a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank" rel="noopener noreferrer">Commercial licence</a> available. <a href="mailto:hi@kronroe.dev" class="footer-email">hi@kronroe.dev</a></span>
         </div>
         <div class="footer-right">
+          <a href="/blog/">Blog</a>
+          <a href="/community/">Community</a>
+          <a href="/about/">About</a>
+          <a href="/faq/">FAQ</a>
+          <a href="/docs/">Docs</a>
+          <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href="https://pypi.org/project/kronroe/" target="_blank" rel="noopener noreferrer">PyPI</a>
           <a href="https://crates.io/crates/kronroe" target="_blank" rel="noopener noreferrer">crates.io</a>
-          <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
-          <a href="/docs/">Docs</a>
           <a href="https://www.linkedin.com/company/kronroe" target="_blank" rel="noopener">LinkedIn</a>
         </div>
       </div>

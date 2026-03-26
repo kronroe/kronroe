@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Kronroe docs landing page with links to getting started guides, API reference, and concepts." />
+    <link rel="canonical" href="https://kronroe.dev/docs/" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico" />
+    <link rel="stylesheet" href="/page-shell.css" />
+    <link rel="stylesheet" href="/docs-shell.css" />
+    <title>Kronroe Docs</title>
+  </head>
+  <body class="docs-page">
+    <header class="site-header">
+      <a class="site-brand" href="/" aria-label="Kronroe home">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
+             height="50" style="display:block;width:auto;" aria-label="Kronroe">
+          <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
+          <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="136" cy="38" r="14" fill="none" stroke="#8BBF20" stroke-width="3.5"/>
+          <circle cx="136" cy="38" r="5" fill="#8BBF20"/>
+          <circle cx="48" cy="82" r="16" fill="#E87D4A"/>
+          <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5"/>
+          <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
+          <circle cx="136" cy="82" r="5" fill="#7C5CFC"/>
+          <text x="168" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#FFFFFF">Kron</text>
+          <text x="282" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#E87D4A">roe</text>
+        </svg>
+      </a>
+      <span class="site-badge">Docs</span>
+      <nav class="site-nav" aria-label="Site">
+        <a href="/docs/">Docs</a>
+        <a href="/blog/">Blog</a>
+        <a href="/community/">Community</a>
+        <a href="/about/">About</a>
+        <a href="/faq/">FAQ</a>
+      </nav>
+      <button class="site-search" type="button" data-docs-search-open>
+        <span>Search</span>
+        <kbd>⌘K</kbd>
+      </button>
+      <a class="site-cta" href="/#playground">Try playground</a>
+    </header>
+    <main class="page docs-landing">
+      <section class="hero docs-landing-hero">
+        <div class="docs-landing-hero-copy">
+          <span class="eyebrow">Docs</span>
+          <h1>Implementation details, with the same care as the product itself.</h1>
+          <p class="lede">
+            Kronroe’s docs are split for fast orientation: read the thesis, choose your stack, then jump
+            straight into the API surface or the concept pages that explain how the memory model works.
+          </p>
+          <div class="cta-row">
+            <a class="button button--primary" href="/docs/getting-started/what-is-kronroe">Start with the guide</a>
+            <a class="button button--ghost" href="/docs/api/core">Browse the API</a>
+            <button class="button button--ghost" type="button" data-docs-search-open>Search docs</button>
+          </div>
+        </div>
+        <aside class="docs-landing-hero-aside" aria-label="Docs fast path">
+          <div class="docs-landing-route">
+            <p class="docs-landing-label">Pick your route</p>
+            <ul>
+              <li><strong>Evaluating the product?</strong> Start with What is Kronroe?</li>
+              <li><strong>Setting it up?</strong> Use the Python, Rust, or MCP quick start.</li>
+              <li><strong>Integrating directly?</strong> Open the API reference and concepts.</li>
+            </ul>
+          </div>
+        </aside>
+      </section>
+
+      <section class="docs-popular">
+        <div class="docs-popular-label">Popular docs</div>
+        <div class="docs-popular-grid">
+          <a class="docs-popular-card" href="/docs/getting-started/what-is-kronroe/">
+            <span class="docs-popular-title">What is Kronroe?</span>
+            <span class="docs-popular-desc">Start with the product thesis and the bi-temporal model.</span>
+          </a>
+          <a class="docs-popular-card" href="/docs/getting-started/quick-start-python/">
+            <span class="docs-popular-title">Quick Start: Python</span>
+            <span class="docs-popular-desc">Get from install to first facts with the high-level API.</span>
+          </a>
+          <a class="docs-popular-card" href="/docs/api/core/">
+            <span class="docs-popular-title">TemporalGraph API</span>
+            <span class="docs-popular-desc">Jump straight into the core engine surface area.</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="docs-landing-grid">
+        <article class="docs-landing-card docs-landing-card--violet">
+          <p class="docs-landing-label">Getting started</p>
+          <h2>Move from reading to running.</h2>
+          <p>Choose the shortest path for your stack, then follow a focused setup guide.</p>
+          <ul>
+            <li><a href="/docs/getting-started/what-is-kronroe">What is Kronroe?</a></li>
+            <li><a href="/docs/getting-started/quick-start-python">Quick Start: Python</a></li>
+            <li><a href="/docs/getting-started/quick-start-rust">Quick Start: Rust</a></li>
+            <li><a href="/docs/getting-started/quick-start-mcp">Quick Start: MCP</a></li>
+          </ul>
+        </article>
+
+        <article class="docs-landing-card docs-landing-card--copper">
+          <p class="docs-landing-label">Core concepts</p>
+          <h2>Understand the model once.</h2>
+          <p>The conceptual pages explain why Kronroe treats temporal facts differently from ordinary graph stores.</p>
+          <ul>
+            <li><a href="/docs/concepts/bi-temporal-model">Bi-temporal model</a></li>
+            <li><a href="/docs/concepts/facts-and-entities">Facts and entities</a></li>
+          </ul>
+        </article>
+
+        <article class="docs-landing-card docs-landing-card--lime">
+          <p class="docs-landing-label">API reference</p>
+          <h2>Go straight to the surface area.</h2>
+          <p>Reference pages for the core engine, memory API, and MCP tools live here.</p>
+          <ul>
+            <li><a href="/docs/api/core">TemporalGraph (Core)</a></li>
+            <li><a href="/docs/api/agent-memory">AgentMemory</a></li>
+            <li><a href="/docs/api/mcp-tools">MCP Tools</a></li>
+          </ul>
+        </article>
+
+        <article class="docs-landing-card docs-landing-card--neutral">
+          <p class="docs-landing-label">Back to the site</p>
+          <h2>Need the product story instead?</h2>
+          <p>The homepage, playground, and brand pages are a better fit if you are evaluating Kronroe rather than implementing it.</p>
+          <div class="cta-row">
+            <a class="button button--primary" href="/">Homepage</a>
+            <a class="button button--ghost" href="/#playground">Playground</a>
+          </div>
+        </article>
+      </section>
+    </main>
+    <footer class="footer">
+      <div class="footer-inner">
+        <span>Kronroe · Docs</span>
+        <div class="footer-links">
+          <a href="/blog/">Blog</a>
+          <a href="/community/">Community</a>
+          <a href="/about/">About</a>
+          <a href="/faq/">FAQ</a>
+          <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </div>
+      </div>
+    </footer>
+    <div class="docs-search" hidden data-docs-search-dialog>
+      <div class="docs-search-backdrop" data-docs-search-close></div>
+      <section class="docs-search-panel" role="dialog" aria-modal="true" aria-labelledby="docs-search-title">
+        <div class="docs-search-header">
+          <div>
+            <div class="docs-search-kicker">Docs search</div>
+            <h2 id="docs-search-title">Find a guide, concept, or API page</h2>
+          </div>
+          <button class="docs-search-close" type="button" data-docs-search-close aria-label="Close search">Close</button>
+        </div>
+        <label class="docs-search-field">
+          <span class="sr-only">Search docs</span>
+          <input type="search" placeholder="Search Kronroe docs" autocomplete="off" spellcheck="false" data-docs-search-input />
+        </label>
+        <div class="docs-search-meta" data-docs-search-meta>Type to search the full docs set.</div>
+        <div class="docs-search-results" data-docs-search-results></div>
+      </section>
+    </div>
+    <script type="module" src="/docs-search.js"></script>
+    <script type="module" src="/docs-tabs.js"></script>
+  </body>
+</html>

@@ -10,15 +10,26 @@ This gives you the core `TemporalGraph` engine with full-text search enabled by 
 
 ## Open a database
 
-```rust
-use kronroe::TemporalGraph;
+<div class="docs-tabs" data-docs-tabs>
+  <div class="docs-tabs-list" role="tablist" aria-label="Rust database modes">
+    <button class="docs-tab" role="tab" id="rust-file-tab" aria-controls="rust-file-panel" aria-selected="true">File-backed</button>
+    <button class="docs-tab" role="tab" id="rust-memory-tab" aria-controls="rust-memory-panel" aria-selected="false" tabindex="-1">In-memory</button>
+  </div>
+  <div class="docs-tab-panels">
+    <div class="docs-tab-panel" role="tabpanel" id="rust-file-panel" aria-labelledby="rust-file-tab">
+      <p class="docs-tab-note">Use this when you want durable ACID storage on disk.</p>
+      <pre><code class="language-rust">use kronroe::TemporalGraph;
 
-// File-backed — data persists to disk (ACID storage)
-let db = TemporalGraph::open("./my-graph.kronroe")?;
+let db = TemporalGraph::open("./my-graph.kronroe")?;</code></pre>
+    </div>
+    <div class="docs-tab-panel" role="tabpanel" id="rust-memory-panel" aria-labelledby="rust-memory-tab" hidden>
+      <p class="docs-tab-note">Use this for tests, prototypes, and ephemeral sessions.</p>
+      <pre><code class="language-rust">use kronroe::TemporalGraph;
 
-// In-memory — fast, ephemeral, no file I/O
-let db = TemporalGraph::open_in_memory()?;
-```
+let db = TemporalGraph::open_in_memory()?;</code></pre>
+    </div>
+  </div>
+</div>
 
 ## Assert and query facts
 
