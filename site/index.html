@@ -1679,14 +1679,141 @@
       .entity-body { border-top: 1px solid var(--border); padding: 0.35rem 0.55rem 0.5rem; display: grid; gap: 0.25rem; font-family: var(--mono); font-size: 0.6rem; color: var(--text-mid); }
       .entity-line { display: flex; align-items: center; gap: 0.28rem; }
       .entity-line .k { color: var(--text-dim); min-width: 56px; }
-      .loading-overlay { position: fixed; inset: 0; background: var(--espresso); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.25rem; z-index: 200; transition: opacity 0.35s ease; }
+      .loading-overlay {
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(circle at 18% 20%, rgba(124, 92, 252, 0.14), transparent 24%),
+          radial-gradient(circle at 82% 22%, rgba(232, 125, 74, 0.12), transparent 22%),
+          linear-gradient(180deg, #1B1715 0%, #120F0E 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        z-index: 200;
+        transition: opacity 0.35s ease;
+        overflow: hidden;
+      }
       .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+      .loading-overlay::before,
+      .loading-overlay::after {
+        content: "";
+        position: absolute;
+        inset: auto;
+        pointer-events: none;
+        opacity: 0.55;
+      }
+      .loading-overlay::before {
+        width: 340px;
+        height: 340px;
+        border-radius: 50%;
+        border: 1px solid rgba(255,255,255,0.06);
+        box-shadow:
+          0 0 0 1px rgba(255,255,255,0.02) inset,
+          0 0 0 24px rgba(124,92,252,0.03),
+          0 0 0 52px rgba(232,125,74,0.02);
+        animation: loading-orbit 10s linear infinite;
+      }
+      .loading-overlay::after {
+        width: 180px;
+        height: 180px;
+        border-radius: 42px;
+        background:
+          linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)),
+          radial-gradient(circle at center, rgba(124,92,252,0.10), transparent 55%);
+        filter: blur(1px);
+        transform: rotate(9deg);
+        animation: loading-drift 6.5s ease-in-out infinite alternate;
+      }
+      @keyframes loading-orbit {
+        from { transform: translate3d(0, 0, 0) rotate(0deg); }
+        to { transform: translate3d(0, 0, 0) rotate(360deg); }
+      }
+      @keyframes loading-drift {
+        from { transform: translateY(-8px) rotate(8deg); }
+        to { transform: translateY(10px) rotate(14deg); }
+      }
+      .loading-panel {
+        position: relative;
+        z-index: 1;
+        width: min(540px, calc(100% - 2rem));
+        padding: 1.45rem 1.4rem 1.2rem;
+        border-radius: 28px;
+        border: 1px solid rgba(255,255,255,0.08);
+        background: rgba(21, 18, 16, 0.74);
+        box-shadow: 0 28px 80px rgba(0,0,0,0.34);
+        backdrop-filter: blur(18px);
+        display: grid;
+        gap: 1rem;
+        justify-items: center;
+        text-align: center;
+      }
       .loading-logo { opacity: 0; animation: loading-fade-in 0.5s ease forwards; }
       @keyframes loading-fade-in { to { opacity: 1; } }
-      .loading-track { width: 140px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
-      .loading-fill { height: 100%; width: 55%; background: linear-gradient(90deg, var(--violet), var(--orchid)); border-radius: 1px; animation: track 1.4s ease-in-out infinite alternate; transform-origin: left; will-change: transform; }
+      .loading-kicker {
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.52);
+      }
+      .loading-headline {
+        font-family: var(--display);
+        font-size: clamp(1.4rem, 2vw, 1.8rem);
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        color: #fff;
+        max-width: 16ch;
+      }
+      .loading-subline {
+        font-family: var(--body);
+        font-size: 0.92rem;
+        line-height: 1.6;
+        color: rgba(255,255,255,0.68);
+        max-width: 34ch;
+      }
+      .loading-track {
+        width: min(260px, 100%);
+        height: 4px;
+        background: rgba(255,255,255,0.08);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .loading-fill {
+        height: 100%;
+        width: 55%;
+        background: linear-gradient(90deg, var(--violet), var(--copper));
+        border-radius: 999px;
+        animation: track 1.4s ease-in-out infinite alternate;
+        transform-origin: left;
+        will-change: transform;
+      }
       @keyframes track { from { transform: scaleX(0.15) translateX(0); } to { transform: scaleX(1) translateX(82%); } }
-      .loading-label { font-family: var(--body); font-size: 0.68rem; color: rgba(255,255,255,0.62); letter-spacing: 0.04em; }
+      .loading-label {
+        font-family: var(--body);
+        font-size: 0.72rem;
+        color: rgba(255,255,255,0.70);
+        letter-spacing: 0.04em;
+      }
+      .loading-chips {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.45rem;
+        margin-top: 0.2rem;
+      }
+      .loading-chip {
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 999px;
+        padding: 0.32rem 0.56rem;
+        color: rgba(255,255,255,0.78);
+        background: rgba(255,255,255,0.03);
+      }
 
       /* ── Section intro prose ── */
       .section-intro {
@@ -1987,21 +2114,31 @@
     <a href="#main-content" class="skip-nav">Skip to main content</a>
 
     <div class="loading-overlay" id="loading">
-      <svg class="loading-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
-           height="56" style="display:block;width:auto;" aria-label="Kronroe loading">
-        <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
-        <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
-        <circle cx="136" cy="38" r="14" fill="none" stroke="#8BBF20" stroke-width="3.5"/>
-        <circle cx="136" cy="38" r="5" fill="#8BBF20"/>
-        <circle cx="48" cy="82" r="16" fill="#E87D4A"/>
-        <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5"/>
-        <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
-        <circle cx="136" cy="82" r="5" fill="#7C5CFC"/>
-        <text x="168" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#FFFFFF">Kron</text>
-        <text x="282" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#E87D4A">roe</text>
-      </svg>
-      <div class="loading-track"><div class="loading-fill"></div></div>
-      <div class="loading-label">initialising wasm engine…</div>
+      <div class="loading-panel">
+        <svg class="loading-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
+             height="56" style="display:block;width:auto;" aria-label="Kronroe loading">
+          <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
+          <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="136" cy="38" r="14" fill="none" stroke="#8BBF20" stroke-width="3.5"/>
+          <circle cx="136" cy="38" r="5" fill="#8BBF20"/>
+          <circle cx="48" cy="82" r="16" fill="#E87D4A"/>
+          <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5"/>
+          <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
+          <circle cx="136" cy="82" r="5" fill="#7C5CFC"/>
+          <text x="168" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#FFFFFF">Kron</text>
+          <text x="282" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#E87D4A">roe</text>
+        </svg>
+        <div class="loading-kicker">WebAssembly boot</div>
+        <div class="loading-headline">Booting private memory locally</div>
+        <div class="loading-subline">Nothing leaves the device while the engine starts. The playground will come online once the graph runtime is ready.</div>
+        <div class="loading-track"><div class="loading-fill"></div></div>
+        <div class="loading-label">initialising temporal engine…</div>
+        <div class="loading-chips" aria-label="Loading signals">
+          <span class="loading-chip">on-device</span>
+          <span class="loading-chip">no server</span>
+          <span class="loading-chip">no cloud</span>
+        </div>
+      </div>
     </div>
 
     <!-- Header with INLINE SVG logo -->

@@ -233,7 +233,7 @@ async function init() {
   // and dismiss the splash so the rest of the site is usable.
   const loadTimeout = setTimeout(() => {
     if (!loading.classList.contains('hidden')) {
-      loadingText.textContent = "WASM engine is still starting — you can keep reading, or try again in a moment.";
+      loadingText.textContent = "Still booting the private engine — you can keep reading while it warms up.";
       setTimeout(() => loading.classList.add('hidden'), 3000);
     }
   }, 10000);
@@ -249,7 +249,7 @@ async function init() {
     clearTimeout(loadTimeout);
   } catch (e) {
     clearTimeout(loadTimeout);
-    loadingText.textContent = "Could not start the playground right now — please refresh and try again.";
+    loadingText.textContent = "The playground needs a fresh reload — please try again in a moment.";
     setTimeout(() => loading.classList.add('hidden'), 3000);
     console.error(e);
     return;
