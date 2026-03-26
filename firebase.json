@@ -11,7 +11,7 @@
           { "key": "Referrer-Policy",           "value": "strict-origin-when-cross-origin" },
           { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains; preload" },
           { "key": "Cross-Origin-Opener-Policy","value": "same-origin" },
-          { "key": "Content-Security-Policy",   "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.googletagmanager.com 'sha256-teaAl3lUuKId2aXW6HXsMPn3rJO9Js4biMJjCFnJKvI=' 'sha256-NUQNIG1u9LPTqpqkYWHxzcILzC6KpMJtp0HIuNDpa2Q='; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https://kronroe.dev https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com; connect-src 'self' ws: wss: https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com; object-src 'none'; base-uri 'self';" }
+          { "key": "Content-Security-Policy",   "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.googletagmanager.com 'sha256-teaAl3lUuKId2aXW6HXsMPn3rJO9Js4biMJjCFnJKvI=' 'sha256-NUQNIG1u9LPTqpqkYWHxzcILzC6KpMJtp0HIuNDpa2Q=' 'sha256-qKJRSzLPdgSUhOVQnl/Y3bq9WCeYH+wDYe5RE0P3cwc='; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https://kronroe.dev https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com; connect-src 'self' ws: wss: https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com; object-src 'none'; base-uri 'self';" }
         ]
       },
       {
