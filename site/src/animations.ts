@@ -22,6 +22,51 @@ const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)
   onScroll();
 })();
 
+// ── Homepage section tabs — scrollspy for positional feedback ─────────────
+(function () {
+  const tabLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>('.section-tabs a'));
+  if (!tabLinks.length) return;
+
+  const sections = tabLinks
+    .map((link) => {
+      const href = link.getAttribute('href');
+      if (!href || !href.startsWith('#')) return null;
+      const target = document.querySelector<HTMLElement>(href);
+      if (!target) return null;
+      return { link, target };
+    })
+    .filter((entry): entry is { link: HTMLAnchorElement; target: HTMLElement } => Boolean(entry));
+
+  if (!sections.length) return;
+
+  function setActive(activeLink: HTMLAnchorElement) {
+    tabLinks.forEach((link) => link.classList.toggle('section-tab-active', link === activeLink));
+  }
+
+  if (prefersReducedMotion) {
+    setActive(sections[0].link);
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      const match = sections.find((section) => section.target === visible.target);
+      if (match) setActive(match.link);
+    },
+    {
+      rootMargin: '-20% 0px -55% 0px',
+      threshold: [0.2, 0.4, 0.6],
+    }
+  );
+
+  sections.forEach(({ target }) => observer.observe(target));
+  setActive(sections[0].link);
+})();
+
 // ── Hero entrance — fact assertion sequence ──────────────────────────────────
 // Each element appears in order, mimicking facts being asserted into the database.
 // Plays once on load. Reduced-motion: everything visible immediately.

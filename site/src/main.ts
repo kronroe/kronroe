@@ -228,15 +228,21 @@ function factIdentityKey(f: WasmFact): string {
 async function init() {
   const loading     = document.getElementById("loading")!;
   const loadingText = loading.querySelector(".loading-label")!;
+  const loadingRetry = document.getElementById("loading-retry") as HTMLButtonElement | null;
 
   // Timeout: if WASM hasn't loaded after 10s, show fallback message
-  // and dismiss the splash so the rest of the site is usable.
+  // and keep the splash visible so the user gets a clear recovery path.
   const loadTimeout = setTimeout(() => {
     if (!loading.classList.contains('hidden')) {
-      loadingText.textContent = "Still booting the private engine — you can keep reading while it warms up.";
-      setTimeout(() => loading.classList.add('hidden'), 3000);
+      loading.classList.add("is-stalled");
+      loadingText.textContent = "Still booting the private engine — please wait or reload the playground.";
+      loadingRetry?.focus();
     }
   }, 10000);
+
+  loadingRetry?.addEventListener("click", () => {
+    window.location.reload();
+  });
 
   let wasm: WasmModule;
   try {
@@ -249,8 +255,9 @@ async function init() {
     clearTimeout(loadTimeout);
   } catch (e) {
     clearTimeout(loadTimeout);
+    loading.classList.add("is-error");
     loadingText.textContent = "The playground needs a fresh reload — please try again in a moment.";
-    setTimeout(() => loading.classList.add('hidden'), 3000);
+    loadingRetry?.focus();
     console.error(e);
     return;
   }
