@@ -230,6 +230,9 @@ async function init() {
   const loadingText = loading.querySelector(".loading-label")!;
   const loadingRetry = document.getElementById("loading-retry") as HTMLButtonElement | null;
 
+  // Show the loading overlay now that init has actually started
+  loading.classList.remove("hidden");
+
   // Timeout: if WASM hasn't loaded after 10s, show fallback message
   // and keep the splash visible so the user gets a clear recovery path.
   const loadTimeout = setTimeout(() => {
