@@ -37,11 +37,15 @@ firestore-debug.log
 site/dist/
 site/node_modules/
 site/public/pkg/
+site/public/docs-search.json
 
 # Docs (VitePress) build artifacts
 site/docs/.vitepress/dist/
 site/docs/.vitepress/cache/
 site/docs/node_modules/
+site/docs/api/*/index.html
+site/docs/concepts/*/index.html
+site/docs/getting-started/*/index.html
 
 # Private ideas / future phases (not for public repo)
 .ideas/

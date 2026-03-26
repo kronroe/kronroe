@@ -19,15 +19,26 @@ Most users should start with `AgentMemory`.
 
 ### Open a database
 
-```python
-from kronroe import KronroeDb
+<div class="docs-tabs" data-docs-tabs>
+  <div class="docs-tabs-list" role="tablist" aria-label="KronroeDb database modes">
+    <button class="docs-tab" role="tab" id="python-kronroedb-file-tab" aria-controls="python-kronroedb-file-panel" aria-selected="true">File-backed</button>
+    <button class="docs-tab" role="tab" id="python-kronroedb-memory-tab" aria-controls="python-kronroedb-memory-panel" aria-selected="false" tabindex="-1">In-memory</button>
+  </div>
+  <div class="docs-tab-panels">
+    <div class="docs-tab-panel" role="tabpanel" id="python-kronroedb-file-panel" aria-labelledby="python-kronroedb-file-tab">
+      <p class="docs-tab-note">Use this when you want a durable local `.kronroe` file.</p>
+      <pre><code class="language-python">from kronroe import KronroeDb
 
-# File-backed (creates the file if it doesn't exist)
-db = KronroeDb.open("./data.kronroe")
+db = KronroeDb.open("./data.kronroe")</code></pre>
+    </div>
+    <div class="docs-tab-panel" role="tabpanel" id="python-kronroedb-memory-panel" aria-labelledby="python-kronroedb-memory-tab" hidden>
+      <p class="docs-tab-note">Use this for tests, notebooks, and ephemeral sessions.</p>
+      <pre><code class="language-python">from kronroe import KronroeDb
 
-# Or purely in-memory (no file created)
-db = KronroeDb.open_in_memory()
-```
+db = KronroeDb.open_in_memory()</code></pre>
+    </div>
+  </div>
+</div>
 
 ### Assert facts
 
@@ -53,14 +64,26 @@ Results are returned as a list of dicts. Each dict contains `id`, `subject`, `pr
 
 ### Open a database
 
-```python
-from kronroe import AgentMemory
+<div class="docs-tabs" data-docs-tabs>
+  <div class="docs-tabs-list" role="tablist" aria-label="AgentMemory database modes">
+    <button class="docs-tab" role="tab" id="python-agentmemory-file-tab" aria-controls="python-agentmemory-file-panel" aria-selected="true">File-backed</button>
+    <button class="docs-tab" role="tab" id="python-agentmemory-memory-tab" aria-controls="python-agentmemory-memory-panel" aria-selected="false" tabindex="-1">In-memory</button>
+  </div>
+  <div class="docs-tab-panels">
+    <div class="docs-tab-panel" role="tabpanel" id="python-agentmemory-file-panel" aria-labelledby="python-agentmemory-file-tab">
+      <p class="docs-tab-note">Use this for long-lived agents and local applications that keep memory on disk.</p>
+      <pre><code class="language-python">from kronroe import AgentMemory
 
-memory = AgentMemory.open("./my-agent.kronroe")
+memory = AgentMemory.open("./my-agent.kronroe")</code></pre>
+    </div>
+    <div class="docs-tab-panel" role="tabpanel" id="python-agentmemory-memory-panel" aria-labelledby="python-agentmemory-memory-tab" hidden>
+      <p class="docs-tab-note">Use this for short-lived sessions and tests.</p>
+      <pre><code class="language-python">from kronroe import AgentMemory
 
-# Or in-memory
-memory = AgentMemory.open_in_memory()
-```
+memory = AgentMemory.open_in_memory()</code></pre>
+    </div>
+  </div>
+</div>
 
 ### Assert facts
 

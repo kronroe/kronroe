@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Frequently asked questions about Kronroe, including install, privacy, licensing, and platform support." />
+    <link rel="canonical" href="https://kronroe.dev/faq/" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico" />
+    <link rel="stylesheet" href="/page-shell.css" />
+    <title>Kronroe FAQ</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="site-brand" href="/" aria-label="Kronroe home">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
+             height="50" style="display:block;width:auto;" aria-label="Kronroe">
+          <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
+          <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
+          <circle cx="136" cy="38" r="14" fill="none" stroke="#8BBF20" stroke-width="3.5"/>
+          <circle cx="136" cy="38" r="5" fill="#8BBF20"/>
+          <circle cx="48" cy="82" r="16" fill="#E87D4A"/>
+          <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5"/>
+          <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
+          <circle cx="136" cy="82" r="5" fill="#7C5CFC"/>
+          <text x="168" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#FFFFFF">Kron</text>
+          <text x="282" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#E87D4A">roe</text>
+        </svg>
+      </a>
+      <span class="site-badge">FAQ</span>
+      <nav class="site-nav" aria-label="Site">
+        <a href="/docs/">Docs</a>
+        <a href="/blog/">Blog</a>
+        <a href="/community/">Community</a>
+        <a href="/about/">About</a>
+        <a href="/faq/">FAQ</a>
+      </nav>
+      <a class="site-cta" href="/#playground">Try playground</a>
+    </header>
+    <main class="page">
+      <section class="hero">
+        <span class="eyebrow">Questions, answered</span>
+        <h1>The practical details, without the marketing fog.</h1>
+        <p class="lede">
+          These are the questions people usually ask before adopting Kronroe: what it runs on, how private
+          it really is, what it costs, and how it fits into existing workflows.
+        </p>
+      </section>
+      <section class="texture-strip">
+        <div class="texture-grid">
+          <article class="texture-card">
+            <h3>Start here</h3>
+            <p>If you are evaluating Kronroe, begin with the docs landing page and the quick start for your stack.</p>
+          </article>
+          <article class="texture-card">
+            <h3>Most asked</h3>
+            <p>Install, privacy, supported platforms, and licensing are the four questions that usually matter first.</p>
+          </article>
+          <article class="texture-card">
+            <h3>Need the shortest path?</h3>
+            <p>Open the playground if you want to see the memory model working before you read the full docs.</p>
+          </article>
+        </div>
+        <div class="topic-links">
+          <a href="/docs/">Docs home</a>
+          <a href="/docs/getting-started/what-is-kronroe/">What is Kronroe?</a>
+          <a href="/docs/getting-started/quick-start-python/">Python quick start</a>
+          <a href="/docs/getting-started/quick-start-rust/">Rust quick start</a>
+        </div>
+      </section>
+      <section class="faq-list stack">
+        <details open>
+          <summary>How do I install Kronroe?</summary>
+          <p>Use the language-specific package for Python or Rust, or follow the docs for the MCP server and WASM builds. Each path is documented so you can choose the surface that matches how you ship.</p>
+        </details>
+        <details>
+          <summary>Does data leave the device?</summary>
+          <p>No. The core positioning is on-device and local-first, with no cloud dependency for the memory engine itself. If a workflow needs sync or hosting later, that is a separate design choice rather than a requirement of the core engine.</p>
+        </details>
+        <details>
+          <summary>What platforms are supported?</summary>
+          <p>Rust, Python, iOS, Android, and WASM are the current surface area the homepage calls out. That keeps the product close to the languages and runtimes people are actually building in.</p>
+        </details>
+        <details>
+          <summary>Is Kronroe open source?</summary>
+          <p>Yes, with a commercial licence available as well. That will stay visible in the site footer and docs so the project is easy to evaluate from both a technical and licensing perspective.</p>
+        </details>
+        <details>
+          <summary>How does bi-temporal memory help?</summary>
+          <p>It keeps valid time and recorded time separate, which makes corrections, history, and point-in-time queries much clearer. That matters when you want to know what was true then, what was recorded then, and how a fact changed over time.</p>
+        </details>
+        <details>
+          <summary>Where should I start if I am evaluating the product?</summary>
+          <p>Start with the docs landing page, then read What is Kronroe? and one quick start guide. That gives you the product thesis, the setup flow, and the API surface without making you read the entire site first.</p>
+        </details>
+        <details>
+          <summary>Can I use it in a commercial product?</summary>
+          <p>That is exactly the case the site is designed to support. The docs and licensing language should make it clear how to adopt Kronroe in a real product, not just a demo.</p>
+        </details>
+      </section>
+      <section class="texture-strip texture-strip--dark">
+        <h2>Need a faster answer?</h2>
+        <p>Jump straight to the docs or try the playground if you want to see the memory model in action.</p>
+        <div class="cta-row">
+          <a class="button button--primary" href="/docs/">Open docs</a>
+          <a class="button button--ghost" href="/#playground">Try playground</a>
+        </div>
+      </section>
+    </main>
+    <footer class="footer">
+      <div class="footer-inner">
+        <span>Kronroe · FAQ</span>
+        <div class="footer-links">
+          <a href="/blog/">Blog</a>
+          <a href="/community/">Community</a>
+          <a href="/about/">About</a>
+          <a href="/docs/">Docs</a>
+          <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

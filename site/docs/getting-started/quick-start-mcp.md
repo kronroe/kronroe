@@ -6,33 +6,30 @@ Kronroe's MCP server gives Claude Desktop, Cursor, and any MCP-compatible AI ass
 
 Choose one of three installation methods:
 
-### Option 1: npm (npx)
-
-```bash
-npx kronroe-mcp
-```
-
-This delegates to the `kronroe-mcp` binary on your PATH.
-
-### Option 2: pip
-
-```bash
-pip install kronroe-mcp
-```
-
-Then run:
-
-```bash
-kronroe-mcp
-```
-
-Set `KRONROE_MCP_BIN` to point at a custom binary location if needed.
-
-### Option 3: Cargo (build from source)
-
-```bash
-cargo install --path crates/mcp-server
-```
+<div class="docs-tabs" data-docs-tabs>
+  <div class="docs-tabs-list" role="tablist" aria-label="MCP installation methods">
+    <button class="docs-tab" role="tab" id="mcp-npm-tab" aria-controls="mcp-npm-panel" aria-selected="true">npm (npx)</button>
+    <button class="docs-tab" role="tab" id="mcp-pip-tab" aria-controls="mcp-pip-panel" aria-selected="false" tabindex="-1">pip</button>
+    <button class="docs-tab" role="tab" id="mcp-cargo-tab" aria-controls="mcp-cargo-panel" aria-selected="false" tabindex="-1">Cargo</button>
+  </div>
+  <div class="docs-tab-panels">
+    <div class="docs-tab-panel" role="tabpanel" id="mcp-npm-panel" aria-labelledby="mcp-npm-tab">
+      <p class="docs-tab-note">Fastest route if you already use Node.js tooling.</p>
+      <pre><code class="language-bash">npx kronroe-mcp</code></pre>
+      <p class="docs-tab-note">This delegates to the `kronroe-mcp` binary on your PATH.</p>
+    </div>
+    <div class="docs-tab-panel" role="tabpanel" id="mcp-pip-panel" aria-labelledby="mcp-pip-tab" hidden>
+      <p class="docs-tab-note">Use this if your workflow already centers on Python.</p>
+      <pre><code class="language-bash">pip install kronroe-mcp
+kronroe-mcp</code></pre>
+      <p class="docs-tab-note">Set `KRONROE_MCP_BIN` to point at a custom binary location if needed.</p>
+    </div>
+    <div class="docs-tab-panel" role="tabpanel" id="mcp-cargo-panel" aria-labelledby="mcp-cargo-tab" hidden>
+      <p class="docs-tab-note">Use this if you want to build the server from source.</p>
+      <pre><code class="language-bash">cargo install --path crates/mcp-server</code></pre>
+    </div>
+  </div>
+</div>
 
 ## Claude Desktop Configuration
 
@@ -145,4 +142,4 @@ Retrieve all current facts about an entity:
 
 ## Available Tools
 
-The server exposes 11 tools: `remember`, `recall`, `recall_scored`, `assemble_context`, `facts_about`, `assert_fact`, `correct_fact`, `invalidate_fact`, `what_changed`, `memory_health`, and `recall_for_task`. See the [MCP Tools Reference](/api/mcp-tools) for full parameter documentation.
+The server exposes 11 tools: `remember`, `recall`, `recall_scored`, `assemble_context`, `facts_about`, `assert_fact`, `correct_fact`, `invalidate_fact`, `what_changed`, `memory_health`, and `recall_for_task`. See the [MCP Tools Reference](/docs/api/mcp-tools/) for full parameter documentation.

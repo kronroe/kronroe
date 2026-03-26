@@ -4,9 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/build-docs.mjs",
     "dev": "node node_modules/vite/bin/vite.js",
+    "prebuild": "node scripts/build-docs.mjs",
     "build": "vite build",
     "preview": "vite preview"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.1"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
