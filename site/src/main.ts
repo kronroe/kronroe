@@ -246,11 +246,14 @@ async function init() {
 
   let wasm: WasmModule;
   try {
+    // Cache-bust the WASM binary so deploys cannot pair a fresh JS wrapper with
+    // a stale cached `.wasm` file from a previous release.
+    const wasmUrl = new URL("../public/pkg/kronroe_wasm_bg.wasm?v=0.3.1", import.meta.url);
     const wasmImport = (await import("../public/pkg/kronroe_wasm.js")) as unknown as
       WasmModule & { default?: (arg?: unknown) => Promise<void> };
     wasm = wasmImport;
     await wasmImport.default?.({
-      module_or_path: new URL("../public/pkg/kronroe_wasm_bg.wasm", import.meta.url),
+      module_or_path: wasmUrl,
     });
     clearTimeout(loadTimeout);
   } catch (e) {
