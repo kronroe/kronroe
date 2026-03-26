@@ -69,12 +69,7 @@
           "@type": "Offer",
           "name": "Commercial Licence",
           "url": "https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md",
-          "price": "0",
-          "priceSpecification": {
-            "@type": "PriceSpecification",
-            "priceCurrency": "USD",
-            "description": "Contact for pricing"
-          }
+          "description": "Contact for pricing"
         }
       ],
       "codeRepository": "https://github.com/kronroe/kronroe",
@@ -183,6 +178,7 @@
         display: flex;
         flex-direction: column;
         position: relative;
+        overflow-x: hidden;
       }
 
       .sr-only {
@@ -395,6 +391,7 @@
         position: relative;
         z-index: 1;
         width: 100%;
+        max-width: 100vw;
         background:
           radial-gradient(circle at 18% 18%, rgba(124, 92, 252, 0.08), transparent 28%),
           radial-gradient(circle at 82% 12%, rgba(232, 125, 74, 0.10), transparent 25%),
@@ -461,6 +458,7 @@
         max-width: 780px;
         margin: 0;
         color: var(--text);
+        overflow-wrap: break-word;
       }
 
       .hero-handwritten {
@@ -675,6 +673,7 @@
         margin: 0;
         box-shadow: 0 30px 60px rgba(24, 17, 13, 0.22);
         text-align: left;
+        overflow: hidden;
       }
       .tl-top {
         display: flex;
@@ -1285,7 +1284,6 @@
         padding: 0.1rem 0.38rem;
         border-radius: 3px;
         border: 1px solid var(--border);
-        white-space: nowrap;
       }
       .bento-vs--no      { color: var(--red);    border-color: rgba(197,48,48,0.22);  background: rgba(197,48,48,0.06); }
       .bento-vs--partial { color: var(--orange); border-color: var(--orange-border);  background: var(--orange-bg); }
@@ -2149,6 +2147,9 @@
           padding: 0.4rem 0.72rem;
         }
         .frow-time { display: none; }
+        .tl-tabs { flex-wrap: wrap; gap: 0.5rem; }
+        .tl-top { flex-direction: column; gap: 0.35rem; }
+        .tl-note { display: none; }
         .use-case-grid { grid-template-columns: 1fr; }
         .features-grid { grid-template-columns: 1fr; }
         .footer-inner { flex-direction: column; align-items: flex-start; }
@@ -2166,20 +2167,24 @@
       @media (max-width: 480px) {
         .hero-install { flex-direction: column; align-items: stretch; }
         .hero-install .install-sep { text-align: center; }
-        .install-cmd { text-align: center; }
+        .install-cmd { text-align: center; overflow: hidden; text-overflow: ellipsis; }
         .fact-row { flex-wrap: wrap; gap: 0.25rem; }
         .fact-row .fact-timestamps { width: 100%; text-align: right; }
         .fact-row .btn-invalidate { position: absolute; top: 0.35rem; right: 0.35rem; }
         .entity-card summary { flex-wrap: wrap; }
         .entity-stats { width: 100%; margin-top: 0.25rem; }
         .stream-body { min-height: 220px; }
+        .tl-tabs { flex-wrap: wrap; gap: 0.5rem; }
+        .tl-note { display: none; }
+        .announce-pill { font-size: 0.6rem; }
+        .tl-top { flex-direction: column; gap: 0.35rem; }
       }
     </style>
   </head>
   <body>
     <a href="#main-content" class="skip-nav">Skip to main content</a>
 
-    <div class="loading-overlay" id="loading">
+    <div class="loading-overlay hidden" id="loading">
       <div class="loading-panel">
         <svg class="loading-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
              height="56" style="display:block;width:auto;" aria-label="Kronroe loading">
@@ -2616,7 +2621,7 @@
     <!-- Stats strip -->
     <section class="stats-strip" aria-label="Key statistics">
       <div class="stats-inner">
-        <div class="stat-item reveal-on-scroll" data-target="100">
+        <div class="stat-item reveal-on-scroll" data-target="100" aria-label="100% client-side engine — zero network calls from Kronroe">
           <div class="stat-ring-wrap">
             <svg class="stat-ring" viewBox="0 0 120 120" aria-hidden="true">
               <circle class="stat-ring-bg" cx="60" cy="60" r="54"/>
@@ -2628,12 +2633,12 @@
           <span class="stat-label">client-side engine</span>
           <span class="stat-sublabel">zero network calls from Kronroe</span>
         </div>
-        <div class="stat-item reveal-on-scroll" data-target="6">
+        <div class="stat-item reveal-on-scroll" data-target="6" aria-label="Less than 6 MB native library size — iOS, Android, WASM">
           <span class="stat-value">&lt;<span class="stat-count">6</span> MB</span>
           <span class="stat-label">native library size</span>
           <span class="stat-sublabel">iOS · Android · WASM</span>
         </div>
-        <div class="stat-item stat-item--copper reveal-on-scroll" data-target="4">
+        <div class="stat-item stat-item--copper reveal-on-scroll" data-target="4" aria-label="4 timestamps per fact — valid plus transaction time">
           <span class="stat-value"><span class="stat-count">4</span></span>
           <span class="stat-label">timestamps per fact</span>
           <span class="stat-sublabel">valid + transaction time</span>
