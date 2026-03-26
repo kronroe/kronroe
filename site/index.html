@@ -359,6 +359,7 @@
         border-bottom: 1px solid var(--border);
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
+        box-shadow: 0 10px 24px rgba(26,21,16,0.04);
       }
       .section-tabs a {
         display: inline-flex;
@@ -373,13 +374,20 @@
         font-size: 0.78rem;
         font-weight: 600;
         text-decoration: none;
-        transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+        transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
       }
       .section-tabs a:hover,
       .section-tabs a:focus-visible {
         color: var(--violet);
         border-color: var(--violet-border);
         background: var(--violet-bg);
+        transform: translateY(-1px);
+      }
+      .section-tabs a.section-tab-active {
+        color: #fff;
+        background: linear-gradient(135deg, var(--violet), color-mix(in srgb, var(--violet) 68%, var(--copper)));
+        border-color: transparent;
+        box-shadow: 0 10px 20px rgba(124,92,252,0.22);
       }
 
       /* ── Hero section — centred single column ── */
@@ -1814,6 +1822,45 @@
         color: rgba(255,255,255,0.78);
         background: rgba(255,255,255,0.03);
       }
+      .loading-retry {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        margin-top: 0.2rem;
+        padding: 0.62rem 0.95rem;
+        border-radius: 999px;
+        border: 1px solid rgba(124,92,252,0.28);
+        background: linear-gradient(135deg, rgba(124,92,252,0.18), rgba(232,125,74,0.16));
+        color: #fff;
+        font-family: var(--body);
+        font-size: 0.78rem;
+        font-weight: var(--w-label);
+        cursor: pointer;
+        transition: transform 0.18s ease, filter 0.18s ease, border-color 0.18s ease;
+      }
+      .loading-retry:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.04);
+        border-color: rgba(180,92,252,0.42);
+      }
+      .loading-retry:focus-visible {
+        outline: 2px solid rgba(180,92,252,0.65);
+        outline-offset: 2px;
+      }
+      .loading-overlay.is-stalled .loading-subline,
+      .loading-overlay.is-error .loading-subline {
+        color: rgba(255,255,255,0.82);
+      }
+      .loading-overlay.is-stalled .loading-panel,
+      .loading-overlay.is-error .loading-panel {
+        border-color: rgba(232,125,74,0.26);
+        box-shadow: 0 28px 80px rgba(0,0,0,0.40), 0 0 0 1px rgba(232,125,74,0.08) inset;
+      }
+      .loading-overlay.is-stalled .loading-retry,
+      .loading-overlay.is-error .loading-retry {
+        display: inline-flex;
+      }
 
       /* ── Section intro prose ── */
       .section-intro {
@@ -1894,7 +1941,16 @@
       .footer-right { display: flex; gap: 1.5rem; }
       .footer-right a { color: var(--text-dim); text-decoration: none; transition: color 0.12s; font-size: 0.82rem; }
       .footer-right a:hover { color: var(--text-mid); }
-      .version-badge { font-family: var(--mono); font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.35rem; border-radius: 3px; background: var(--lime-bg); border: 1px solid var(--lime-border); color: #466D00; }
+      .version-badge {
+        font-family: var(--mono);
+        font-size: 0.65rem;
+        font-weight: 600;
+        padding: 0.12rem 0.42rem;
+        border-radius: 999px;
+        background: linear-gradient(135deg, rgba(124,92,252,0.10), rgba(232,125,74,0.10));
+        border: 1px solid rgba(124,92,252,0.20);
+        color: color-mix(in srgb, var(--violet) 58%, var(--copper));
+      }
 
       /* ── Footer CTA ── */
       .footer-cta {
@@ -1958,6 +2014,15 @@
         margin-left: auto;
         margin-right: auto;
       }
+      .footer-cta-note {
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.40);
+        margin-top: -1.4rem;
+        margin-bottom: 1.7rem;
+      }
       .footer-cta-chips {
         display: flex;
         flex-wrap: wrap;
@@ -2012,18 +2077,19 @@
         align-items: center;
         gap: 0.4rem;
         padding: 0.72rem 2rem;
-        background: var(--violet);
+        background: linear-gradient(135deg, var(--violet), color-mix(in srgb, var(--violet) 66%, var(--copper)));
         color: #fff;
-        border-radius: 8px;
+        border-radius: 999px;
         font-family: var(--body);
         font-size: 0.92rem;
         font-weight: var(--w-label);
         text-decoration: none;
-        transition: background 0.15s, transform 0.18s;
-        border: none;
+        transition: filter 0.15s, transform 0.18s, box-shadow 0.18s;
+        border: 1px solid rgba(255,255,255,0.10);
+        box-shadow: 0 16px 30px rgba(124,92,252,0.24), 0 10px 18px rgba(232,125,74,0.12);
       }
       .footer-cta-btn:hover {
-        background: #8d6ffd;
+        filter: brightness(1.04) saturate(1.04);
         transform: translateY(-2px);
       }
 
@@ -2138,6 +2204,7 @@
           <span class="loading-chip">no server</span>
           <span class="loading-chip">no cloud</span>
         </div>
+        <button class="loading-retry" type="button" id="loading-retry">Reload playground</button>
       </div>
     </div>
 
@@ -2167,10 +2234,10 @@
             fill="#E87D4A">roe</text>
         </svg>
       </div>
-      <div class="badge" role="status" aria-label="WebAssembly build active">WASM</div>
+      <div class="badge" role="status" aria-label="Browser demo powered by WebAssembly">Browser demo · WASM</div>
       <nav class="header-nav">
         <a href="/docs/">Docs</a>
-        <a href="/blog/">Blog</a>
+        <a href="https://github.com/kronroe/kronroe/releases" target="_blank" rel="noopener noreferrer">Releases</a>
         <a href="/community/">Community</a>
         <a href="/about/">About</a>
         <a href="/faq/">FAQ</a>
@@ -2475,6 +2542,7 @@
               </div>
             </div>
             <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--ok">Kronroe: bi-temporal by design</span>
               <span class="bento-vs-item bento-vs--partial">Graphiti: bi-temporal via Neo4j</span>
               <span class="bento-vs-item bento-vs--no">mcp-memory: no temporal model</span>
             </div>
@@ -2485,8 +2553,9 @@
             <h3 class="bento-title">No server required</h3>
             <p class="bento-body">Single .kronroe file. No Neo4j, no Docker, no network. Runs embedded inside your app or in-browser via WebAssembly.</p>
             <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--ok">Kronroe: no server required</span>
               <span class="bento-vs-item bento-vs--no">Graphiti: requires Neo4j</span>
-              <span class="bento-vs-item bento-vs--ok">mcp-memory: no server ✓</span>
+              <span class="bento-vs-item bento-vs--partial">mcp-memory: serverless, but not temporal</span>
             </div>
           </div>
 
@@ -2502,6 +2571,7 @@
               <span class="bento-badge">Rust</span>
             </div>
             <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--ok">Kronroe: iOS · Android · WASM</span>
               <span class="bento-vs-item bento-vs--no">Graphiti: desktop only</span>
               <span class="bento-vs-item bento-vs--no">mcp-memory: desktop only</span>
             </div>
@@ -2512,8 +2582,9 @@
             <h3 class="bento-title">No LLM required</h3>
             <p class="bento-body">Storage and retrieval stay engine-native, so you do not spend tokens just to remember facts.</p>
             <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--ok">Kronroe: no LLM required</span>
               <span class="bento-vs-item bento-vs--no">Graphiti: LLM required</span>
-              <span class="bento-vs-item bento-vs--ok">mcp-memory: no LLM ✓</span>
+              <span class="bento-vs-item bento-vs--partial">mcp-memory: no LLM, but less retrieval depth</span>
             </div>
           </div>
 
@@ -2522,6 +2593,7 @@
             <h3 class="bento-title">Engine-native contradiction detection</h3>
             <p class="bento-body">Allen's interval algebra catches conflicting facts at write time. You can allow, warn, or reject contradictions without calling an LLM.</p>
             <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--ok">Kronroe: engine-native contradiction checks</span>
               <span class="bento-vs-item bento-vs--partial">Graphiti: LLM-based</span>
               <span class="bento-vs-item bento-vs--no">mcp-memory: none</span>
             </div>
@@ -2532,6 +2604,7 @@
             <h3 class="bento-title">BM25 + vector + hybrid search</h3>
             <p class="bento-body">BM25 and vector search are fused with temporal filtering, so current and historical facts stay distinct while results stay relevant.</p>
             <div class="bento-vs">
+              <span class="bento-vs-item bento-vs--ok">Kronroe: BM25 + vector + temporal filtering</span>
               <span class="bento-vs-item bento-vs--partial">Graphiti: via Neo4j</span>
               <span class="bento-vs-item bento-vs--partial">mcp-memory: embeddings only</span>
             </div>
@@ -2571,7 +2644,7 @@
     <!-- Use cases -->
     <section class="use-cases" id="use-cases" aria-labelledby="heading-use-cases">
       <div class="use-cases-inner">
-        <h2 class="section-title reveal-on-scroll" id="heading-use-cases">Built for</h2>
+        <h2 class="section-title reveal-on-scroll" id="heading-use-cases">Built for teams that can't use the cloud</h2>
         <p class="section-intro reveal-on-scroll">
           Kronroe is for teams that cannot move sensitive memory into a cloud service,
           and for apps that need private memory on device.
@@ -2828,6 +2901,7 @@
           On-device memory with full history and point-in-time queries. Ships on iOS,
           Android, Python, Rust, and WASM — no server, no cloud, no compromise.
         </p>
+        <p class="footer-cta-note reveal-on-scroll">Click any command to copy it</p>
         <div class="footer-cta-chips reveal-on-scroll">
           <code class="install-chip" role="button" tabindex="0" aria-label="Copy: pip install kronroe">pip install kronroe</code>
           <code class="install-chip" role="button" tabindex="0" aria-label="Copy: cargo add kronroe">cargo add kronroe</code>
@@ -2849,7 +2923,7 @@
           <span class="footer-licence">Free for open source. <a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank" rel="noopener noreferrer">Commercial licence</a> available. <a href="mailto:hi@kronroe.dev" class="footer-email">hi@kronroe.dev</a></span>
         </div>
         <div class="footer-right">
-          <a href="/blog/">Blog</a>
+          <a href="https://github.com/kronroe/kronroe/releases" target="_blank" rel="noopener noreferrer">Releases</a>
           <a href="/community/">Community</a>
           <a href="/about/">About</a>
           <a href="/faq/">FAQ</a>
