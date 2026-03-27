@@ -1174,6 +1174,40 @@ async function init() {
   }
 }
 
+// ── Email capture (Formspree AJAX) ──────────────────────────────────
+(function initNotifyForm() {
+  const form = document.getElementById("notify-form") as HTMLFormElement | null;
+  if (!form) return;
+  const btn = document.getElementById("notify-btn") as HTMLButtonElement | null;
+  const note = document.getElementById("notify-note") as HTMLElement | null;
+  if (!btn || !note) return;
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+
+    try {
+      const res = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: { Accept: "application/json" },
+      });
+      if (res.ok) {
+        form.innerHTML = '<p class="footer-notify-thanks">You\u2019re on the list \u2014 we\u2019ll email you when new versions ship.</p>';
+        note.style.display = "none";
+      } else {
+        throw new Error("not ok");
+      }
+    } catch {
+      btn.disabled = false;
+      btn.textContent = "Notify me";
+      note.textContent = "Something went wrong \u2014 try again or email hi@kronroe.dev.";
+      note.style.color = "rgba(232,125,74,0.7)";
+    }
+  });
+})();
+
 // Defer WASM loading until the playground section is near the viewport,
 // so above-the-fold content paints without waiting for the 181 KiB WASM file.
 (function deferInit() {
