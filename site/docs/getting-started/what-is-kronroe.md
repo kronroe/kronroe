@@ -25,11 +25,9 @@ let results = db.search("where does Alice work", 10)?;
 
 ## The DuckDB Analogy
 
-DuckDB did not "do SQLite better." It recognized that analytical queries deserve their own engine design -- different storage layout, different query execution model, different tradeoffs.
+DuckDB did not "do SQLite better." It redesigned the engine for analytical queries instead of forcing them into a transactional shape.
 
-Kronroe makes the same move for temporal knowledge graphs. Existing embedded graph databases treat time as your problem. You add timestamp properties to your nodes. You write application-level logic to track what changed and when. The database has no concept of "this fact was true from March to July."
-
-Kronroe says: temporal knowledge evolution deserves its own graph engine design. The bi-temporal model is not a feature -- it is the foundation that every other capability is built on.
+Kronroe makes the same move for temporal knowledge graphs. Time is not a feature bolted on later. It is the foundation that every retrieval, correction, and confidence score is built on.
 
 ## Target Markets
 
@@ -76,15 +74,17 @@ Facts also carry optional metadata:
 
 ## How Kronroe Compares
 
-| | Kronroe | Graphiti + Neo4j | mcp-memory-service |
+Kronroe's advantage is not one feature. Time, retrieval, and conflict handling are built into the engine instead of layered on afterward.
+
+| Capability | Kronroe | Graphiti + Neo4j | mcp-memory-service |
 |---|---|---|---|
-| Deployment | Embedded (in-process) | Requires Neo4j server | Requires server |
+| Deployment | Embedded, in-process | Neo4j-backed | Requires a server |
 | Temporal model | Engine-native bi-temporal | Application-level | None at engine level |
-| LLM required | No (structural detection) | Yes (extraction) | Varies |
-| Mobile support | iOS + Android native | No | No |
-| WASM support | Yes (in-memory) | No | No |
-| Contradiction detection | Engine-native (feature-gated) | Application logic | No |
-| Language | Pure Rust, no C deps | Python + Java | Varies |
+| AI extraction | No LLM needed for structural detection | LLM extraction | Varies |
+| Mobile support | Native iOS + Android | No | No |
+| Browser/WASM | In-memory WASM | No | No |
+| Contradictions | Engine-native, feature-gated | Application logic | No |
+| Language/runtime | Pure Rust, no C deps | Python + Java | Varies |
 | License | AGPL-3.0 + commercial | Mixed | Varies |
 
 ## Architecture

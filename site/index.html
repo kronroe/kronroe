@@ -48,6 +48,7 @@
     <meta name="twitter:title"       content="Kronroe — Bi-temporal AI memory, built to stay private" />
     <meta name="twitter:description" content="Private, bi-temporal AI memory with hybrid search and eleven MCP tools. Runs on-device across Rust, iOS, Android, Python, and WASM." />
     <meta name="twitter:image"       content="https://kronroe.dev/png/social-og-image-light.png" />
+    <meta name="twitter:image:alt"   content="Kronroe logo and product interface" />
     <!-- Structured data -->
     <script type="application/ld+json">
     {
@@ -660,6 +661,19 @@
       }
       .hero-btn-primary:focus-visible {
         outline-color: color-mix(in srgb, #fff 35%, var(--violet));
+      }
+      .hero-btn-ghost {
+        color: rgba(255,255,255,0.82);
+        border: 1.5px solid rgba(255,255,255,0.16);
+        background: rgba(255,255,255,0.03);
+      }
+      .hero-btn-ghost:hover {
+        transform: translateY(-1px);
+        border-color: rgba(255,255,255,0.28);
+        background: rgba(255,255,255,0.06);
+      }
+      .hero-btn-ghost:focus-visible {
+        outline-color: rgba(255,255,255,0.5);
       }
 
       /* ── Fact timeline card ── */
@@ -1550,6 +1564,16 @@
         color: var(--text-mid);
         line-height: 1.65;
       }
+      .use-case-card a,
+      .feature-item-desc a {
+        color: var(--violet);
+        text-decoration-color: rgba(124, 92, 252, 0.35);
+        text-underline-offset: 0.16em;
+      }
+      .use-case-card a:hover,
+      .feature-item-desc a:hover {
+        color: #6B4AE8;
+      }
       /* Focus cards — blur siblings on hover */
       .use-case-grid.has-hover .use-case-card {
         opacity: 0.45;
@@ -1947,6 +1971,27 @@
       .loading-overlay.is-error .loading-retry {
         display: inline-flex;
       }
+      .no-script-note {
+        position: relative;
+        z-index: 120;
+        margin: 1rem auto 0;
+        width: min(1080px, calc(100% - 2rem));
+        padding: 0.95rem 1rem;
+        border-radius: 14px;
+        border: 1px solid rgba(124, 92, 252, 0.18);
+        background: rgba(124, 92, 252, 0.08);
+        color: var(--text);
+        font-family: var(--body);
+        font-size: 0.92rem;
+        line-height: 1.6;
+      }
+      .no-script-note strong {
+        font-weight: var(--w-heading);
+      }
+      .no-script-note a {
+        color: var(--violet);
+        text-underline-offset: 0.16em;
+      }
 
       /* ── Section intro prose ── */
       .section-intro {
@@ -2337,10 +2382,16 @@
   <body>
     <a href="#main-content" class="skip-nav">Skip to main content</a>
 
+    <noscript>
+      <div class="no-script-note">
+        <strong>Kronroe.dev works best with JavaScript enabled.</strong> The interactive playground and timeline demo need it to run. You can still read the <a href="/docs/">docs</a>, browse the latest <a href="https://github.com/kronroe/kronroe/releases" target="_blank" rel="noopener noreferrer">releases</a>, and review the source on <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>.
+      </div>
+    </noscript>
+
     <div class="loading-overlay hidden" id="loading">
       <div class="loading-panel">
         <svg class="loading-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
-             height="56" style="display:block;width:auto;" aria-label="Kronroe loading">
+             height="56" style="display:block;width:auto;" aria-hidden="true" focusable="false">
           <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
           <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
           <circle cx="136" cy="38" r="14" fill="none" stroke="#8BBF20" stroke-width="3.5"/>
@@ -2370,7 +2421,8 @@
     <header>
       <div class="logo">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
-             height="50" style="display:block;width:auto;" aria-label="Kronroe">
+             height="50" style="display:block;width:auto;" role="img" aria-labelledby="site-logo-title">
+          <title id="site-logo-title">Kronroe</title>
           <!-- Valid timeline (solid rail) -->
           <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
           <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
@@ -2456,7 +2508,7 @@
       <div class="hero-inner">
         <!-- 1. Announcement pill -->
         <a href="https://github.com/kronroe/kronroe/releases"
-           target="_blank" rel="noopener"
+           target="_blank" rel="noopener noreferrer"
            class="announce-pill">
           <span class="announce-dot"></span>
           Private by default / on-device / eleven MCP tools
@@ -2477,6 +2529,7 @@
         <!-- 5. CTA button -->
         <div class="hero-cta">
           <a href="#playground" class="hero-btn hero-btn-primary">Try the playground ↓</a>
+          <a href="mailto:hi@kronroe.dev?subject=Kronroe%20commercial%20licensing" class="hero-btn hero-btn-ghost">Commercial licensing</a>
         </div>
 
         <!-- 6. Fact timeline card + time scrubber (unified) -->
@@ -2646,7 +2699,8 @@
               <div class="step-verb">Correct</div>
               <code class="step-code">graph.correct_fact(fact_id, "TechCorp")</code>
               <!-- Bi-temporal fork diagram — draws on scroll reveal -->
-              <svg class="fork-diagram" viewBox="0 0 440 80" aria-label="Fact forks into expired original and new corrected version">
+              <svg class="fork-diagram" viewBox="0 0 440 80" role="img" aria-labelledby="fork-diagram-title">
+                <title id="fork-diagram-title">Fact forks into an expired original and a corrected replacement</title>
                 <!-- Trunk line from left to fork point -->
                 <line class="fork-trunk" x1="20" y1="40" x2="140" y2="40" />
                 <!-- Original fact node -->
@@ -2812,8 +2866,8 @@
           <span class="stat-label">client-side engine</span>
           <span class="stat-sublabel">zero network calls from Kronroe</span>
         </div>
-        <div class="stat-item reveal-on-scroll" data-target="6" aria-label="Less than 6 MB native library size — iOS, Android, WASM">
-          <span class="stat-value">&lt;<span class="stat-count">6</span> MB</span>
+        <div class="stat-item reveal-on-scroll" data-target="6" aria-label="Less than 6 MB native library size — iOS, Android, and WASM">
+          <span class="stat-value" aria-label="Less than 6 megabytes"><span aria-hidden="true">&lt;</span><span class="stat-count" aria-hidden="true">6</span><span aria-hidden="true"> MB</span></span>
           <span class="stat-label">native library size</span>
           <span class="stat-sublabel">iOS · Android · WASM</span>
         </div>
@@ -2836,7 +2890,7 @@
         <div class="use-case-grid">
           <div class="use-case-card reveal-on-scroll">
             <div class="use-case-icon">
-              <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                 <circle cx="22" cy="22" r="20" stroke="#7C5CFC" stroke-width="2"/>
                 <circle cx="22" cy="22" r="8" fill="#7C5CFC" fill-opacity="0.2" stroke="#7C5CFC" stroke-width="1.5"/>
                 <line x1="22" y1="2" x2="22" y2="14" stroke="#7C5CFC" stroke-width="2" stroke-linecap="round"/>
@@ -2850,7 +2904,7 @@
           </div>
           <div class="use-case-card reveal-on-scroll">
             <div class="use-case-icon">
-              <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                 <rect x="12" y="2" width="20" height="40" rx="4" stroke="#C04800" stroke-width="2"/>
                 <line x1="12" y1="34" x2="32" y2="34" stroke="#C04800" stroke-width="1.5"/>
                 <circle cx="22" cy="38.5" r="1.5" fill="#C04800"/>
@@ -2866,7 +2920,7 @@
           </div>
           <div class="use-case-card reveal-on-scroll">
             <div class="use-case-icon">
-              <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                 <rect x="2" y="8" width="40" height="28" rx="4" stroke="#5A8A00" stroke-width="2"/>
                 <circle cx="12" cy="22" r="4" fill="#5A8A00" fill-opacity="0.2" stroke="#5A8A00" stroke-width="1.5"/>
                 <circle cx="22" cy="22" r="4" fill="#5A8A00" fill-opacity="0.2" stroke="#5A8A00" stroke-width="1.5"/>
@@ -2876,7 +2930,7 @@
               </svg>
             </div>
             <h3>MCP tool memory</h3>
-            <p>Drop-in memory for Claude Desktop, Cursor, and other MCP clients. Eleven tools ship out of the box, and facts persist across sessions in a local <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">.kronroe</code> file.</p>
+            <p>Drop-in memory for Claude Desktop, Cursor, and other MCP clients. <a href="/docs/api/mcp-tools/">See all 11 MCP tools</a>, then keep facts across sessions in a local <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">.kronroe</code> file.</p>
           </div>
         </div>
       </div>
@@ -2893,7 +2947,7 @@
               <div class="feature-item-label">Retrieval</div>
               <div class="feature-item-title">BM25 + vector + hybrid search</div>
             </summary>
-            <div class="feature-item-body"><div><p class="feature-item-desc">Full-text search via the Kronroe lexical engine with BM25 ranking and fuzzy matching. Cosine vector search stays bi-temporal, so invalidated facts drop out of current queries but remain available for historical point-in-time lookups. Hybrid mode fuses both channels with Reciprocal Rank Fusion and a two-stage intent-gated temporal reranker.</p></div></div>
+            <div class="feature-item-body"><div><p class="feature-item-desc">Full-text search via the Kronroe lexical engine with BM25 ranking and fuzzy matching. Cosine vector search stays bi-temporal, so invalidated facts drop out of current queries but remain available for historical point-in-time lookups. Hybrid mode fuses both channels with Reciprocal Rank Fusion and a two-stage intent-gated temporal reranker. The full tool surface is documented in the <a href="/docs/api/mcp-tools/">MCP tools reference</a>.</p></div></div>
           </details>
           <details class="feature-item reveal-on-scroll">
             <summary>
@@ -3089,7 +3143,7 @@
         <div class="footer-cta-chips reveal-on-scroll">
           <code class="install-chip" role="button" tabindex="0" aria-label="Copy: pip install kronroe">pip install kronroe</code>
           <code class="install-chip" role="button" tabindex="0" aria-label="Copy: cargo add kronroe">cargo add kronroe</code>
-          <code class="install-chip" role="button" tabindex="0" aria-label="Copy: cargo install --path crates/mcp-server">cargo install --path crates/mcp-server</code>
+          <code class="install-chip" role="button" tabindex="0" aria-label="Copy: cargo install kronroe-mcp">cargo install kronroe-mcp</code>
         </div>
         <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer" class="footer-cta-btn reveal-on-scroll">
           View the code →
@@ -3123,7 +3177,7 @@
           <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href="https://pypi.org/project/kronroe/" target="_blank" rel="noopener noreferrer">PyPI</a>
           <a href="https://crates.io/crates/kronroe" target="_blank" rel="noopener noreferrer">crates.io</a>
-          <a href="https://www.linkedin.com/company/kronroe" target="_blank" rel="noopener">LinkedIn</a>
+          <a href="https://www.linkedin.com/company/kronroe" target="_blank" rel="noopener noreferrer">LinkedIn</a>
         </div>
       </div>
     </footer>
