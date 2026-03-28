@@ -252,9 +252,9 @@
         letter-spacing: 0.08em;
         padding: 0.25rem 0.55rem;
         border-radius: 4px;
-        background: rgba(180, 92, 252, 0.15);
-        border: 1px solid rgba(180, 92, 252, 0.30);
-        color: #C8A0FC;
+        background: rgba(86, 63, 110, 0.92);
+        border: 1px solid rgba(243, 232, 255, 0.18);
+        color: #F3E8FF;
         flex-shrink: 0;
         position: relative;
         cursor: default;
@@ -330,8 +330,8 @@
         font-size: 0.8rem;
         font-weight: 600;
         color: #fff;
-        background: var(--violet);
-        border: 1.5px solid var(--violet);
+        background: #6345F4;
+        border: 1.5px solid #6345F4;
         border-radius: 6px;
         text-decoration: none;
         transition: background 0.15s, border-color 0.15s;
@@ -339,8 +339,8 @@
         white-space: nowrap;
       }
       .header-cta:hover {
-        background: #6B4AE8;
-        border-color: #6B4AE8;
+        background: #5638E3;
+        border-color: #5638E3;
       }
 
       .section-tabs {
@@ -706,7 +706,7 @@
         font-size: 0.62rem;
         font-weight: 500;
         letter-spacing: 0.06em;
-        color: rgba(255,255,255,0.35);
+        color: rgba(255,255,255,0.62);
         text-transform: uppercase;
       }
       .tl-tab-active {
@@ -2332,7 +2332,7 @@
       .footer-notify-note {
         font-family: var(--body);
         font-size: 0.68rem;
-        color: rgba(255,255,255,0.28);
+        color: rgba(255,255,255,0.46);
         margin-top: 0.5rem;
       }
       .footer-notify-thanks {
@@ -2342,6 +2342,13 @@
         font-weight: 600;
         text-align: center;
         margin: 0;
+      }
+      .footer-notify-note a {
+        color: rgba(255,255,255,0.88);
+        text-underline-offset: 0.16em;
+      }
+      .footer-notify-note a:hover {
+        color: #fff;
       }
 
       @media (max-width: 840px) {
@@ -2938,7 +2945,7 @@
           <span class="stat-sublabel">zero network calls from Kronroe</span>
         </div>
         <div class="stat-item reveal-on-scroll" data-target="6" aria-label="Less than 6 MB native library size — iOS, Android, and WASM">
-          <span class="stat-value" aria-label="Less than 6 megabytes"><span aria-hidden="true">&lt;</span><span class="stat-count" aria-hidden="true">6</span><span aria-hidden="true"> MB</span></span>
+          <span class="stat-value" aria-hidden="true">&lt;<span class="stat-count">6</span> MB</span>
           <span class="stat-label">native library size</span>
           <span class="stat-sublabel">iOS · Android · WASM</span>
         </div>
@@ -3222,12 +3229,12 @@
         <div class="footer-notify reveal-on-scroll">
           <p class="footer-notify-label">Get notified when new versions ship</p>
           <form class="footer-notify-form" id="notify-form" action="https://formspree.io/f/xwpkgjrr" method="POST">
-            <input type="email" name="email" placeholder="you@example.com" required aria-label="Email address for release notifications" class="footer-notify-input" />
+            <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" aria-label="Email address for release notifications" class="footer-notify-input" />
             <button type="submit" class="footer-notify-btn" id="notify-btn">Notify me</button>
             <input type="hidden" name="_subject" value="Kronroe release notifications signup" />
             <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
           </form>
-          <p class="footer-notify-note" id="notify-note">No spam. Release announcements only.</p>
+          <p class="footer-notify-note" id="notify-note">No spam. Release announcements only. Privacy and licensing details are covered in the <a href="/faq/">FAQ</a> and the <a href="/commercial/">commercial licensing</a> page.</p>
         </div>
       </div>
     </section>
