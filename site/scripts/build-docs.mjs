@@ -318,6 +318,19 @@ function wrapHtml({ title, intro, body, currentHref, sectionLabel, toc, nextUp }
       </article>
       ${toc}
     </main>
+    <footer class="footer">
+      <div class="footer-inner">
+        <span>Kronroe · Docs</span>
+        <div class="footer-links">
+          <a href="https://github.com/kronroe/kronroe/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+          <a href="/community/">Community</a>
+          <a href="/about/">About</a>
+          <a href="/faq/">FAQ</a>
+          <a href="/privacy/">Privacy</a>
+          <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </div>
+      </div>
+    </footer>
     ${searchDialog()}
     <script type="module" src="/docs-search.js"></script>
     <script type="module" src="/docs-tabs.js"></script>
