@@ -2,20 +2,36 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- Google tag (gtag.js) — deferred until after first paint -->
+    <!-- Optional analytics — only load after explicit consent -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+      window.__kronroeAnalyticsKey = 'kronroe-analytics-consent';
       window.__kronroePageViewSent = false;
+      window.__kronroeAnalyticsLoaded = false;
+      function getAnalyticsConsent() {
+        try {
+          return window.localStorage.getItem(window.__kronroeAnalyticsKey) || 'unset';
+        } catch (_) {
+          return 'unset';
+        }
+      }
+      function setAnalyticsConsent(value) {
+        try {
+          window.localStorage.setItem(window.__kronroeAnalyticsKey, value);
+        } catch (_) {}
+      }
       function sendPageViewOnce() {
-        if (window.__kronroePageViewSent) return;
+        if (window.__kronroePageViewSent || !window.__kronroeAnalyticsLoaded) return;
         window.__kronroePageViewSent = true;
         gtag('event', 'page_view', {
           page_location: window.location.href,
           page_title: document.title,
         });
       }
-      (window.requestIdleCallback || setTimeout)(function(){
+      function loadAnalytics() {
+        if (window.__kronroeAnalyticsLoaded || getAnalyticsConsent() !== 'accepted') return;
+        window.__kronroeAnalyticsLoaded = true;
         var s = document.createElement('script');
         s.src = 'https://www.googletagmanager.com/gtag/js?id=G-QC2EK11KHY';
         s.async = true;
@@ -25,10 +41,25 @@
           sendPageViewOnce();
         };
         document.head.appendChild(s);
-      });
+      }
+      window.kronroeAnalytics = {
+        getState: getAnalyticsConsent,
+        accept: function () {
+          setAnalyticsConsent('accepted');
+          loadAnalytics();
+          return 'accepted';
+        },
+        decline: function () {
+          setAnalyticsConsent('declined');
+          return 'declined';
+        }
+      };
+      if (getAnalyticsConsent() === 'accepted') {
+        (window.requestIdleCallback || setTimeout)(loadAnalytics);
+      }
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Private, bi-temporal AI memory with hybrid search and eleven MCP tools. Runs on-device across Rust, iOS, Android, Python, and WASM — no server, no cloud, no data risk." />
+    <meta name="description" content="Private, bi-temporal AI memory with hybrid search and eleven MCP tools. Runs on-device across Rust, iOS, Android, Python, and WASM — no server, no cloud." />
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#171311" />
     <link rel="canonical" href="https://kronroe.dev/" />
@@ -2350,6 +2381,115 @@
       .footer-notify-note a:hover {
         color: #fff;
       }
+      .hp-field {
+        position: absolute !important;
+        left: -9999px !important;
+        width: 1px !important;
+        height: 1px !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+      .privacy-console {
+        position: fixed;
+        right: 1rem;
+        bottom: 1rem;
+        z-index: 40;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.75rem;
+      }
+      .privacy-console-panel {
+        width: min(380px, calc(100vw - 2rem));
+        padding: 1rem 1rem 0.95rem;
+        border-radius: 22px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background:
+          radial-gradient(circle at top right, rgba(124,92,252,0.18), transparent 32%),
+          radial-gradient(circle at bottom left, rgba(232,125,74,0.16), transparent 30%),
+          linear-gradient(180deg, rgba(26,21,16,0.96), rgba(20,16,14,0.98));
+        box-shadow: 0 24px 70px rgba(10, 8, 8, 0.34);
+        color: rgba(255,255,255,0.94);
+      }
+      .privacy-console-kicker {
+        font-family: var(--mono);
+        font-size: 0.66rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.54);
+      }
+      .privacy-console-title {
+        margin-top: 0.5rem;
+        font-size: 1.15rem;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+      }
+      .privacy-console-copy {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: rgba(255,255,255,0.74);
+      }
+      .privacy-console-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        margin-top: 0.9rem;
+      }
+      .privacy-console-btn,
+      .privacy-console-link,
+      .privacy-console-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        font-family: var(--body);
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .privacy-console-btn {
+        border: 1px solid rgba(255,255,255,0.12);
+        padding: 0.56rem 0.92rem;
+        cursor: pointer;
+        background: transparent;
+        color: rgba(255,255,255,0.90);
+      }
+      .privacy-console-btn--primary {
+        background: linear-gradient(135deg, var(--violet), color-mix(in srgb, var(--violet) 68%, var(--copper)));
+        color: #fff;
+        box-shadow: 0 14px 28px rgba(124,92,252,0.24);
+      }
+      .privacy-console-btn--secondary:hover,
+      .privacy-console-btn--secondary:focus-visible {
+        border-color: rgba(255,255,255,0.26);
+        color: #fff;
+      }
+      .privacy-console-link {
+        padding: 0.56rem 0.2rem;
+        color: rgba(255,255,255,0.72);
+        text-underline-offset: 0.16em;
+      }
+      .privacy-console-link:hover,
+      .privacy-console-link:focus-visible {
+        color: #fff;
+      }
+      .privacy-console-pill {
+        gap: 0.42rem;
+        border: 1px solid rgba(255,255,255,0.10);
+        padding: 0.52rem 0.85rem;
+        background: rgba(23,19,17,0.92);
+        color: rgba(255,255,255,0.92);
+        box-shadow: 0 16px 36px rgba(20,16,14,0.24);
+        cursor: pointer;
+      }
+      .privacy-console-pill-state {
+        font-family: var(--mono);
+        font-size: 0.67rem;
+        color: rgba(255,255,255,0.56);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
 
       @media (max-width: 840px) {
         .analogy-strip { padding: 0 1.25rem; }
@@ -2425,6 +2565,18 @@
         .hero-cta { flex-direction: column; gap: 0.5rem; }
         .hero-cta .hero-btn { text-align: center; justify-content: center; }
         .footer-cta-chips { flex-direction: column; align-items: center; }
+        .privacy-console {
+          left: 1rem;
+          right: 1rem;
+          align-items: stretch;
+        }
+        .privacy-console-panel,
+        .privacy-console-pill {
+          width: 100%;
+        }
+        .privacy-console-pill {
+          justify-content: space-between;
+        }
       }
       @media (max-width: 480px) {
         .hero-install { flex-direction: column; align-items: stretch; }
@@ -2593,7 +2745,7 @@
         <!-- 5. CTA button -->
         <div class="hero-cta">
           <a href="#playground" class="hero-btn hero-btn-primary">Try the playground ↓</a>
-          <a href="mailto:hi@kronroe.dev?subject=Kronroe%20commercial%20licensing" class="hero-btn hero-btn-ghost">Commercial licensing</a>
+          <a href="/commercial/" class="hero-btn hero-btn-ghost">Commercial licensing</a>
         </div>
 
         <!-- 6. Fact timeline card + time scrubber (unified) -->
@@ -3211,7 +3363,7 @@
       <div class="footer-cta-inner">
         <span class="footer-cta-eyebrow">Deploy privately</span>
         <h2 class="footer-cta-headline reveal-on-scroll" id="heading-footer-cta">
-          Private memory.<br>Built to stay local.
+          Private memory.<span class="sr-only"> </span><br>Built to stay local.
         </h2>
         <p class="footer-cta-sub reveal-on-scroll">
           On-device memory with full history and point-in-time queries. Ships on iOS,
@@ -3232,9 +3384,9 @@
             <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" aria-label="Email address for release notifications" class="footer-notify-input" />
             <button type="submit" class="footer-notify-btn" id="notify-btn">Notify me</button>
             <input type="hidden" name="_subject" value="Kronroe release notifications signup" />
-            <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
+            <input type="text" name="_gotcha" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true" />
           </form>
-          <p class="footer-notify-note" id="notify-note">No spam. Release announcements only. Privacy and licensing details are covered in the <a href="/faq/">FAQ</a> and the <a href="/commercial/">commercial licensing</a> page.</p>
+          <p class="footer-notify-note" id="notify-note">No spam. Release announcements only. Privacy details live in the <a href="/privacy/">privacy policy</a>, and licensing details live in the <a href="/commercial/">commercial licensing</a> page.</p>
         </div>
       </div>
     </section>
@@ -3253,6 +3405,7 @@
           <a href="/community/">Community</a>
           <a href="/about/">About</a>
           <a href="/faq/">FAQ</a>
+          <a href="/privacy/">Privacy</a>
           <a href="/docs/">Docs</a>
           <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href="https://pypi.org/project/kronroe/" target="_blank" rel="noopener noreferrer">PyPI</a>
@@ -3262,7 +3415,69 @@
       </div>
     </footer>
 
-  <div id="ts-tooltip"></div>
+    <div class="privacy-console" id="privacy-console">
+      <div class="privacy-console-panel" id="privacy-console-panel" role="dialog" aria-modal="false" aria-labelledby="privacy-console-title">
+        <div class="privacy-console-kicker">Privacy controls</div>
+        <h2 class="privacy-console-title" id="privacy-console-title">Site analytics are optional.</h2>
+        <p class="privacy-console-copy">
+          Kronroe the product stays local. This website can use lightweight analytics to understand visits only if you opt in.
+        </p>
+        <div class="privacy-console-actions">
+          <button type="button" class="privacy-console-btn privacy-console-btn--primary" data-privacy-action="accept">Allow analytics</button>
+          <button type="button" class="privacy-console-btn privacy-console-btn--secondary" data-privacy-action="decline">Keep analytics off</button>
+          <a class="privacy-console-link" href="/privacy/">Read privacy policy</a>
+        </div>
+      </div>
+      <button type="button" class="privacy-console-pill" id="privacy-console-pill" hidden>
+        <span>Privacy controls</span>
+        <span class="privacy-console-pill-state" id="privacy-console-state">analytics off</span>
+      </button>
+    </div>
+
+    <div id="ts-tooltip"></div>
+    <script>
+      (function () {
+        var root = document.getElementById('privacy-console');
+        var panel = document.getElementById('privacy-console-panel');
+        var pill = document.getElementById('privacy-console-pill');
+        var stateEl = document.getElementById('privacy-console-state');
+        if (!root || !panel || !pill || !window.kronroeAnalytics) return;
+
+        function labelFor(state) {
+          if (state === 'accepted') return 'analytics on';
+          if (state === 'declined') return 'analytics off';
+          return 'choose';
+        }
+
+        function sync() {
+          var state = window.kronroeAnalytics.getState();
+          var hasChoice = state === 'accepted' || state === 'declined';
+          panel.hidden = hasChoice;
+          pill.hidden = !hasChoice;
+          if (stateEl) stateEl.textContent = labelFor(state);
+        }
+
+        root.addEventListener('click', function (event) {
+          var target = event.target;
+          if (!(target instanceof HTMLElement)) return;
+          var action = target.getAttribute('data-privacy-action');
+          if (action === 'accept') {
+            window.kronroeAnalytics.accept();
+            sync();
+          } else if (action === 'decline') {
+            window.kronroeAnalytics.decline();
+            sync();
+          }
+        });
+
+        pill.addEventListener('click', function () {
+          panel.hidden = false;
+          pill.hidden = true;
+        });
+
+        sync();
+      })();
+    </script>
 
   </body>
 </html>
