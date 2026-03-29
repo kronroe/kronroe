@@ -455,10 +455,11 @@
         grid-template-areas:
           "announce card"
           "title card"
-          "facts card"
+          "subtitle card"
           "sweep card"
           "install card"
-          "cta card";
+          "cta card"
+          "trust card";
         gap: 1.1rem 2.75rem;
         align-items: center;
         text-align: left;
@@ -468,6 +469,7 @@
       .why,
       .stats-strip,
       .use-cases,
+      .enterprise,
       .features-strip,
       .playground-section {
         scroll-margin-top: 92px;
@@ -517,6 +519,22 @@
         box-shadow: 0 10px 30px rgba(22, 18, 14, 0.05);
       }
 
+      .hero-subtitle {
+        grid-area: subtitle;
+        font-family: var(--body);
+        font-size: clamp(1rem, 1.5vw, 1.15rem);
+        font-weight: var(--w-body);
+        color: var(--text);
+        max-width: 600px;
+        margin: 0;
+        line-height: 1.7;
+        text-align: left;
+      }
+      .hero-subtitle strong {
+        color: var(--violet);
+        font-weight: var(--w-label);
+      }
+
       .hero-sweep {
         grid-area: sweep;
         font-family: var(--body);
@@ -527,6 +545,25 @@
         margin: 0 0 0.5rem;
         line-height: 1.65;
         text-align: left;
+      }
+
+      .hero-trust-bar {
+        grid-area: trust;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.25rem;
+      }
+      .hero-trust-bar span {
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: var(--text-dim);
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255, 253, 248, 0.6);
       }
 
       .temporal-accent {
@@ -570,23 +607,27 @@
         opacity: 1;
         transform: translateY(0);
       }
+      .animations-ready .hero-subtitle,
       .animations-ready .hero-sweep {
         opacity: 0;
         transform: translateY(10px);
         transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0s, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0s;
       }
+      .hero-subtitle.hero-sweep--visible,
       .hero-sweep.hero-sweep--visible {
         opacity: 1;
         transform: translateY(0);
       }
       .animations-ready .hero-install,
-      .animations-ready .hero-cta {
+      .animations-ready .hero-cta,
+      .animations-ready .hero-trust-bar {
         opacity: 0;
         transform: translateY(8px);
         transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
       }
       .hero-install.hero-el--visible,
-      .hero-cta.hero-el--visible {
+      .hero-cta.hero-el--visible,
+      .hero-trust-bar.hero-el--visible {
         opacity: 1;
         transform: translateY(0);
       }
@@ -2082,6 +2123,155 @@
         text-align: center;
       }
 
+      /* ── Enterprise section ── */
+      .enterprise { position: relative; z-index: 1; max-width: 1280px; width: 100%; margin: 0 auto; padding: 2.5rem 2.5rem 3rem; }
+      .enterprise-inner { max-width: 960px; margin: 0 auto; }
+      .enterprise-intro {
+        font-family: var(--body);
+        font-size: 0.92rem;
+        color: var(--text-mid);
+        line-height: 1.72;
+        max-width: 780px;
+        margin: 0 auto 2rem;
+        text-align: center;
+      }
+      .enterprise-capabilities {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.25rem;
+        margin-bottom: 2.5rem;
+      }
+      .ent-cap {
+        background: var(--surface);
+        border: 1.5px solid var(--border-hi);
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition: box-shadow 0.18s ease;
+      }
+      .ent-cap:hover {
+        box-shadow: 0 12px 36px rgba(124,92,252,0.10), 0 2px 8px rgba(0,0,0,0.04);
+      }
+      .ent-cap-label {
+        font-family: var(--mono);
+        font-size: 0.65rem;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 0.35rem;
+      }
+      .ent-cap-label--violet { color: var(--violet); }
+      .ent-cap-label--copper { color: var(--copper); }
+      .ent-cap-label--lime { color: var(--lime); }
+      .ent-cap-label--rose { color: var(--rose-text); }
+      .ent-cap-label--orchid { color: var(--orchid); }
+      .ent-cap-label--orange { color: var(--orange); }
+      .ent-cap h3 {
+        font-family: var(--body);
+        font-size: 0.98rem;
+        font-weight: var(--w-heading);
+        margin-bottom: 0.4rem;
+      }
+      .ent-cap p {
+        font-family: var(--body);
+        font-size: 0.82rem;
+        color: var(--text-mid);
+        line-height: 1.65;
+      }
+      .ent-cap .ent-roadmap {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        font-weight: 500;
+        color: var(--copper);
+        border: 1px solid var(--copper-border);
+        background: var(--copper-bg);
+        border-radius: 999px;
+        padding: 0.12rem 0.5rem;
+        margin-left: 0.35rem;
+        vertical-align: middle;
+      }
+
+      .ent-industries {
+        margin-bottom: 2.5rem;
+      }
+      .ent-industries h3 {
+        font-family: var(--body);
+        font-size: 1.05rem;
+        font-weight: var(--w-heading);
+        text-align: center;
+        margin-bottom: 1rem;
+      }
+      .ent-industry-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: var(--body);
+        font-size: 0.82rem;
+      }
+      .ent-industry-table th {
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        text-align: left;
+        padding: 0.5rem 0.75rem;
+        border-bottom: 2px solid var(--border-hi);
+      }
+      .ent-industry-table td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        color: var(--text-mid);
+        line-height: 1.5;
+        vertical-align: top;
+      }
+      .ent-industry-table tr:last-child td { border-bottom: none; }
+      .ent-industry-table td:first-child {
+        font-weight: var(--w-label);
+        color: var(--text);
+        white-space: nowrap;
+      }
+
+      .ent-deploy {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+      .ent-deploy-card {
+        text-align: center;
+        padding: 1rem 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+      }
+      .ent-deploy-card strong {
+        display: block;
+        font-family: var(--body);
+        font-size: 0.88rem;
+        font-weight: var(--w-heading);
+        margin-bottom: 0.25rem;
+      }
+      .ent-deploy-card span {
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        color: var(--text-dim);
+      }
+
+      .ent-licensing {
+        text-align: center;
+        font-family: var(--body);
+        font-size: 0.88rem;
+        color: var(--text-mid);
+        line-height: 1.65;
+      }
+      .ent-licensing a {
+        color: var(--violet);
+        text-decoration: none;
+        border-bottom: 1px solid var(--violet-border);
+      }
+      .ent-licensing a:hover { border-bottom-color: var(--violet); }
+
       /* ── Engine features strip ── */
       .features-strip { position: relative; z-index: 1; max-width: 1280px; width: 100%; margin: 0 auto; padding: 0 2.5rem 2.5rem; }
       .features-strip-inner { max-width: 900px; margin: 0 auto; }
@@ -2501,10 +2691,11 @@
           grid-template-areas:
             "announce"
             "title"
-            "facts"
+            "subtitle"
             "sweep"
             "install"
             "cta"
+            "trust"
             "card";
         }
         .stream-body { min-height: 300px; }
@@ -2553,6 +2744,11 @@
         .tl-top { flex-direction: column; gap: 0.35rem; }
         .tl-note { display: none; }
         .use-case-grid { grid-template-columns: 1fr; }
+        .enterprise-capabilities { grid-template-columns: 1fr; }
+        .ent-deploy { grid-template-columns: repeat(2, 1fr); }
+        .enterprise { padding: 1.5rem 1.25rem 2rem; }
+        .ent-industry-table { font-size: 0.75rem; }
+        .ent-industry-table th, .ent-industry-table td { padding: 0.4rem 0.5rem; }
         .features-grid { grid-template-columns: 1fr; }
         .footer-inner { flex-direction: column; align-items: flex-start; }
         .bento-grid { grid-template-columns: 1fr; }
@@ -2579,6 +2775,8 @@
         }
       }
       @media (max-width: 480px) {
+        .ent-deploy { grid-template-columns: 1fr; }
+        .hero-trust-bar { flex-direction: column; align-items: flex-start; }
         .hero-install { flex-direction: column; align-items: stretch; }
         .hero-install .install-sep { text-align: center; }
         .install-cmd { text-align: center; overflow: hidden; text-overflow: ellipsis; }
@@ -2727,25 +2925,37 @@
            target="_blank" rel="noopener noreferrer"
            class="announce-pill">
           <span class="announce-dot"></span>
-          Private by default / on-device / eleven MCP tools
+          Embedded · Bi-temporal · Zero-egress
         </a>
 
         <!-- 2. Headline -->
-        <h1><span class="hero-word">Bi-temporal</span><span class="temporal-accent temporal-shiny hero-word"> AI memory</span><span class="hero-word"> built to stay private.</span></h1>
+        <h1><span class="hero-word">Private bi-temporal</span><span class="temporal-accent temporal-shiny hero-word"> AI memory.</span><span class="hero-word"> Built for teams that can't use the cloud.</span></h1>
 
-        <!-- 3. Handwritten line — each sentence is a fact assertion -->
-        <span class="hero-handwritten"><span class="hero-fact">No cloud.</span> <span class="hero-fact">No server.</span> <span class="hero-fact">No data leaves the device.</span></span>
+        <!-- 3. Subtitle -->
+        <p class="hero-subtitle">
+          Kronroe is the embedded temporal graph database that keeps every fact, every change,
+          and every uncertainty <strong>on-device or on-prem</strong> — with zero network calls
+          and a full immutable audit trail.
+        </p>
 
         <!-- 4. Capabilities sweep -->
         <p class="hero-sweep">
-          Hybrid BM25 + vector search, point-in-time queries, and eleven MCP tools
-          for apps that need memory without the cloud.
+          Hybrid BM25 + vector retrieval, native uncertainty modelling, and eleven MCP tools — so your agents reason accurately over evolving facts.
         </p>
 
-        <!-- 5. CTA button -->
+        <!-- 5. CTA buttons -->
         <div class="hero-cta">
-          <a href="#playground" class="hero-btn hero-btn-primary">Try the playground ↓</a>
-          <a href="/commercial/" class="hero-btn hero-btn-ghost">Commercial licensing</a>
+          <a href="#playground" class="hero-btn hero-btn-primary">Try the live WASM demo ↓</a>
+          <a href="#enterprise" class="hero-btn hero-btn-ghost">Enterprise security &amp; compliance</a>
+          <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer" class="hero-btn hero-btn-ghost">GitHub</a>
+        </div>
+
+        <!-- 6. Trust bar -->
+        <div class="hero-trust-bar">
+          <span>No cloud</span>
+          <span>No server</span>
+          <span>No data leaves the device</span>
+          <span>HIPAA / GDPR architecture</span>
         </div>
 
         <!-- 6. Fact timeline card + time scrubber (unified) -->
@@ -2869,6 +3079,7 @@
       <a href="#overview">Overview</a>
       <a href="#why">Why</a>
       <a href="#use-cases">Use cases</a>
+      <a href="#enterprise">Enterprise</a>
       <a href="#playground">Playground</a>
       <a href="#technical">Technical</a>
     </nav>
@@ -3163,6 +3374,118 @@
             <p>Drop-in memory for Claude Desktop, Cursor, and other MCP clients. <a href="/docs/api/mcp-tools/">See all 11 MCP tools</a>, then keep facts across sessions in a local <code style="font-size:0.8em;background:var(--surface-2);padding:0.05em 0.3em;border-radius:3px;">.kronroe</code> file.</p>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- Enterprise -->
+    <section class="enterprise" id="enterprise" aria-labelledby="heading-enterprise">
+      <div class="enterprise-inner">
+        <h2 class="section-title reveal-on-scroll" id="heading-enterprise">Enterprise-grade privacy &amp; compliance</h2>
+        <p class="enterprise-intro reveal-on-scroll">
+          Kronroe was designed from the ground up for organisations where sending sensitive data
+          to the cloud is not an option — regulated industries, client-confidential environments,
+          and air-gapped systems. The engine eliminates risk at the storage layer: everything stays
+          in a single local file with zero network calls.
+        </p>
+
+        <div class="enterprise-capabilities">
+          <div class="ent-cap reveal-on-scroll">
+            <div class="ent-cap-label ent-cap-label--violet">Architecture</div>
+            <h3>True zero-egress engine</h3>
+            <p>100% on-device or on-prem. No servers, no APIs, no telemetry — ever. Confirmed across every binding: Rust, iOS, Android, Python, and WASM.</p>
+          </div>
+          <div class="ent-cap reveal-on-scroll">
+            <div class="ent-cap-label ent-cap-label--copper">Audit</div>
+            <h3>Immutable bi-temporal audit trail</h3>
+            <p>Every fact carries valid time + transaction time. Facts are never deleted — only invalidated. Reconstruct exactly what the system knew at any past moment.</p>
+          </div>
+          <div class="ent-cap reveal-on-scroll">
+            <div class="ent-cap-label ent-cap-label--lime">Integrity</div>
+            <h3>Contradiction detection + uncertainty model</h3>
+            <p>Engine-native Allen's interval algebra catches conflicts at write time. Age decay and source authority weights let agents reason over evolving knowledge with measurable confidence scores.</p>
+          </div>
+          <div class="ent-cap reveal-on-scroll">
+            <div class="ent-cap-label ent-cap-label--orchid">Retrieval</div>
+            <h3>Hybrid retrieval — no LLM required</h3>
+            <p>BM25 + vector search with full temporal filtering. Two-stage RRF fusion and intent-gated reranking — completely local, no tokens spent on recall.</p>
+          </div>
+          <div class="ent-cap reveal-on-scroll">
+            <div class="ent-cap-label ent-cap-label--rose">Safety</div>
+            <h3>Memory-safe, minimal attack surface</h3>
+            <p>Pure Rust, no C dependencies, no external processes. The entire engine compiles from a single cargo workspace with zero unsafe FFI in core.</p>
+          </div>
+          <div class="ent-cap reveal-on-scroll">
+            <div class="ent-cap-label ent-cap-label--orange">Roadmap</div>
+            <h3>Encryption at rest <span class="ent-roadmap">Q2 2026</span></h3>
+            <p>Planned AES-256 / XChaCha20-Poly1305 encryption using your own master key. Data stays protected even if the device or server is physically accessed.</p>
+          </div>
+        </div>
+
+        <div class="ent-industries reveal-on-scroll">
+          <h3>Who Kronroe is built for</h3>
+          <table class="ent-industry-table">
+            <thead>
+              <tr>
+                <th>Industry</th>
+                <th>Primary use case</th>
+                <th>Key regulations</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Healthcare &amp; life sciences</td>
+                <td>Patient timelines, evolving clinical notes, care-home AI</td>
+                <td>HIPAA, GDPR Art. 9</td>
+              </tr>
+              <tr>
+                <td>Legal &amp; professional services</td>
+                <td>Case memory, privilege tracking, matter evolution</td>
+                <td>Attorney-client privilege, SOC 2</td>
+              </tr>
+              <tr>
+                <td>Financial services</td>
+                <td>Transaction histories, relationship graphs, fraud patterns</td>
+                <td>PCI-DSS, GDPR</td>
+              </tr>
+              <tr>
+                <td>Government &amp; defence</td>
+                <td>Air-gapped or classified AI agent memory</td>
+                <td>Data sovereignty</td>
+              </tr>
+              <tr>
+                <td>Education &amp; care</td>
+                <td>Student and resident records with private AI assistance</td>
+                <td>FERPA, UK GDPR</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="ent-deploy reveal-on-scroll">
+          <div class="ent-deploy-card">
+            <strong>Mobile</strong>
+            <span>Swift (iOS) + Kotlin (Android) · ~6 MB</span>
+          </div>
+          <div class="ent-deploy-card">
+            <strong>Desktop / on-prem</strong>
+            <span>Rust core + Python bindings</span>
+          </div>
+          <div class="ent-deploy-card">
+            <strong>Web / WASM</strong>
+            <span>Pure browser · zero network</span>
+          </div>
+          <div class="ent-deploy-card">
+            <strong>Air-gapped</strong>
+            <span>Fully offline from day one</span>
+          </div>
+        </div>
+
+        <p class="ent-licensing reveal-on-scroll">
+          Open source under AGPL-3.0 for community use.
+          <a href="/commercial/">Commercial licences</a> available for closed-source deployments
+          with priority support and custom compliance features.
+          <a href="mailto:hi@kronroe.dev">hi@kronroe.dev</a>
+        </p>
       </div>
     </section>
 
