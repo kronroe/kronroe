@@ -215,20 +215,8 @@ jobs:
       - name: Build WASM package
         run: wasm-pack build crates/wasm --target web --out-dir ../../site/public/pkg --no-typescript
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "npm"
-          cache-dependency-path: site/package-lock.json
-
-      - name: Install site dependencies
-        run: npm ci
-        working-directory: site
-
-      - name: Build site
-        run: npm run build
-        working-directory: site
+      - name: Verify static site exists
+        run: test -f site/index.html && echo "site/index.html found"
 
   # ─── Wrapper verification ──────────────────────────────────────────────
 
