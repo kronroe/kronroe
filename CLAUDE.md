@@ -366,6 +366,18 @@ Snapshot as of 2026-03-24. See GitHub milestones/issues for source of truth.
 | 0.11 | CI pipeline | ✅ Done — `test` + `clippy` + `fmt` + iOS packaging + Python wheels all green | — |
 | 0.12 | Storage format commitment | ✅ Done (PR #75 — schema version stamp + mismatch detection) | — |
 
+## Design System (site work)
+
+Before any task touching `site/` — building, modifying, or reviewing pages — load:
+
+1. **`design/DESIGN-AGENT.md`** — compact rules, token names, component classes. Read this first.
+2. **`design/tokens.json`** — exact hex values, spacing, radius, shadow, wordmark geometry.
+3. **`design/design-system.html`** — full visual reference for edge cases and demos.
+
+Grep anchors in `design-system.html`: each major section starts with `<!-- ═══════════════ SECTION NAME ═══════════════ -->`. Grep for the section name to jump directly. A full TOC is at the `[DS:TOC]` anchor near the top of the file.
+
+Use `/site` skill to prime context automatically at the start of any site task.
+
 ## What Claude Can and Cannot Do in This Repo
 
 **Can do** (Rust toolchain is installed via rustup):

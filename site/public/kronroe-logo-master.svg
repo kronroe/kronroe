@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Kronroe Logo — Master (light/cream backgrounds) — FINAL CORRECT VERSION
-  
+  Kronroe Logo — Master (light/cream backgrounds) — v2 DESIGN SYSTEM ALIGNED
+
   Mark:      Two rails · four nodes · hollow rings for "to" timestamps
-  Wordmark:  Kron (near-black #1A1612) + roe (copper #E87D4A) · no space · TWO SEPARATE <text> elements
-  
+  Wordmark:  Kron (warm-10 #191726) + roe (violet-6 #7C5CFC) · no space · TWO SEPARATE <text> elements
+
+  v2 CHANGES (design system alignment):
+  - Font: Inter → Plus Jakarta Sans (matches design system voice-1)
+  - "Kron" colour: #1A1612 → #191726 (warm-10, violet-tinted neutral)
+  - Weight: 600 → 700 (matches design system heading weight)
+
   TECHNICAL NOTES:
   - NO opacity attributes anywhere — opacity breaks when SVG loaded via <img> tag
   - TWO separate <text> elements NOT <tspan>
@@ -30,12 +35,12 @@
 
   <!-- Wordmark: TWO separate <text> elements — NOT tspan -->
   <text x="138" y="65"
-    font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif"
-    font-size="42" font-weight="600" letter-spacing="-0.8"
-    fill="#1A1612">Kron</text>
-  <text x="228" y="65"
-    font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif"
-    font-size="42" font-weight="600" letter-spacing="-0.8"
-    fill="#E87D4A">roe</text>
+    font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif"
+    font-size="42" font-weight="700" letter-spacing="-0.8"
+    fill="#191726">Kron</text>
+  <text x="230" y="65"
+    font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif"
+    font-size="42" font-weight="700" letter-spacing="-0.8"
+    fill="#7C5CFC">roe</text>
 
 </svg>

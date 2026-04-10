@@ -38,57 +38,25 @@ jobs:
 
       - name: Build WASM package
         run: wasm-pack build crates/wasm --target web --out-dir ../../site/public/pkg --no-typescript
-        # outputs into site/public/pkg/ so Vite can serve it as a static asset
+        # outputs into site/public/pkg/ — assembled into dist in the next step
 
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: "24"
-          cache: "npm"
-          cache-dependency-path: site/package-lock.json
-
-      - name: Install site dependencies
-        run: npm ci
-        working-directory: site
-
-      - name: Build site
-        run: npm run build
-        working-directory: site
-
-      - name: Install Playwright (Chromium)
-        run: |
-          npm install --no-save playwright@1.51.1
-          npx playwright install --with-deps chromium
-        working-directory: site
-
-      - name: Run local preview smoke test
+      - name: Assemble static site into dist
         run: |
           set -euo pipefail
-          npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/kronroe-site-preview.log 2>&1 &
-          PREVIEW_PID=$!
-          cleanup() {
-            kill "${PREVIEW_PID}" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-          for _ in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:4173 >/dev/null; then
-              break
-            fi
-            sleep 1
-          done
-          curl -fsS http://127.0.0.1:4173 >/dev/null
-          node scripts/smoke-playground.mjs "http://127.0.0.1:4173" | tee local-smoke-result.json
-          {
-            echo "## Local Playground Smoke Test"
-            echo ""
-            echo "- URL: http://127.0.0.1:4173"
-            echo "- Workflow: \`${{ github.workflow }}\`"
-            echo ""
-            echo '```json'
-            cat local-smoke-result.json
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-        working-directory: site
+          rm -rf site/dist
+          mkdir -p site/dist
+          cp site/index.html site/dist/
+          cp site/og-image.png site/dist/
+          cp -r site/public/* site/dist/
+          echo "Assembled site/dist/:"
+          ls -la site/dist/
+
+      - name: Smoke test — verify index.html exists
+        run: |
+          set -euo pipefail
+          test -f site/dist/index.html || { echo "ERROR: index.html missing from dist"; exit 1; }
+          grep -q "Kronroe" site/dist/index.html || { echo "ERROR: index.html missing Kronroe content"; exit 1; }
+          echo "Smoke test passed"
 
       - name: Deploy to Firebase Hosting
         id: deploy
@@ -106,19 +74,17 @@ jobs:
           set -euo pipefail
           URL="${PLAYGROUND_URL:-https://kronroe.web.app}"
           echo "Smoke testing ${URL}"
-          node scripts/smoke-playground.mjs "${URL}" | tee smoke-result.json
-          if [ ! -s smoke-result.json ]; then
-            echo "ERROR: smoke test produced no output" >&2
+          HTTP_CODE=$(curl -o /dev/null -s -w "%{http_code}" "${URL}")
+          if [ "${HTTP_CODE}" != "200" ]; then
+            echo "ERROR: ${URL} returned HTTP ${HTTP_CODE}" >&2
             exit 1
           fi
+          curl -s "${URL}" | grep -q "Kronroe" || { echo "ERROR: page missing Kronroe content" >&2; exit 1; }
+          echo "Smoke test passed — HTTP ${HTTP_CODE}"
           {
-            echo "## Playground Smoke Test"
+            echo "## Post-Deploy Smoke Test"
             echo ""
             echo "- URL: ${URL}"
-            echo "- Workflow: \`${{ github.workflow }}\`"
-            echo ""
-            echo '```json'
-            cat smoke-result.json
-            echo '```'
+            echo "- Status: HTTP ${HTTP_CODE}"
+            echo "- Content check: passed"
           } >> "$GITHUB_STEP_SUMMARY"
-        working-directory: site

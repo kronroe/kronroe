@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Kronroe Logo — Master dark — FIXED
+  Kronroe Logo — Master dark — v2 DESIGN SYSTEM ALIGNED
   Rendered: 240x44px  ViewBox: 0 0 240 44
   Header: 68px tall. Logo sits centred vertically.
   TWO text elements, NO opacity.
+
+  v2 CHANGES (design system alignment):
+  - Font: Inter → Plus Jakarta Sans (matches design system voice-1)
+  - Weight: 700 (matches design system heading weight)
+  - "Kron" colour unchanged (#F0ECE4 ≈ warm-1, already correct for dark)
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 44" width="240" height="44">
 
@@ -20,13 +25,13 @@
   <circle cx="68" cy="31" r="3.5" fill="#9B7EFF"/>
 
   <!-- Wordmark — baseline y=30, "Kron" starts x=86 -->
-  <!-- "Kron" at Inter 600 24px ≈ 58px wide, so "roe" starts at x=144 -->
+  <!-- "Kron" at Plus Jakarta Sans 700 24px ≈ 56px wide, so "roe" starts at x=142 -->
   <text x="86" y="30"
-    font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif"
+    font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif"
     font-size="24" font-weight="700" letter-spacing="-0.3"
     fill="#F0ECE4">Kron</text>
-  <text x="143" y="30"
-    font-family="'Inter','DM Sans','Helvetica Neue',Arial,sans-serif"
+  <text x="142" y="30"
+    font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif"
     font-size="24" font-weight="700" letter-spacing="-0.3"
     fill="#F09060">roe</text>
 
