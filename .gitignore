@@ -83,9 +83,8 @@ output-design-system-*.png
 # Wireframes — local design reference
 site/wireframe.html
 
-# Local font files (loaded from Google Fonts in production)
+# Local font source files (working copies)
 site/fonts/
-site/public/fonts/
 
 # Playwright CLI cache
 .playwright-cli/
