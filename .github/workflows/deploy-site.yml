@@ -74,12 +74,12 @@ jobs:
           set -euo pipefail
           URL="${PLAYGROUND_URL:-https://kronroe.web.app}"
           echo "Smoke testing ${URL}"
-          HTTP_CODE=$(curl -o /dev/null -s -w "%{http_code}" "${URL}")
+          HTTP_CODE=$(curl -o /dev/null -sL --compressed -w "%{http_code}" "${URL}")
           if [ "${HTTP_CODE}" != "200" ]; then
             echo "ERROR: ${URL} returned HTTP ${HTTP_CODE}" >&2
             exit 1
           fi
-          curl -s "${URL}" | grep -q "Kronroe" || { echo "ERROR: page missing Kronroe content" >&2; exit 1; }
+          curl -sL --compressed "${URL}" | grep -q "Kronroe" || { echo "ERROR: page missing Kronroe content" >&2; exit 1; }
           echo "Smoke test passed — HTTP ${HTTP_CODE}"
           {
             echo "## Post-Deploy Smoke Test"
