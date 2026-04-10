@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=1200"/>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700&family=JetBrains+Mono:wght@500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1200px; height: 630px; overflow: hidden;
+    background: #FBFAFF;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding-top: 20px;
+    position: relative;
+  }
+
+  /* Four-colour stripe at top */
+  .top-stripe {
+    position: absolute; top: 0; left: 0; right: 0; height: 6px;
+    display: flex;
+  }
+  .top-stripe span { flex: 1; }
+  .top-stripe span:nth-child(1) { background: #7C5CFC; }
+  .top-stripe span:nth-child(2) { background: #E87D4A; }
+  .top-stripe span:nth-child(3) { background: #3EC9C9; }
+  .top-stripe span:nth-child(4) { background: #8BBF20; }
+
+  /* Mark */
+  .mark { margin-bottom: 28px; }
+
+  /* Wordmark */
+  .wordmark {
+    font-size: 52px; font-weight: 700; letter-spacing: -1.2px;
+    margin-bottom: 20px; text-align: center;
+  }
+  .wordmark .kron { color: #191726; }
+  .wordmark .roe { color: #7C5CFC; }
+
+  /* Tagline */
+  .tagline {
+    font-size: 28px; font-weight: 500; color: #4A4559;
+    text-align: center; line-height: 1.4;
+    max-width: 800px; margin-bottom: 24px;
+  }
+
+  /* Subtitle */
+  .subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px; font-weight: 500; color: #9590A3;
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+
+  /* Four dots */
+  .dots {
+    display: flex; gap: 10px; margin-bottom: 32px;
+  }
+  .dots span {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+  .dots span:nth-child(1) { background: #7C5CFC; }
+  .dots span:nth-child(2) { background: #E87D4A; }
+  .dots span:nth-child(3) { background: #3EC9C9; }
+  .dots span:nth-child(4) { background: #8BBF20; }
+
+  /* Bottom stripe */
+  .bottom-stripe {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 6px;
+    display: flex;
+  }
+  .bottom-stripe span { flex: 1; }
+  .bottom-stripe span:nth-child(1) { background: #7C5CFC; }
+  .bottom-stripe span:nth-child(2) { background: #E87D4A; }
+  .bottom-stripe span:nth-child(3) { background: #3EC9C9; }
+  .bottom-stripe span:nth-child(4) { background: #8BBF20; }
+
+  /* Faint background pattern — decorative dots */
+  .bg-dot {
+    position: absolute; border-radius: 50%; opacity: 0.06;
+  }
+  .bg-dot--v { background: #7C5CFC; }
+  .bg-dot--c { background: #E87D4A; }
+  .bg-dot--cy { background: #3EC9C9; }
+  .bg-dot--l { background: #8BBF20; }
+</style>
+</head>
+<body>
+  <div class="top-stripe"><span></span><span></span><span></span><span></span></div>
+
+  <!-- Subtle background dots -->
+  <div class="bg-dot bg-dot--v" style="width:180px;height:180px;top:60px;left:-40px;"></div>
+  <div class="bg-dot bg-dot--cy" style="width:120px;height:120px;top:80px;right:40px;"></div>
+  <div class="bg-dot bg-dot--c" style="width:140px;height:140px;bottom:80px;left:60px;"></div>
+  <div class="bg-dot bg-dot--l" style="width:100px;height:100px;bottom:60px;right:-20px;"></div>
+
+  <!-- Mark SVG -->
+  <svg class="mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="80" height="80">
+    <circle cx="25" cy="25" r="14" fill="#3EC9C9"/>
+    <line x1="40" y1="25" x2="60" y2="25" stroke="#3EC9C9" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="75" cy="25" r="12" fill="none" stroke="#8BBF20" stroke-width="3"/>
+    <circle cx="75" cy="25" r="4.5" fill="#8BBF20"/>
+    <circle cx="25" cy="75" r="14" fill="#E87D4A"/>
+    <line x1="40" y1="75" x2="60" y2="75" stroke="#E87D4A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="8 4"/>
+    <circle cx="75" cy="75" r="12" fill="none" stroke="#7C5CFC" stroke-width="3"/>
+    <circle cx="75" cy="75" r="4.5" fill="#7C5CFC"/>
+  </svg>
+
+  <div class="wordmark"><span class="kron">Kron</span><span class="roe">roe</span></div>
+  <div class="tagline">Private AI memory that thinks in layers</div>
+  <div class="dots"><span></span><span></span><span></span><span></span></div>
+  <div class="subtitle">Embedded bi-temporal graph database</div>
+
+  <div class="bottom-stripe"><span></span><span></span><span></span><span></span></div>
+</body>
+</html>

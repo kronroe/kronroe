@@ -74,3 +74,18 @@ python/kronroe-mcp/src/kronroe_mcp.egg-info/
 /COPPER-REBALANCING-PLAN.md
 /MARKETING-AND-LICENSING-PLAN.md
 /kronroe-linkedin-avatar-official-cream-600w.png
+
+# Design studio & screenshot output — local only
+/design-studio/
+/output/
+output-design-system-*.png
+
+# Wireframes — local design reference
+site/wireframe.html
+
+# Local font files (loaded from Google Fonts in production)
+site/fonts/
+site/public/fonts/
+
+# Playwright CLI cache
+.playwright-cli/
