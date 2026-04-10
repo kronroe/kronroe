@@ -74,17 +74,32 @@ jobs:
           set -euo pipefail
           URL="${PLAYGROUND_URL:-https://kronroe.web.app}"
           echo "Smoke testing ${URL}"
-          HTTP_CODE=$(curl -o /dev/null -sL --compressed -w "%{http_code}" "${URL}")
-          if [ "${HTTP_CODE}" != "200" ]; then
-            echo "ERROR: ${URL} returned HTTP ${HTTP_CODE}" >&2
-            exit 1
-          fi
-          curl -sL --compressed "${URL}" | grep -q "Kronroe" || { echo "ERROR: page missing Kronroe content" >&2; exit 1; }
-          echo "Smoke test passed — HTTP ${HTTP_CODE}"
-          {
-            echo "## Post-Deploy Smoke Test"
-            echo ""
-            echo "- URL: ${URL}"
-            echo "- Status: HTTP ${HTTP_CODE}"
-            echo "- Content check: passed"
-          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Retry loop — Firebase CDN edge nodes may take a few seconds to propagate
+          MAX_RETRIES=4
+          for i in $(seq 1 $MAX_RETRIES); do
+            HTTP_CODE=$(curl -o /dev/null -sL --compressed -w "%{http_code}" "${URL}")
+            if [ "${HTTP_CODE}" != "200" ]; then
+              echo "Attempt ${i}/${MAX_RETRIES}: HTTP ${HTTP_CODE} — retrying in 5s..."
+              sleep 5
+              continue
+            fi
+            if curl -sL --compressed "${URL}" | grep -q "Kronroe"; then
+              echo "Smoke test passed on attempt ${i} — HTTP ${HTTP_CODE}"
+              {
+                echo "## Post-Deploy Smoke Test"
+                echo ""
+                echo "- URL: ${URL}"
+                echo "- Status: HTTP ${HTTP_CODE}"
+                echo "- Content check: passed (attempt ${i})"
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Attempt ${i}/${MAX_RETRIES}: HTTP 200 but content not yet propagated — retrying in 5s..."
+            sleep 5
+          done
+
+          echo "ERROR: smoke test failed after ${MAX_RETRIES} attempts" >&2
+          echo "Last HTTP code: ${HTTP_CODE}" >&2
+          curl -sL --compressed "${URL}" | head -c 500 >&2
+          exit 1
