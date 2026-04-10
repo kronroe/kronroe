@@ -13,10 +13,24 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:image" content="https://kronroe.dev/og-image.png"/>
 <link rel="canonical" href="https://kronroe.dev/"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
+  /* ── Self-hosted fonts — no third-party requests ── */
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin-ext.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
   @font-face {
     font-family: 'JetBrains Mono';
     src: url('/fonts/web/jetbrainsmono-var-latin.woff2') format('woff2');
@@ -2104,22 +2118,18 @@
         </svg>
       </div>
       <ul class="mock-nav-links">
-        <li><a href="/docs/" class="active">Docs</a></li>
-        <li><a href="/playground/">Playground</a></li>
-        <li><a href="/enterprise/">Enterprise</a></li>
-        <li><a href="https://github.com/rebekahcole/kronroe">GitHub</a></li>
+        <li><a href="#show-the-code" class="active">Docs</a></li>
+        <li><a href="https://github.com/kronroe/kronroe">GitHub</a></li>
       </ul>
-      <a href="#" class="btn-primary" style="padding:0.45rem 1.1rem; font-size:0.82rem;">Get Started</a>
+      <a href="#show-the-code" class="btn-primary" style="padding:0.45rem 1.1rem; font-size:0.82rem;">Get Started</a>
       <div class="nav-hamburger">
         <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation menu"/>
         <label for="nav-toggle" class="nav-hamburger-btn" aria-label="Menu">
           <span></span><span></span><span></span>
         </label>
         <div class="nav-mobile-menu">
-          <a href="/docs/" class="active">Docs</a>
-          <a href="/playground/">Playground</a>
-          <a href="/enterprise/">Enterprise</a>
-          <a href="https://github.com/rebekahcole/kronroe">GitHub</a>
+          <a href="#show-the-code" class="active">Docs</a>
+          <a href="https://github.com/kronroe/kronroe">GitHub</a>
         </div>
       </div>
     </nav>
@@ -2150,9 +2160,8 @@
   </p>
   <div class="hero-annotation-wrap"><span class="hero-annotation"><span style="width:6px; height:6px; border-radius:50%; background:var(--copper-6); flex-shrink:0"></span> the DuckDB of graph databases</span></div>
   <div class="mock-ctas">
-    <a href="#" class="btn-primary">Try in your browser</a>
-    <a href="https://github.com/rebekahcole/kronroe" class="btn-secondary">Browse GitHub</a>
-    <a href="#" class="btn-ghost">Enterprise security &amp; compliance →</a>
+    <a href="#show-the-code" class="btn-primary">Get started</a>
+    <a href="https://github.com/kronroe/kronroe" class="btn-secondary">Browse GitHub</a>
   </div>
   <div class="hero-mark-wrap">
     <div class="hero-mark-tilt">
@@ -2339,7 +2348,7 @@ results = memory.<span class="fn">recall</span>(<span class="string">"where does
     <span class="fn">print</span>(fact[<span class="string">"subject"</span>], fact[<span class="string">"predicate"</span>], fact[<span class="string">"value"</span>])</code>
     </div>
     <div style="text-align:right; margin-top:0.5rem">
-      <a href="/docs/getting-started/quick-start-python/" class="type-link" style="font-size:0.78rem">Full Python guide →</a>
+      <a href="https://github.com/kronroe/kronroe#quick-start-python" class="type-link" style="font-size:0.78rem">Full Python guide →</a>
     </div>
   </div>
 
@@ -2368,7 +2377,7 @@ db.<span class="fn">assert_fact</span>(<span class="string">"alice"</span>, <spa
 }</code>
     </div>
     <div style="text-align:right; margin-top:0.5rem">
-      <a href="/docs/getting-started/quick-start-rust/" class="type-link" style="font-size:0.78rem">Full Rust guide →</a>
+      <a href="https://github.com/kronroe/kronroe#quick-start-rust" class="type-link" style="font-size:0.78rem">Full Rust guide →</a>
     </div>
   </div>
 
@@ -2397,7 +2406,7 @@ db.<span class="fn">assert_fact</span>(<span class="string">"alice"</span>, <spa
 <span class="comment">// invalidate_fact, what_changed, memory_health, and more</span></code>
     </div>
     <div style="text-align:right; margin-top:0.5rem">
-      <a href="/docs/getting-started/quick-start-mcp/" class="type-link" style="font-size:0.78rem">Full MCP guide →</a>
+      <a href="https://github.com/kronroe/kronroe#quick-start-mcp" class="type-link" style="font-size:0.78rem">Full MCP guide →</a>
     </div>
   </div>
 </section>
@@ -2442,7 +2451,7 @@ function switchCodeTab(tab) {
             <span class="tag tag--violet-outline">what_changed</span>
             <span class="tag tag--violet-outline">confidence decay</span>
           </div>
-          <a href="/docs/getting-started/quick-start-mcp/" class="type-link" style="font-size:0.78rem">MCP getting started →</a>
+          <a href="https://github.com/kronroe/kronroe#quick-start-mcp" class="type-link" style="font-size:0.78rem">MCP getting started →</a>
         </div>
         <!-- Stat grid -->
         <div class="world-stat-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem">
@@ -2500,7 +2509,7 @@ function switchCodeTab(tab) {
             <span class="tag tag--copper-outline">offline by design</span>
             <span class="tag tag--copper-outline">zero C deps</span>
           </div>
-          <a href="/docs/getting-started/quick-start-rust/" class="type-link" style="font-size:0.78rem">Rust quick-start →</a>
+          <a href="https://github.com/kronroe/kronroe#quick-start-rust" class="type-link" style="font-size:0.78rem">Rust quick-start →</a>
         </div>
       </div>
     </div>
@@ -2522,9 +2531,9 @@ function switchCodeTab(tab) {
     </div>
 
     <div style="display:flex; justify-content:center; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
-      <a href="/playground/" class="btn-primary" style="padding:0.8rem 2rem;">Try in your browser</a>
-      <a href="/docs/getting-started/" class="btn-outline" style="padding:0.75rem 2rem;">Read the docs</a>
-      <a href="https://github.com/rebekahcole/kronroe" class="btn-outline" style="padding:0.75rem 2rem;">View on GitHub</a>
+      <a href="#show-the-code" class="btn-primary" style="padding:0.8rem 2rem;">Get started</a>
+      <a href="https://github.com/kronroe/kronroe#readme" class="btn-outline" style="padding:0.75rem 2rem;">Read the docs</a>
+      <a href="https://github.com/kronroe/kronroe" class="btn-outline" style="padding:0.75rem 2rem;">View on GitHub</a>
     </div>
     <p style="font-family:var(--hand); font-size:0.82rem; color:var(--text-dim); margin:0">
       Kronroe powers Kindly Roe — we built the engine because we needed it.
@@ -2557,28 +2566,26 @@ function switchCodeTab(tab) {
     <div class="footer-col">
       <h5>Product</h5>
       <ul>
-        <li><a href="/docs/">Documentation</a></li>
-        <li><a href="/playground/">Playground</a></li>
-        <li><a href="/docs/mcp-server/">MCP Server</a></li>
-        <li><a href="/changelog/">Changelog</a></li>
+        <li><a href="https://github.com/kronroe/kronroe#readme">Documentation</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/crates/mcp-server/README.md">MCP Server</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/CHANGELOG.md">Changelog</a></li>
       </ul>
     </div>
     <div class="footer-col">
       <h5>Developers</h5>
       <ul>
-        <li><a href="/docs/getting-started/">Getting Started</a></li>
+        <li><a href="#show-the-code">Getting Started</a></li>
         <li><a href="https://crates.io/crates/kronroe">Rust Crate</a></li>
         <li><a href="https://pypi.org/project/kronroe/">Python Package</a></li>
-        <li><a href="https://github.com/rebekahcole/kronroe">GitHub</a></li>
+        <li><a href="https://github.com/kronroe/kronroe">GitHub</a></li>
       </ul>
     </div>
     <div class="footer-col">
       <h5>Company</h5>
       <ul>
-        <li><a href="/enterprise/">Enterprise</a></li>
-        <li><a href="/licence/">Commercial Licence</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md">Commercial Licence</a></li>
         <li><a href="mailto:rebekah@kindlyroe.com">Contact</a></li>
-        <li><a href="https://github.com/rebekahcole/kronroe/blob/main/CLA.md">CLA</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/CLA.md">CLA</a></li>
       </ul>
     </div>
   </div>
