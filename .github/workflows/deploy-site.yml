@@ -48,6 +48,10 @@ jobs:
           cp site/index.html site/dist/
           cp site/og-image.png site/dist/
           cp -r site/public/* site/dist/
+          # Copy docs pages (preserving directory structure)
+          if [ -d site/docs ]; then
+            cp -r site/docs site/dist/docs
+          fi
           echo "Assembled site/dist/:"
           ls -la site/dist/
 

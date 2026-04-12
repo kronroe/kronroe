@@ -1,169 +1,562 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Kronroe docs landing page with links to getting started guides, API reference, and concepts." />
-    <link rel="canonical" href="https://kronroe.dev/docs/" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico" />
-    <link rel="stylesheet" href="/page-shell.css" />
-    <link rel="stylesheet" href="/docs-shell.css" />
-    <title>Kronroe Docs</title>
-  </head>
-  <body class="docs-page">
-    <header class="site-header">
-      <a class="site-brand" href="/" aria-label="Kronroe home">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120"
-             height="50" style="display:block;width:auto;" aria-label="Kronroe">
-          <circle cx="48" cy="38" r="16" fill="#3EC9C9"/>
-          <line x1="65" y1="38" x2="119" y2="38" stroke="#3EC9C9" stroke-width="3.5" stroke-linecap="round"/>
-          <circle cx="136" cy="38" r="14" fill="none" stroke="#8BBF20" stroke-width="3.5"/>
-          <circle cx="136" cy="38" r="5" fill="#8BBF20"/>
-          <circle cx="48" cy="82" r="16" fill="#E87D4A"/>
-          <line x1="65" y1="82" x2="119" y2="82" stroke="#E87D4A" stroke-width="3" stroke-linecap="round" stroke-dasharray="9 5"/>
-          <circle cx="136" cy="82" r="14" fill="none" stroke="#7C5CFC" stroke-width="3.5"/>
-          <circle cx="136" cy="82" r="5" fill="#7C5CFC"/>
-          <text x="168" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#FFFFFF">Kron</text>
-          <text x="282" y="75" font-family="'Quicksand',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#E87D4A">roe</text>
-        </svg>
-      </a>
-      <span class="site-badge">Docs</span>
-      <nav class="site-nav" aria-label="Site">
-        <a href="/docs/">Docs</a>
-        <a href="https://github.com/kronroe/kronroe/releases" target="_blank" rel="noopener noreferrer">Releases</a>
-        <a href="/community/">Community</a>
-        <a href="/about/">About</a>
-        <a href="/faq/">FAQ</a>
-      </nav>
-      <button class="site-search" type="button" data-docs-search-open>
-        <span>Search</span>
-        <kbd>⌘K</kbd>
-      </button>
-      <a class="site-cta" href="/#playground">Try playground</a>
-    </header>
-    <main class="page docs-landing">
-      <section class="hero docs-landing-hero">
-        <div class="docs-landing-hero-copy">
-          <span class="eyebrow">Docs</span>
-          <h1>Implementation details, with the same care as the product itself.</h1>
-          <p class="lede">
-            Kronroe’s docs are split for fast orientation: read the thesis, choose your stack, then jump
-            straight into the API surface or the concept pages that explain how the memory model works.
-          </p>
-          <div class="cta-row">
-            <a class="button button--primary" href="/docs/getting-started/what-is-kronroe">Start with the guide</a>
-            <a class="button button--ghost" href="/docs/api/core">Browse the API</a>
-            <button class="button button--ghost" type="button" data-docs-search-open>Search docs</button>
-          </div>
-        </div>
-        <aside class="docs-landing-hero-aside" aria-label="Docs fast path">
-          <div class="docs-landing-route">
-            <p class="docs-landing-label">Pick your route</p>
-            <ul>
-              <li><strong>Evaluating the product?</strong> Start with What is Kronroe?</li>
-              <li><strong>Setting it up?</strong> Use the Python, Rust, or MCP quick start.</li>
-              <li><strong>Integrating directly?</strong> Open the API reference and concepts.</li>
-            </ul>
-          </div>
-        </aside>
-      </section>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Docs — Kronroe</title>
+<meta name="description" content="Kronroe documentation — getting started guides, core concepts, and API reference for the embedded bi-temporal graph database."/>
+<meta property="og:title" content="Docs — Kronroe"/>
+<meta property="og:description" content="Getting started guides, core concepts, and API reference for the embedded bi-temporal graph database."/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://kronroe.dev/docs/"/>
+<meta property="og:image" content="https://kronroe.dev/og-image.png"/>
+<link rel="canonical" href="https://kronroe.dev/docs/"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<style>
+  /* ── Self-hosted fonts — no third-party requests ── */
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin-ext.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/fonts/web/jetbrainsmono-var-latin.woff2') format('woff2');
+    font-weight: 400 600;
+    font-display: swap;
+  }
 
-      <section class="docs-popular">
-        <div class="docs-popular-label">Popular docs</div>
-        <div class="docs-popular-grid">
-          <a class="docs-popular-card" href="/docs/getting-started/what-is-kronroe/">
-            <span class="docs-popular-title">What is Kronroe?</span>
-            <span class="docs-popular-desc">Start with the product thesis and the bi-temporal model.</span>
-          </a>
-          <a class="docs-popular-card" href="/docs/getting-started/quick-start-python/">
-            <span class="docs-popular-title">Quick Start: Python</span>
-            <span class="docs-popular-desc">Get from install to first facts with the high-level API.</span>
-          </a>
-          <a class="docs-popular-card" href="/docs/api/core/">
-            <span class="docs-popular-title">TemporalGraph API</span>
-            <span class="docs-popular-desc">Jump straight into the core engine surface area.</span>
-          </a>
-        </div>
-      </section>
+  /* ──────────────────────────────────────────────
+     COLOR SYSTEM — same tokens as homepage
+     ────────────────────────────────────────────── */
+  :root {
+    --violet-1: #F8F6FF; --violet-2: #EFEBFF; --violet-3: #DDD5FF;
+    --violet-4: #C4B5FF; --violet-5: #A895FD; --violet-6: #7C5CFC;
+    --violet-7: #6344E0; --violet-8: #4B2DC4; --violet-9: #3A1FA8;
 
-      <section class="docs-landing-grid">
-        <article class="docs-landing-card docs-landing-card--violet">
-          <p class="docs-landing-label">Getting started</p>
-          <h2>Move from reading to running.</h2>
-          <p>Choose the shortest path for your stack, then follow a focused setup guide.</p>
-          <ul>
-            <li><a href="/docs/getting-started/what-is-kronroe">What is Kronroe?</a></li>
-            <li><a href="/docs/getting-started/quick-start-python">Quick Start: Python</a></li>
-            <li><a href="/docs/getting-started/quick-start-rust">Quick Start: Rust</a></li>
-            <li><a href="/docs/getting-started/quick-start-mcp">Quick Start: MCP</a></li>
-          </ul>
-        </article>
+    --copper-1: #FFF8F4; --copper-2: #FFEEE4; --copper-3: #FFD9C5;
+    --copper-5: #F5A07A; --copper-6: #E87D4A; --copper-7: #CB6535;
 
-        <article class="docs-landing-card docs-landing-card--copper">
-          <p class="docs-landing-label">Core concepts</p>
-          <h2>Understand the model once.</h2>
-          <p>The conceptual pages explain why Kronroe treats temporal facts differently from ordinary graph stores.</p>
-          <ul>
-            <li><a href="/docs/concepts/bi-temporal-model">Bi-temporal model</a></li>
-            <li><a href="/docs/concepts/facts-and-entities">Facts and entities</a></li>
-          </ul>
-        </article>
+    --cyan-1: #F0FDFD; --cyan-2: #D9F9F9; --cyan-3: #B0F0F0;
+    --cyan-5: #55D5D5; --cyan-6: #3EC9C9; --cyan-7: #2DAEAE;
 
-        <article class="docs-landing-card docs-landing-card--lime">
-          <p class="docs-landing-label">API reference</p>
-          <h2>Go straight to the surface area.</h2>
-          <p>Reference pages for the core engine, memory API, and MCP tools live here.</p>
-          <ul>
-            <li><a href="/docs/api/core">TemporalGraph (Core)</a></li>
-            <li><a href="/docs/api/agent-memory">AgentMemory</a></li>
-            <li><a href="/docs/api/mcp-tools">MCP Tools</a></li>
-          </ul>
-        </article>
+    --lime-1: #F7FBE8; --lime-2: #EDF6CD; --lime-3: #DBEDA0;
+    --lime-5: #A5CE38; --lime-6: #8BBF20; --lime-7: #72A010;
 
-        <article class="docs-landing-card docs-landing-card--neutral">
-          <p class="docs-landing-label">Back to the site</p>
-          <h2>Need the product story instead?</h2>
-          <p>The homepage, playground, and brand pages are a better fit if you are evaluating Kronroe rather than implementing it.</p>
-          <div class="cta-row">
-            <a class="button button--primary" href="/">Homepage</a>
-            <a class="button button--ghost" href="/#playground">Playground</a>
-          </div>
-        </article>
-      </section>
-    </main>
-    <footer class="footer">
-      <div class="footer-inner">
-        <span>Kronroe · Docs</span>
-        <div class="footer-links">
-          <a href="https://github.com/kronroe/kronroe/releases" target="_blank" rel="noopener noreferrer">Releases</a>
-          <a href="/community/">Community</a>
-          <a href="/about/">About</a>
-          <a href="/faq/">FAQ</a>
-          <a href="/privacy/">Privacy</a>
-          <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
+    --warm-1: #FBFAFF; --warm-2: #F4F2FA; --warm-3: #EAE7F2;
+    --warm-4: #DDD9E8; --warm-5: #C4BFD1; --warm-6: #9590A3;
+    --warm-7: #6E6980; --warm-8: #4A4559; --warm-9: #2D2940;
+    --warm-10: #191726;
+
+    --bg: var(--warm-1); --surface: var(--warm-2); --surface-alt: var(--warm-3);
+    --border: var(--warm-4); --border-hi: var(--warm-5);
+    --text: var(--warm-9); --text-mid: var(--warm-8);
+    --text-dim: var(--warm-7); --text-muted: var(--warm-6);
+
+    --dark-bg: var(--warm-10); --dark-surface: #211F32;
+    --dark-border: #352F4A; --dark-text: #F4F2FA; --dark-text-mid: #C4BFD1;
+
+    --body: "Plus Jakarta Sans", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+
+    --shadow-md: 0 4px 12px rgba(45,41,64,0.10);
+    --shadow-violet: 0 8px 24px rgba(124,92,252,0.20);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--body); font-weight: 500;
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+
+  /* ── Logo stripe motif ── */
+  .logo-stripe {
+    display: flex; height: 3px; border-radius: 2px; overflow: hidden;
+  }
+  .logo-stripe--bold { height: 6px; border-radius: 3px; }
+  .logo-stripe > span { flex: 1; }
+  .logo-stripe > span:nth-child(1) { background: var(--violet-6); }
+  .logo-stripe > span:nth-child(2) { background: var(--copper-6); }
+  .logo-stripe > span:nth-child(3) { background: var(--cyan-6); }
+  .logo-stripe > span:nth-child(4) { background: var(--lime-6); }
+
+  .logo-divider {
+    display: flex; height: 3px;
+  }
+  .logo-divider > span { flex: 1; }
+  .logo-divider > span:nth-child(1) { background: var(--violet-6); }
+  .logo-divider > span:nth-child(2) { background: var(--copper-6); }
+  .logo-divider > span:nth-child(3) { background: var(--cyan-6); }
+  .logo-divider > span:nth-child(4) { background: var(--lime-6); }
+
+  .logo-dots {
+    display: flex; gap: 6px; align-items: center;
+  }
+  .logo-dots > span { width: 6px; height: 6px; border-radius: 50%; }
+  .logo-dots--lg > span { width: 8px; height: 8px; }
+  .logo-dots > span:nth-child(1) { background: var(--violet-6); }
+  .logo-dots > span:nth-child(2) { background: var(--copper-6); }
+  .logo-dots > span:nth-child(3) { background: var(--cyan-6); }
+  .logo-dots > span:nth-child(4) { background: var(--lime-6); }
+
+  /* ── Navigation — matches homepage exactly ── */
+  .site-header-shell {
+    width: 100%; padding: 0.5rem 0.5rem 0;
+  }
+  .mock-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.4rem 2rem; border-radius: 14px;
+    background: var(--bg); border: 1.5px solid var(--border);
+  }
+  .mock-nav-logo {
+    font-weight: 600; font-size: 1rem; color: var(--text);
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .mock-nav-links {
+    display: flex; gap: 1.5rem; list-style: none; align-items: center;
+    font-size: 0.9rem; font-weight: 500;
+  }
+  .mock-nav-links a { color: var(--text-mid); text-decoration: none; }
+  .mock-nav-links a:hover { color: var(--violet-6); }
+  .mock-nav-links .active { color: var(--violet-6); font-weight: 600; }
+  .btn-primary {
+    display: inline-flex; align-items: center;
+    padding: 0.75rem 1.75rem; border-radius: 10px;
+    background: var(--violet-6); color: #fff;
+    font-family: var(--body); font-weight: 600; font-size: 0.95rem;
+    text-decoration: none; border: none;
+    box-shadow: 0 8px 24px rgba(124,92,252,0.30);
+    transition: all 0.15s;
+  }
+  .btn-primary:hover { background: var(--violet-7); transform: translateY(-1px); box-shadow: 0 12px 32px rgba(124,92,252,0.4); }
+  .btn-outline {
+    display: inline-flex; align-items: center;
+    padding: 0.7rem 1.6rem; border-radius: 10px;
+    background: transparent; color: var(--violet-6);
+    font-family: var(--body); font-weight: 600; font-size: 0.95rem;
+    text-decoration: none; border: 1.5px solid var(--violet-4);
+    transition: all 0.15s;
+  }
+  .btn-outline:hover { background: var(--violet-1); border-color: var(--violet-6); }
+
+  /* ── Mobile hamburger ── */
+  .nav-hamburger { display: none; }
+  .nav-toggle { display: none; }
+  .nav-hamburger-btn {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    gap: 5px; width: 36px; height: 36px; cursor: pointer;
+    background: none; border: none; padding: 0;
+  }
+  .nav-hamburger-btn span {
+    display: block; width: 20px; height: 2px; background: var(--text);
+    border-radius: 2px; transition: transform 0.25s, opacity 0.2s;
+  }
+  .nav-toggle:checked ~ .nav-hamburger-btn span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .nav-toggle:checked ~ .nav-hamburger-btn span:nth-child(2) { opacity: 0; }
+  .nav-toggle:checked ~ .nav-hamburger-btn span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+  .nav-mobile-menu {
+    display: none; position: absolute; top: 100%; left: -2rem; right: -2rem;
+    background: var(--surface); border-top: 1.5px solid var(--border);
+    padding: 1rem 2rem 1.25rem; z-index: 100;
+    border-radius: 0 0 14px 14px;
+    box-shadow: var(--shadow-md);
+    flex-direction: column; gap: 0.25rem;
+  }
+  .nav-mobile-menu a {
+    display: block; padding: 0.65rem 0; color: var(--text-mid);
+    text-decoration: none; font-size: 0.95rem; font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-mobile-menu a:last-child { border-bottom: none; }
+  .nav-mobile-menu a:hover, .nav-mobile-menu a.active { color: var(--violet-6); }
+  .nav-toggle:checked ~ .nav-mobile-menu { display: flex; }
+
+  /* ── Section typography ── */
+  .ds-section {
+    max-width: 1100px; margin: 0 auto; padding: 3rem 2rem;
+  }
+  .ds-section-title {
+    font-family: var(--mono); font-size: 0.72rem; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--violet-6); margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+  }
+  .type-h2 {
+    font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em;
+    color: var(--text); line-height: 1.25;
+  }
+  .type-body {
+    font-size: 0.95rem; font-weight: 500; color: var(--text-mid);
+    line-height: 1.65; max-width: 640px;
+  }
+
+  /* ══════════════════════════════════════════════
+     DOCS LANDING — page-specific styles
+     ══════════════════════════════════════════════ */
+
+  /* Hero */
+  .docs-hero {
+    text-align: center; max-width: 640px; margin: 0 auto;
+    padding: 3.5rem 2rem 2rem;
+  }
+  .docs-hero h1 {
+    font-size: 2.25rem; font-weight: 700; letter-spacing: -0.03em;
+    line-height: 1.2; margin-bottom: 1rem;
+  }
+  .docs-hero p {
+    font-size: 1.05rem; font-weight: 500; color: var(--text-mid);
+    line-height: 1.65; margin-bottom: 2rem;
+  }
+  .docs-hero .cta-row {
+    display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+  }
+  .docs-badge {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-family: var(--mono); font-size: 0.72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--violet-6); margin-bottom: 1.25rem;
+  }
+  .docs-badge .logo-dots { margin-right: 0.25rem; }
+
+  /* Card grid */
+  .docs-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem;
+    max-width: 1100px; margin: 0 auto; padding: 0 2rem;
+  }
+  .docs-card {
+    border: 1.5px solid var(--border); border-radius: 14px;
+    padding: 2rem 1.5rem; background: var(--bg);
+    display: flex; flex-direction: column;
+    position: relative; overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .docs-card:hover {
+    border-color: var(--violet-4);
+    box-shadow: var(--shadow-md);
+  }
+  /* Logo stripe top accent */
+  .docs-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg,
+      var(--violet-6) 25%, var(--copper-6) 25%,
+      var(--copper-6) 50%, var(--cyan-6) 50%,
+      var(--cyan-6) 75%, var(--lime-6) 75%);
+  }
+  .docs-card-label {
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 0.75rem;
+  }
+  .docs-card-label--violet { color: var(--violet-6); }
+  .docs-card-label--copper { color: var(--copper-7); }
+  .docs-card-label--cyan { color: var(--cyan-7); }
+  .docs-card-label--lime { color: var(--lime-7); }
+
+  .docs-card h3 {
+    font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em;
+    margin-bottom: 0.5rem;
+  }
+  .docs-card p {
+    font-size: 0.88rem; color: var(--text-mid); line-height: 1.6;
+    margin-bottom: 1.25rem; flex: 1;
+  }
+  .docs-card ul {
+    list-style: none; margin-bottom: 0;
+  }
+  .docs-card li {
+    margin-bottom: 0.4rem;
+  }
+  .docs-card li a {
+    color: var(--violet-6); text-decoration: none; font-size: 0.88rem;
+    font-weight: 500; transition: color 0.15s;
+  }
+  .docs-card li a:hover { color: var(--violet-7); text-decoration: underline; text-underline-offset: 3px; }
+  .docs-card li a::before {
+    content: '→ '; color: var(--text-muted); font-size: 0.78rem;
+  }
+
+  /* ── Footer — matches homepage ── */
+  .mock-footer {
+    background: var(--dark-bg); padding: 3rem 2rem 2rem; margin-top: auto;
+  }
+  .mock-footer-inner {
+    max-width: 1100px; margin: 0 auto;
+    display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 2rem;
+  }
+  .footer-brand-name {
+    font-weight: 600; font-size: 1.1rem; color: var(--dark-text);
+    display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem;
+  }
+  .footer-brand p { font-size: 0.82rem; color: var(--dark-text-mid); line-height: 1.55; max-width: 280px; }
+  .footer-col h5 {
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--dark-text-mid); margin-bottom: 0.75rem;
+  }
+  .footer-col ul { list-style: none; }
+  .footer-col li { margin-bottom: 0.4rem; }
+  .footer-col a {
+    color: var(--dark-text-mid); text-decoration: none; font-size: 0.82rem;
+    transition: color 0.15s;
+  }
+  .footer-col a:hover { color: var(--violet-4); }
+  .footer-bottom {
+    max-width: 1100px; margin: 0 auto;
+    padding-top: 1.5rem; margin-top: 1.5rem;
+    border-top: 1px solid var(--dark-border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .footer-bottom p { font-size: 0.72rem; color: var(--warm-7); }
+  .footer-badges { display: flex; gap: 0.5rem; }
+  .footer-badge {
+    font-family: var(--mono); font-size: 0.6rem;
+    padding: 0.2rem 0.55rem; border-radius: 4px;
+    border: 1px solid rgba(155,126,255,0.35); color: var(--dark-text);
+  }
+  .footer-badge:nth-child(1) { border-color: rgba(93,224,224,0.4); }
+  .footer-badge:nth-child(2) { border-color: rgba(200,245,103,0.4); }
+  .footer-badge:nth-child(3) { border-color: rgba(155,126,255,0.4); }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .mock-nav-links { display: none; }
+    .nav-hamburger { display: block; }
+    .mock-nav { position: relative; }
+    .site-header-shell > div { overflow: visible !important; }
+
+    .docs-grid { grid-template-columns: 1fr; }
+    .docs-hero h1 { font-size: 1.75rem; }
+    .docs-hero { padding: 2.5rem 1.5rem 1.5rem; }
+    .ds-section { padding: 2rem 1rem; }
+    .type-h2 { font-size: 1.35rem; }
+
+    .mock-footer-inner { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 640px) {
+    .mock-nav { padding: 0.75rem 1rem; }
+    .mock-nav-logo svg { height: 34px !important; }
+    .mock-nav .btn-primary { white-space: nowrap; padding: 0.4rem 0.85rem !important; font-size: 0.78rem !important; }
+    .nav-mobile-menu { left: -1rem; right: -1rem; }
+    .mock-footer-inner { grid-template-columns: 1fr; }
+    .footer-bottom { flex-direction: column; gap: 0.75rem; text-align: center; }
+  }
+</style>
+</head>
+<body>
+<!-- ═══════════════ NAVIGATION ═══════════════ -->
+<section class="site-header-shell">
+  <div style="background:var(--surface); border-radius:16px; padding:0; overflow:hidden; margin-bottom:1.5rem; border:1.5px solid var(--border);">
+    <nav class="mock-nav" style="border:none; border-radius:0;">
+      <div class="mock-nav-logo">
+        <a href="/" style="display:flex; align-items:center; text-decoration:none;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" style="height:52px; width:auto" aria-label="Kronroe" role="img">
+            <circle cx="40" cy="30" r="14" fill="#3EC9C9"/>
+            <line x1="55" y1="30" x2="97" y2="30" stroke="#3EC9C9" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="112" cy="30" r="12" fill="none" stroke="#8BBF20" stroke-width="3"/>
+            <circle cx="112" cy="30" r="4.5" fill="#8BBF20"/>
+            <circle cx="40" cy="70" r="14" fill="#E87D4A"/>
+            <line x1="55" y1="70" x2="97" y2="70" stroke="#E87D4A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="8 4"/>
+            <circle cx="112" cy="70" r="12" fill="none" stroke="#7C5CFC" stroke-width="3"/>
+            <circle cx="112" cy="70" r="4.5" fill="#7C5CFC"/>
+            <text x="138" y="65" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="700" letter-spacing="-0.8" fill="#191726">Kron</text>
+            <text x="230" y="65" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="700" letter-spacing="-0.8" fill="#7C5CFC">roe</text>
+          </svg>
+        </a>
+      </div>
+      <ul class="mock-nav-links">
+        <li><a href="/docs/" class="active">Docs</a></li>
+        <li><a href="https://github.com/kronroe/kronroe">GitHub</a></li>
+      </ul>
+      <a href="/" class="btn-primary" style="padding:0.45rem 1.1rem; font-size:0.82rem;">Home</a>
+      <div class="nav-hamburger">
+        <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation menu"/>
+        <label for="nav-toggle" class="nav-hamburger-btn" aria-label="Menu">
+          <span></span><span></span><span></span>
+        </label>
+        <div class="nav-mobile-menu">
+          <a href="/docs/" class="active">Docs</a>
+          <a href="https://github.com/kronroe/kronroe">GitHub</a>
+          <a href="/">Home</a>
         </div>
       </div>
-    </footer>
-    <div class="docs-search" hidden data-docs-search-dialog>
-      <div class="docs-search-backdrop" data-docs-search-close></div>
-      <section class="docs-search-panel" role="dialog" aria-modal="true" aria-labelledby="docs-search-title">
-        <div class="docs-search-header">
-          <div>
-            <div class="docs-search-kicker">Docs search</div>
-            <h2 id="docs-search-title">Find a guide, concept, or API page</h2>
-          </div>
-          <button class="docs-search-close" type="button" data-docs-search-close aria-label="Close search">Close</button>
-        </div>
-        <label class="docs-search-field">
-          <span class="sr-only">Search docs</span>
-          <input id="docs-search-input" name="docs-search" type="search" placeholder="Search Kronroe docs" autocomplete="off" spellcheck="false" data-docs-search-input />
-        </label>
-        <div class="docs-search-meta" data-docs-search-meta>Type to search the full docs set.</div>
-        <div class="docs-search-results" data-docs-search-results></div>
-      </section>
+    </nav>
+    <div class="logo-stripe"><span></span><span></span><span></span><span></span></div>
+  </div>
+</section>
+
+<!-- ═══════════════ DOCS HERO ═══════════════ -->
+<div class="docs-hero">
+  <div class="docs-badge">
+    <div class="logo-dots logo-dots--sm"><span></span><span></span><span></span><span></span></div>
+    Documentation
+  </div>
+  <h1>Learn Kronroe from the engine up</h1>
+  <p>
+    Choose your route: pick a quick-start for your stack, understand the bi-temporal model
+    that makes Kronroe different, or go straight to the API surface.
+  </p>
+  <div class="cta-row">
+    <a href="https://github.com/kronroe/kronroe#quick-start-python" class="btn-primary" style="padding:0.65rem 1.5rem; font-size:0.88rem;">Start with Python</a>
+    <a href="https://github.com/kronroe/kronroe#readme" class="btn-outline" style="padding:0.6rem 1.5rem; font-size:0.88rem;">Browse README</a>
+  </div>
+</div>
+
+<div class="logo-divider"><span></span><span></span><span></span><span></span></div>
+
+<!-- ═══════════════ DOCS CARD GRID ═══════════════ -->
+<section class="ds-section" style="padding-top:2.5rem; padding-bottom:2.5rem;">
+  <div class="docs-grid" style="padding:0;">
+
+    <!-- Getting Started -->
+    <article class="docs-card">
+      <span class="docs-card-label docs-card-label--violet">Getting Started</span>
+      <h3>Move from reading to running</h3>
+      <p>Choose the shortest path for your stack, then follow a focused setup guide.</p>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe#quick-start-python">Quick Start: Python</a></li>
+        <li><a href="https://github.com/kronroe/kronroe#quick-start-rust">Quick Start: Rust</a></li>
+        <li><a href="https://github.com/kronroe/kronroe#quick-start-mcp">Quick Start: MCP</a></li>
+      </ul>
+    </article>
+
+    <!-- Core Concepts -->
+    <article class="docs-card">
+      <span class="docs-card-label docs-card-label--cyan">Core Concepts</span>
+      <h3>Understand the model once</h3>
+      <p>The conceptual pages explain why Kronroe treats temporal facts differently from ordinary graph stores.</p>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe#bi-temporal-model">Bi-temporal model</a></li>
+        <li><a href="https://github.com/kronroe/kronroe#architecture">Architecture</a></li>
+        <li><a href="https://github.com/kronroe/kronroe#key-types">Key types</a></li>
+      </ul>
+    </article>
+
+    <!-- API Reference -->
+    <article class="docs-card">
+      <span class="docs-card-label docs-card-label--lime">API Reference</span>
+      <h3>Go straight to the surface area</h3>
+      <p>Reference material for the core engine, agent memory API, and MCP server tools.</p>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe/tree/main/crates/core">TemporalGraph (Core)</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/tree/main/crates/agent-memory">AgentMemory</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/tree/main/crates/mcp-server">MCP Server (11 tools)</a></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<div class="logo-divider"><span></span><span></span><span></span><span></span></div>
+
+<!-- ═══════════════ PLATFORM GUIDES ═══════════════ -->
+<section class="ds-section" style="padding-top:2.5rem; padding-bottom:2.5rem;">
+  <div style="text-align:center; max-width:640px; margin:0 auto 2rem;">
+    <span class="ds-section-title" style="border-bottom:none; margin-bottom:0.5rem; padding-bottom:0">Platform Guides</span>
+    <h2 class="type-h2" style="margin-bottom:0.75rem">Every surface Kronroe runs on</h2>
+  </div>
+  <div class="docs-grid" style="padding:0;">
+
+    <article class="docs-card">
+      <span class="docs-card-label docs-card-label--copper">Mobile</span>
+      <h3>iOS &amp; Android</h3>
+      <p>XCFramework for iOS via Swift Package, JNI bindings for Android with Kotlin wrapper.</p>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe/tree/main/crates/ios">iOS (Swift Package)</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/tree/main/crates/android">Android (Kotlin JNI)</a></li>
+      </ul>
+    </article>
+
+    <article class="docs-card">
+      <span class="docs-card-label docs-card-label--violet">Python</span>
+      <h3>PyO3 bindings</h3>
+      <p>Install from PyPI, use <code style="font-family:var(--mono); font-size:0.78rem; background:var(--violet-1); padding:1px 5px; border-radius:4px; color:var(--violet-7);">AgentMemory</code> and <code style="font-family:var(--mono); font-size:0.78rem; background:var(--violet-1); padding:1px 5px; border-radius:4px; color:var(--violet-7);">KronroeDb</code> directly.</p>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe/tree/main/crates/python">Python crate</a></li>
+        <li><a href="https://pypi.org/project/kronroe/">PyPI package</a></li>
+      </ul>
+    </article>
+
+    <article class="docs-card">
+      <span class="docs-card-label docs-card-label--cyan">Browser</span>
+      <h3>WebAssembly</h3>
+      <p>In-memory mode for browser environments. Zero network, zero install, runs in any modern browser.</p>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe/tree/main/crates/wasm">WASM crate</a></li>
+      </ul>
+    </article>
+
+  </div>
+</section>
+
+<!-- Logo stripe above footer -->
+<div class="logo-stripe logo-stripe--bold"><span></span><span></span><span></span><span></span></div>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer class="mock-footer">
+  <div class="mock-footer-inner">
+    <div class="footer-brand">
+      <div class="footer-brand-name">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" style="height:36px; width:auto" aria-label="Kronroe" role="img">
+          <circle cx="19" cy="15" r="11" fill="#5DE0E0"/>
+          <line x1="30" y1="15" x2="54" y2="15" stroke="#5DE0E0" stroke-width="2.3" stroke-linecap="round"/>
+          <circle cx="65" cy="15" r="9.4" fill="none" stroke="#C8F567" stroke-width="2.3"/>
+          <circle cx="65" cy="15" r="3.5" fill="#C8F567"/>
+          <circle cx="19" cy="45" r="11" fill="#F09060"/>
+          <line x1="30" y1="45" x2="54" y2="45" stroke="#F09060" stroke-width="2" stroke-linecap="round" stroke-dasharray="6 3"/>
+          <circle cx="65" cy="45" r="9.4" fill="none" stroke="#9B7EFF" stroke-width="2.3"/>
+          <circle cx="65" cy="45" r="3.5" fill="#9B7EFF"/>
+          <text x="82" y="40" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="26" font-weight="700" letter-spacing="-0.3" fill="#F0ECE4">Kron</text>
+          <text x="138" y="40" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="26" font-weight="700" letter-spacing="-0.3" fill="#9B7EFF">roe</text>
+        </svg>
+      </div>
+      <p>The embedded bi-temporal graph database for AI agent memory and mobile/edge applications.</p>
     </div>
-    <script type="module" src="/docs-search.js"></script>
-    <script type="module" src="/docs-tabs.js"></script>
-  </body>
+    <div class="footer-col">
+      <h5>Product</h5>
+      <ul>
+        <li><a href="/docs/">Documentation</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/crates/mcp-server/README.md">MCP Server</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/CHANGELOG.md">Changelog</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Developers</h5>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe#readme">Getting Started</a></li>
+        <li><a href="https://crates.io/crates/kronroe">Rust Crate</a></li>
+        <li><a href="https://pypi.org/project/kronroe/">Python Package</a></li>
+        <li><a href="https://github.com/kronroe/kronroe">GitHub</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Company</h5>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md">Commercial Licence</a></li>
+        <li><a href="mailto:rebekah@kindlyroe.com">Contact</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/CLA.md">CLA</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>&copy; 2026 Kronroe. AGPL-3.0 + Commercial.</p>
+    <div class="footer-badges">
+      <span class="footer-badge">Pure Rust</span>
+      <span class="footer-badge">Zero C deps</span>
+      <span class="footer-badge">No telemetry</span>
+    </div>
+  </div>
+</footer>
+</body>
 </html>
