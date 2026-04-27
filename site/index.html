@@ -13,6 +13,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:image" content="https://kronroe.dev/og-image.png"/>
 <link rel="canonical" href="https://kronroe.dev/"/>
+<script defer src="/js/analytics-consent.js"></script>
 <style>
   /* ── Self-hosted fonts — no third-party requests ── */
   @font-face {
@@ -2119,6 +2120,7 @@
       </div>
       <ul class="mock-nav-links">
         <li><a href="/docs/">Docs</a></li>
+        <li><a href="/blog/">Blog</a></li>
         <li><a href="https://github.com/kronroe/kronroe">GitHub</a></li>
       </ul>
       <a href="#show-the-code" class="btn-primary" style="padding:0.45rem 1.1rem; font-size:0.82rem;">Get Started</a>
@@ -2129,6 +2131,7 @@
         </label>
         <div class="nav-mobile-menu">
           <a href="/docs/">Docs</a>
+          <a href="/blog/">Blog</a>
           <a href="https://github.com/kronroe/kronroe">GitHub</a>
         </div>
       </div>
@@ -2566,7 +2569,7 @@ function switchCodeTab(tab) {
     <div class="footer-col">
       <h5>Product</h5>
       <ul>
-        <li><a href="https://github.com/kronroe/kronroe#readme">Documentation</a></li>
+        <li><a href="/docs/">Documentation</a></li>
         <li><a href="https://github.com/kronroe/kronroe/blob/main/crates/mcp-server/README.md">MCP Server</a></li>
         <li><a href="https://github.com/kronroe/kronroe/blob/main/CHANGELOG.md">Changelog</a></li>
       </ul>
@@ -2574,7 +2577,7 @@ function switchCodeTab(tab) {
     <div class="footer-col">
       <h5>Developers</h5>
       <ul>
-        <li><a href="/docs/">Getting Started</a></li>
+        <li><a href="https://github.com/kronroe/kronroe#readme">Getting Started</a></li>
         <li><a href="https://crates.io/crates/kronroe">Rust Crate</a></li>
         <li><a href="https://pypi.org/project/kronroe/">Python Package</a></li>
         <li><a href="https://github.com/kronroe/kronroe">GitHub</a></li>
@@ -2586,6 +2589,7 @@ function switchCodeTab(tab) {
         <li><a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md">Commercial Licence</a></li>
         <li><a href="mailto:rebekah@kindlyroe.com">Contact</a></li>
         <li><a href="https://github.com/kronroe/kronroe/blob/main/CLA.md">CLA</a></li>
+        <li><a href="#" onclick="event.preventDefault(); window.kronroeConsent &amp;&amp; window.kronroeConsent.open();">Cookie preferences</a></li>
       </ul>
     </div>
   </div>
@@ -2594,7 +2598,7 @@ function switchCodeTab(tab) {
     <div class="footer-badges">
       <span class="footer-badge">Pure Rust</span>
       <span class="footer-badge">Zero C deps</span>
-      <span class="footer-badge">No telemetry</span>
+      <span class="footer-badge">Local-first</span>
     </div>
   </div>
 </footer>

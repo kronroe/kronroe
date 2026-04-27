@@ -12,6 +12,7 @@
 <meta property="og:image" content="https://kronroe.dev/og-image.png"/>
 <link rel="canonical" href="https://kronroe.dev/docs/"/>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<script defer src="/js/analytics-consent.js"></script>
 <style>
   /* ── Self-hosted fonts — no third-party requests ── */
   @font-face {
@@ -383,6 +384,7 @@
       </div>
       <ul class="mock-nav-links">
         <li><a href="/docs/" class="active">Docs</a></li>
+        <li><a href="/blog/">Blog</a></li>
         <li><a href="https://github.com/kronroe/kronroe">GitHub</a></li>
       </ul>
       <a href="/" class="btn-primary" style="padding:0.45rem 1.1rem; font-size:0.82rem;">Home</a>
@@ -393,6 +395,7 @@
         </label>
         <div class="nav-mobile-menu">
           <a href="/docs/" class="active">Docs</a>
+          <a href="/blog/">Blog</a>
           <a href="https://github.com/kronroe/kronroe">GitHub</a>
           <a href="/">Home</a>
         </div>
@@ -553,6 +556,7 @@
         <li><a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md">Commercial Licence</a></li>
         <li><a href="mailto:rebekah@kindlyroe.com">Contact</a></li>
         <li><a href="https://github.com/kronroe/kronroe/blob/main/CLA.md">CLA</a></li>
+        <li><a href="#" onclick="event.preventDefault(); window.kronroeConsent &amp;&amp; window.kronroeConsent.open();">Cookie preferences</a></li>
       </ul>
     </div>
   </div>
@@ -561,7 +565,7 @@
     <div class="footer-badges">
       <span class="footer-badge">Pure Rust</span>
       <span class="footer-badge">Zero C deps</span>
-      <span class="footer-badge">No telemetry</span>
+      <span class="footer-badge">Local-first</span>
     </div>
   </div>
 </footer>

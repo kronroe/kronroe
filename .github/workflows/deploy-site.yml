@@ -52,6 +52,10 @@ jobs:
           if [ -d site/docs ]; then
             cp -r site/docs site/dist/docs
           fi
+          # Copy blog pages
+          if [ -d site/blog ]; then
+            cp -r site/blog site/dist/blog
+          fi
           echo "Assembled site/dist/:"
           ls -la site/dist/
 

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Kronroe Blog</title>
+    <description>Thoughts on bi-temporal data, AI agent memory, embedded databases, and building Kronroe.</description>
+    <link>https://kronroe.dev/blog/</link>
+    <atom:link href="https://kronroe.dev/blog/feed.xml" rel="self" type="application/rss+xml"/>
+    <language>en</language>
+    <managingEditor>rebekah@kindlyroe.com (Rebekah Cole)</managingEditor>
+    <lastBuildDate>Sun, 13 Apr 2026 00:00:00 GMT</lastBuildDate>
+    <item>
+      <title>Why we built Kronroe</title>
+      <description>AI agents need memory that understands time. Not a key-value store bolted to a vector database — a purpose-built engine where every fact carries four timestamps.</description>
+      <link>https://kronroe.dev/blog/why-kronroe/</link>
+      <guid isPermaLink="true">https://kronroe.dev/blog/why-kronroe/</guid>
+      <dc:creator>Rebekah Cole</dc:creator>
+      <pubDate>Sun, 13 Apr 2026 00:00:00 GMT</pubDate>
+      <category>Thinking</category>
+    </item>
+  </channel>
+</rss>
