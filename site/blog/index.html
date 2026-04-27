@@ -23,6 +23,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
 <link rel="alternate" type="application/rss+xml" title="Kronroe Blog" href="/blog/feed.xml"/>
 <script defer src="/js/analytics-consent.js"></script>
+<script defer src="/js/email-capture.js"></script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -433,6 +434,16 @@
     cursor: pointer; transition: background 0.15s; white-space: nowrap;
   }
   .subscribe-btn:hover { background: var(--violet-7); }
+  .subscribe-btn:disabled { opacity: 0.7; cursor: wait; }
+  .subscribe-status {
+    margin-top: 0.75rem;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    min-height: 1.25rem;
+    color: var(--text-muted);
+  }
+  .subscribe-status[data-state="success"] { color: var(--lime-6); font-weight: 600; }
+  .subscribe-status[data-state="error"] { color: var(--copper-7); }
   .subscribe-note {
     font-size: 0.72rem; color: var(--text-muted);
     margin-top: 0.75rem;
@@ -646,10 +657,14 @@
   <div class="subscribe-card">
     <h3>Kronroe is early. Follow the build.</h3>
     <span class="subscribe-annotation">&#8627; get notified when new facts are recorded</span>
-    <form class="subscribe-form" action="/blog/" method="post" onsubmit="return false;">
-      <input type="email" class="subscribe-input" placeholder="you@example.com" aria-label="Email address" required/>
+    <form class="subscribe-form"
+          data-kr-subscribe
+          action="https://buttondown.com/api/emails/embed-subscribe/REPLACE_WITH_BUTTONDOWN_USERNAME"
+          method="post">
+      <input type="email" name="email" class="subscribe-input" placeholder="you@example.com" aria-label="Email address" required/>
       <button type="submit" class="subscribe-btn">Subscribe</button>
     </form>
+    <p class="subscribe-status" data-kr-status aria-live="polite"></p>
     <p class="subscribe-note">1&ndash;2 posts per month. No spam. Unsubscribe anytime.</p>
   </div>
 
