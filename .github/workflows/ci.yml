@@ -221,6 +221,18 @@ jobs:
       - name: Verify sitemap is up to date
         run: python3 site/scripts/build-sitemap.py --check
 
+      - name: Set up Python deps for docs build
+        run: |
+          python3 -m venv site/scripts/.venv
+          site/scripts/.venv/bin/pip install --quiet \
+            markdown-it-py mdit-py-plugins pygments
+
+      - name: Verify docs build runs cleanly
+        # Smoke test that the docs build produces output without errors.
+        # Drift detection isn't useful here because docs-built/ is
+        # gitignored — the build always re-runs in deploy.
+        run: site/scripts/.venv/bin/python site/scripts/build-docs.py
+
   # ─── Wrapper verification ──────────────────────────────────────────────
 
   wrapper-verification:

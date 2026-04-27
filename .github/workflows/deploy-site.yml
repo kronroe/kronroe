@@ -40,8 +40,19 @@ jobs:
         run: wasm-pack build crates/wasm --target web --out-dir ../../site/public/pkg --no-typescript
         # outputs into site/public/pkg/ — assembled into dist in the next step
 
+      - name: Set up Python deps for docs + sitemap
+        run: |
+          python3 -m venv site/scripts/.venv
+          site/scripts/.venv/bin/pip install --quiet \
+            markdown-it-py mdit-py-plugins pygments
+
       - name: Regenerate sitemap from blog posts
         run: python3 site/scripts/build-sitemap.py
+
+      - name: Build docs from markdown
+        # Renders site/docs/**/*.md → site/docs-built/<...>/index.html
+        # using the Kronroe design system (see site/scripts/build-docs.py).
+        run: site/scripts/.venv/bin/python site/scripts/build-docs.py
 
       - name: Assemble static site into dist
         run: |
@@ -52,9 +63,15 @@ jobs:
           cp site/404.html site/dist/
           cp site/og-image.png site/dist/
           cp -r site/public/* site/dist/
-          # Copy docs pages (preserving directory structure)
-          if [ -d site/docs ]; then
-            cp -r site/docs site/dist/docs
+          # Copy hand-authored docs landing page; rendered subpages
+          # come from site/docs-built/ in the next step. Only copy the
+          # landing index.html (and any other top-level static files),
+          # not the source markdown/directories.
+          mkdir -p site/dist/docs
+          cp site/docs/index.html site/dist/docs/index.html
+          # Overlay the rendered docs pages + assets from build-docs.py
+          if [ -d site/docs-built ]; then
+            cp -r site/docs-built/. site/dist/docs/
           fi
           # Copy blog pages
           if [ -d site/blog ]; then
