@@ -1,0 +1,15 @@
+{
+  "name": "kronroe-site-tests",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Playwright compliance harness for kronroe.dev — cookie consent + analytics gating.",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "install-browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}
