@@ -1,176 +1,204 @@
 # Site setup — external services
 
-A short, do-once checklist for the things that can't be set up in code:
-search engine indexing and the newsletter provider. Estimated time:
-**~45 minutes total**.
-
-Work through the sections in order. Each section is independent — you
-can stop after any one and pick up later.
+A short reference for the external services that can't be set up in
+code: search engine indexing and the newsletter provider.
 
 ---
 
-## 1. Google Search Console (15 min)
+## Status (as of 2026-04-27)
+
+| Service | Status | Notes |
+|---|---|---|
+| **Google Search Console** | ✅ Verified, sitemap submitted | 4-URL sitemap will reflect on next deploy |
+| **Bing Webmaster Tools** | ✅ Verified via GSC import, sitemap submitted | IndexNow not yet wired (see deferred work below) |
+| **Buttondown** | ✅ Wired up — username `Kronroe` | Free tier, Keila is the long-term target (see migration plan) |
+
+---
+
+## 1. Google Search Console
 
 Tells you what queries you rank for, surfaces indexing errors,
 notifies you of broken pages.
 
-### Steps
+### Setup (already done)
 
-1. Go to https://search.google.com/search-console/welcome
-2. Pick **Domain** property type (not URL prefix) and enter `kronroe.dev`
-3. Google will give you a TXT record to add to DNS — paste it into your
-   domain registrar's DNS panel. Wait ~5 min for propagation.
-4. Click **Verify** in Search Console
-5. Once verified, go to **Sitemaps** in the left nav
-6. Submit `https://kronroe.dev/sitemap.xml`
-7. Done. First crawl usually shows up in 24-48 hrs.
+1. https://search.google.com/search-console/welcome
+2. Domain property type, entered `kronroe.dev`
+3. DNS TXT record added at registrar, verified
+4. Submitted `https://kronroe.dev/sitemap.xml`
 
-### What to watch for in the first month
+### What to watch for
 
-- **Coverage** report — should show all 4 URLs from the sitemap as
-  "Indexed". If any show "Discovered - currently not indexed" after a
-  week, content quality may be flagged as thin.
-- **Performance** report — first impressions and clicks. Don't expect
+- **Coverage report** (left nav → Pages) — should show all 4 URLs as
+  "Indexed" within ~7 days. If any show "Discovered - currently not
+  indexed" after a week, content quality may be flagged as thin.
+- **Performance report** — first impressions and clicks. Don't expect
   much for the first 4-6 weeks; SEO is slow.
-- **Core Web Vitals** — should be green. If not, we'll fix it.
+- **Core Web Vitals** — should be green. Re-check after a week of GA4
+  data accumulates.
+
+### When to re-submit the sitemap
+
+Re-submission isn't needed for routine content updates — Google
+recrawls automatically based on `lastmod` tags. Only re-submit if:
+
+- The sitemap URL itself changes (it won't — `sitemap.xml` is stable)
+- You've made a major site restructure with many URL changes
+- You see "Couldn't fetch" status and need to retry
 
 ---
 
-## 2. Bing Webmaster Tools (10 min)
+## 2. Bing Webmaster Tools
 
 Bing search powers ChatGPT search results, Copilot, and DuckDuckGo's
 fallback. Non-trivial AI-developer audience uses these.
 
-### Steps
+### Setup (already done)
 
-1. Go to https://www.bing.com/webmasters
-2. Sign in with a Microsoft account
-3. Pick **Import from Google Search Console** (saves verification —
-   uses the same DNS record). If GSC isn't done yet, use the manual
-   verification with a meta tag.
-4. Submit the same `https://kronroe.dev/sitemap.xml`
-5. Done.
+1. https://www.bing.com/webmasters
+2. Imported from Google Search Console (same DNS verification)
+3. Submitted same `https://kronroe.dev/sitemap.xml`
 
----
+### Deferred: IndexNow integration
 
-## 3. Buttondown newsletter (20 min)
+[IndexNow](https://www.indexnow.org/) lets you ping Bing/Yandex/DuckDuckGo
+the moment a new page goes live, instead of waiting for crawl. Useful
+once posting cadence is established (say, ≥4 posts).
 
-Indie newsletter service, $9/mo, Markdown editor, has API + RSS-to-newsletter.
+To enable later:
 
-### Steps
+1. In Bing Webmaster Tools, generate an IndexNow key
+2. Drop the key file at `site/public/<key>.txt` (Bing tells you the
+   exact filename)
+3. Add a step in `.github/workflows/deploy-site.yml` that POSTs the
+   list of changed URLs to `https://api.indexnow.org/indexnow` after
+   each deploy
 
-1. Sign up at https://buttondown.com — pick a username (this becomes
-   part of your subscribe URL, so make it short and brand-aligned, e.g.
-   `kronroe`)
-2. In Buttondown settings, set:
-   - **From email**: `rebekah@kindlyroe.com` (or wherever you want
-     replies to go)
-   - **Welcome email**: short, warm, links to the why-kronroe post +
-     GitHub repo. Sample below.
-   - **Confirmation email**: enable double opt-in (GDPR-safe, prevents
-     spam signups poisoning your list)
-3. Enable **RSS-to-email** and point it at `https://kronroe.dev/blog/feed.xml`
-   so new posts auto-trigger a newsletter draft for review.
-
-### Wire the form into the site
-
-Once you have your Buttondown username, replace the placeholder in
-two files:
-
-```bash
-# Repo-relative paths
-site/blog/index.html
-site/blog/why-kronroe/index.html
-```
-
-Find every occurrence of `REPLACE_WITH_BUTTONDOWN_USERNAME` and replace
-with your actual username (e.g. `kronroe`). Then update the CSP in
-`firebase.json` to allow Buttondown:
-
-```diff
--connect-src 'self' ws: wss: https://www.google-analytics.com https://analytics.google.com https://px.ads.linkedin.com;
-+connect-src 'self' ws: wss: https://www.google-analytics.com https://analytics.google.com https://px.ads.linkedin.com https://buttondown.com;
-```
-
-Test locally before pushing:
-
-```bash
-# Start the static preview server
-python3 -m http.server 5178 --bind 127.0.0.1 --directory site
-
-# Open http://localhost:5178/blog/why-kronroe/, scroll to the form,
-# enter your own email, and check that:
-# - the button shows "Subscribed ✓"
-# - the status text reads "Thanks — check your inbox to confirm."
-# - your inbox gets the Buttondown confirmation email
-```
-
-### Sample welcome email
-
-```
-Subject: Welcome to Kronroe — what's next
-
-Hi,
-
-You just subscribed to updates from Kronroe — the embedded bi-temporal
-graph database I'm building in the open. Thanks for that.
-
-A few quick links to get started:
-
-- Why we built Kronroe (the long-form version):
-  https://kronroe.dev/blog/why-kronroe/
-
-- The repo:
-  https://github.com/kronroe/kronroe
-
-- The docs:
-  https://kronroe.dev/docs/
-
-I send out updates roughly every 2 weeks. No marketing fluff — just
-what changed in the engine, what I'm thinking about, and the
-occasional deep technical post.
-
-If you ever want to reply, hit me back at rebekah@kindlyroe.com.
-
-— Rebekah
-```
+Skip until you're posting weekly+ — manual "Request indexing" via the
+URL Inspection tool is faster than building this for infrequent posts.
 
 ---
 
-## 4. Verify everything works (5 min)
+## 3. Newsletter — Buttondown (current) → Keila (target)
 
-Once Buttondown is wired and the CSP is updated, push the changes and
-let the deploy go. Then:
+### Why this two-stage decision
 
-- [ ] Open https://kronroe.dev/blog/why-kronroe/ in a private window
-- [ ] Accept cookies (so the consent banner doesn't block the test)
-- [ ] Subscribe with a fresh email address
-- [ ] Confirm the email arrives in inbox + welcome email lands
-- [ ] In **Google Analytics 4 Realtime**, confirm a `generate_lead`
-      event fires
-- [ ] In **Buttondown's subscribers list**, confirm the email appears
+We evaluated Buttondown, Keila (managed + self-hosted), Listmonk,
+Ghost (Pro + self-hosted), Beehiiv, Substack, and GCP-native options.
+The two real contenders were **Buttondown** and **Keila**.
 
-If any of these fail, the issue is one of:
-- CSP blocking the POST (check browser console for CSP errors)
-- Buttondown username mismatch (check the form's `action` URL)
-- Consent denied (analytics events won't fire — that's *correct*
-  behavior, not a bug)
+**Keila is our long-term target** — AGPL-3.0 (matches Kronroe), EU
+hosted, privacy-first, has a clean self-host migration path. But Keila
+has no free tier; managed costs ~€9/mo from day one.
+
+**Buttondown is our on-ramp** — free tier covers up to 100 subscribers
+(£0/mo), 5-minute setup, has native RSS-to-email automation. Lets us
+launch newsletter capture with zero ongoing cost until traction
+justifies the spend.
+
+### Buttondown configuration (already done)
+
+- **Username**: `Kronroe`
+- **Subscribe endpoint**: `https://buttondown.com/api/emails/embed-subscribe/Kronroe`
+- **From email**: `rebekah@kindlyroe.com`
+- **Double opt-in**: enabled
+- **RSS-to-email**: pointed at `https://kronroe.dev/blog/feed.xml`, **draft mode**
+- **Welcome email**: configured with brand voice + key links
+
+### What's wired into the site
+
+- `site/blog/index.html` and `site/blog/why-kronroe/index.html` have
+  `<form data-kr-subscribe action="...buttondown.com/...Kronroe">`
+- `site/js/email-capture.js` sends both `email` and `email_address`
+  body keys (provider-agnostic — works for Keila/Kit/Listmonk too)
+- CSP `connect-src` allows `https://buttondown.com` and
+  `https://buttondown.email`
+- GA4 `generate_lead` event fires on successful subscribe
+  (consent-gated automatically)
+
+### Migration triggers — when to switch to Keila
+
+Move to Keila managed when **any one** of these is true:
+
+| Signal | Threshold | Why this matters |
+|---|---|---|
+| Subscriber count | **≥80** | Approaching Buttondown's free-tier limit (100); migration before forced upgrade keeps optionality |
+| PyPI downloads | **≥500/mo** for `kronroe-mcp` or `kronroe-py` | Real adoption signal — we're past idle phase |
+| Commercial license interest | **First serious enquiry** | Brand alignment matters more once we're in commercial conversations; AGPL-on-AGPL is a clean story |
+| Posting cadence | **6+ posts published over 3 months** | Content marketing is sticking; investing in a better newsletter stack is justified |
+
+### Migration steps (for when the trigger fires)
+
+The migration is intentionally small because we built it that way.
+
+1. **Sign up at keila.io managed** (€9/mo) — pick `Kronroe` workspace
+2. **Export subscribers from Buttondown** as CSV — Settings →
+   Subscribers → Export
+3. **Import the CSV into Keila** — Subscribers → Import. Keila
+   preserves consent timestamps; double-check after import.
+4. **Get the Keila form endpoint** — Settings → Forms → Embed
+5. **Update two HTML files** — replace
+   `https://buttondown.com/api/emails/embed-subscribe/Kronroe` with
+   the new Keila form URL in:
+   - `site/blog/index.html`
+   - `site/blog/why-kronroe/index.html`
+6. **Update CSP in `firebase.json`** — replace
+   `https://buttondown.com https://buttondown.email` in `connect-src`
+   with `https://keila.io` (or the self-hosted domain if you've gone
+   that far)
+7. **Reconfigure RSS-to-email in Keila** — point at
+   `https://kronroe.dev/blog/feed.xml`, draft mode
+8. **Cancel Buttondown** — keep the account dormant for 30 days as a
+   read-only fallback in case the migration revealed any issues, then
+   delete
+
+Estimated migration time: **30-60 minutes**. Most of that is waiting
+for DNS/CSP to propagate.
+
+### Open improvement (deferred)
+
+The RSS feed at `/blog/feed.xml` currently has `<description>` summaries
+but no `<content:encoded>` with the full post body. This means
+RSS-to-email creates "click to read more" emails rather than embedding
+the full post.
+
+For "draft mode" workflow (where you review each newsletter), this is
+fine — you'd add the body manually before sending. If you ever want
+full-post auto-emails, extend `site/scripts/build-sitemap.py` into a
+sister script `build-feed.py` that walks each post's HTML body and
+embeds it as `<![CDATA[...]]>` in `<content:encoded>`. Estimated 30
+minutes of work.
 
 ---
 
-## What's deliberately not in this list
+## 4. Verification — confirm Buttondown wiring works end-to-end
 
-A few things I considered but decided to skip until you have signal:
+Once the next deploy lands (PR #178 merging), test the full subscribe
+flow:
 
-- **Plausible / Fathom side-by-side with GA4** — diminishing returns
-  until you have >1k visitors/mo. GA4 + LinkedIn covers the core
-  questions for now.
-- **Twitter / X / Bluesky / Mastodon meta tags** — `og:` and `twitter:`
-  cards already cover the major scrapers. Adding more rarely changes
-  click-through.
-- **A `humans.txt`** — cute but no real signal. Skip.
-- **`security.txt`** — worth doing once you have CVE-able surface area
-  (i.e. a published Rust crate getting downloaded). Phase 1 task.
+1. Open `https://kronroe.dev/blog/why-kronroe/` in a private window
+2. **Accept cookies** in the consent banner (otherwise GA events won't
+   fire — that's correct gating, not a bug)
+3. Scroll to the subscribe card at the bottom
+4. Enter a fresh email address you control
+5. Click **Subscribe**
+6. Check that:
+   - [ ] The button shows "Subscribed ✓"
+   - [ ] The status text reads "Thanks — check your inbox to confirm."
+   - [ ] Your inbox receives the Buttondown confirmation email
+   - [ ] After confirming, the welcome email arrives
+   - [ ] In **Buttondown subscribers list**, the email appears
+   - [ ] In **GA4 Realtime → Events**, a `generate_lead` event fires
+
+If any step fails, the issue is one of:
+
+- **CSP blocking the POST** — open browser console, look for CSP
+  violations. The fix is almost always a missing host in
+  `connect-src`.
+- **Username case mismatch** — Buttondown's URLs are case-sensitive.
+  We're using `Kronroe` (capital K). If the form 404s, double-check.
+- **Consent denied** — analytics events won't fire. This is *correct*
+  behavior, not a bug. Subscribe will still work; just no GA event.
 
 ---
 
