@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script>/* Redirect Firebase default hostnames to canonical kronroe.dev — runs synchronously before render to avoid flashing wrong-domain content */
+(function(){var h=location.hostname;if(h==='kronroe.web.app'||h==='kronroe.firebaseapp.com'){location.replace('https://kronroe.dev'+location.pathname+location.search+location.hash);}})();</script>
 <title>Kronroe — Private Bi-temporal AI Memory</title>
 <meta name="description" content="Kronroe is an embedded bi-temporal graph database for AI agent memory and mobile/edge apps. No server, no cloud, no data risk."/>
 <meta property="og:title" content="Kronroe — Private Bi-temporal AI Memory"/>
