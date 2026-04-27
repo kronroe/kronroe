@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script>/* Redirect Firebase default hostnames to canonical kronroe.dev */
+(function(){var h=location.hostname;if(h==='kronroe.web.app'||h==='kronroe.firebaseapp.com'){location.replace('https://kronroe.dev'+location.pathname+location.search+location.hash);}})();</script>
+<title>Pricing — Kronroe</title>
+<meta name="description" content="Kronroe is dual-licensed under AGPL-3.0 and a commercial licence. Commercial pricing is in development — get in touch for early conversations."/>
+<meta property="og:title" content="Pricing — Kronroe"/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://kronroe.dev/pricing/"/>
+<link rel="canonical" href="https://kronroe.dev/pricing/"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<script defer src="/js/analytics-consent.js"></script>
+<style>
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/fonts/web/jetbrainsmono-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --bg: #FBFAFF;
+    --warm-10: #191726;
+    --warm-7: #4A4559;
+    --warm-5: #6E6980;
+    --violet-6: #7C5CFC;
+    --violet-7: #6344E0;
+    --copper-6: #E87D4A;
+    --cyan-6: #3EC9C9;
+    --lime-6: #8BBF20;
+    --border: #DDD9E8;
+    --surface: #F4F2FA;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--warm-10);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    line-height: 1.65;
+  }
+
+  body { padding: 2.5rem 1.5rem 4rem; }
+
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  .stripe {
+    height: 4px;
+    width: 100%;
+    background: linear-gradient(90deg,
+      var(--violet-6) 0 25%,
+      var(--copper-6) 25% 50%,
+      var(--cyan-6) 50% 75%,
+      var(--lime-6) 75% 100%);
+    border-radius: 2px;
+    margin-bottom: 3rem;
+  }
+
+  .nav-back {
+    display: inline-block;
+    margin-bottom: 2rem;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--warm-5);
+    text-decoration: none;
+  }
+  .nav-back:hover { color: var(--violet-6); }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.85rem;
+    color: var(--warm-5);
+    letter-spacing: 0.06em;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 2.75rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 1.5rem;
+  }
+
+  .lede {
+    font-size: 1.05rem;
+    color: var(--warm-7);
+    margin-bottom: 2rem;
+  }
+
+  h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+  }
+
+  p { margin-bottom: 1rem; color: var(--warm-7); font-size: 0.95rem; }
+
+  ul { margin: 0 0 1rem 1.5rem; color: var(--warm-7); font-size: 0.95rem; }
+  li { margin-bottom: 0.5rem; }
+
+  a { color: var(--violet-6); text-decoration: underline; text-underline-offset: 2px; }
+  a:hover { color: var(--violet-7); }
+
+  code {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.85em;
+    background: var(--surface);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    color: var(--warm-10);
+  }
+
+  .tier-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 2rem 0;
+  }
+  @media (max-width: 600px) { .tier-grid { grid-template-columns: 1fr; } }
+
+  .tier {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 1.5rem 1.75rem;
+    position: relative;
+  }
+  .tier::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+  }
+  .tier-open::before { background: var(--lime-6); }
+  .tier-commercial::before { background: var(--violet-6); }
+
+  .tier-name {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--warm-5);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  .tier-headline {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--warm-10);
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.01em;
+  }
+  .tier-price {
+    font-size: 0.92rem;
+    color: var(--warm-7);
+    margin-bottom: 1rem;
+  }
+  .tier-price strong { color: var(--warm-10); font-weight: 600; }
+  .tier ul { margin: 0 0 0 1.25rem; font-size: 0.88rem; }
+  .tier li { margin-bottom: 0.4rem; }
+
+  .cta-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem 2rem 2rem;
+    text-align: center;
+    margin: 3rem 0 1rem;
+    position: relative;
+  }
+  .cta-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg,
+      var(--violet-6) 0 25%,
+      var(--copper-6) 25% 50%,
+      var(--cyan-6) 50% 75%,
+      var(--lime-6) 75% 100%);
+    border-radius: 12px 12px 0 0;
+  }
+  .cta-card h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+  .cta-card p { font-size: 0.9rem; max-width: 440px; margin: 0 auto 1.25rem; }
+
+  .btn {
+    display: inline-block;
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1.5px solid transparent;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .btn-primary {
+    background: var(--violet-6);
+    color: #fff;
+    border-color: var(--violet-6);
+  }
+  .btn-primary:hover { background: var(--violet-7); border-color: var(--violet-7); }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 3rem 0 2rem; }
+
+  footer {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--warm-5);
+  }
+  footer a { color: var(--violet-6); }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<a href="/" class="nav-back">&larr; Kronroe</a>
+
+<div class="stripe" aria-hidden="true"></div>
+
+<p class="eyebrow">pricing</p>
+
+<h1>Free for open source. Commercial licence in development.</h1>
+
+<p class="lede">
+  Kronroe is dual-licensed under <strong>AGPL-3.0</strong> for open-source
+  use and a <strong>commercial licence</strong> for companies that need
+  different terms. Commercial pricing is being designed deliberately — so
+  rather than guess, this page is honest about where it stands today.
+</p>
+
+<div class="tier-grid">
+  <div class="tier tier-open">
+    <p class="tier-name">Open source</p>
+    <h2 class="tier-headline">AGPL-3.0</h2>
+    <p class="tier-price"><strong>Free.</strong> Forever.</p>
+    <ul>
+      <li>Full engine, all platforms (Rust, Python, iOS, Android, WASM, MCP)</li>
+      <li>All current and future features</li>
+      <li>No usage limits, no telemetry, no lock-in</li>
+      <li>Your project must also be open-source under a compatible licence</li>
+      <li>Full source on <a href="https://github.com/kronroe/kronroe">GitHub</a></li>
+    </ul>
+  </div>
+  <div class="tier tier-commercial">
+    <p class="tier-name">Commercial</p>
+    <h2 class="tier-headline">Talk to us</h2>
+    <p class="tier-price"><strong>Pricing in development.</strong></p>
+    <ul>
+      <li>Use Kronroe in proprietary or closed-source products</li>
+      <li>Distribute it embedded in commercial software</li>
+      <li>No AGPL obligations on your application code</li>
+      <li>Same engine, same updates, same support direction</li>
+      <li>Get in touch for early conversations</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Why pricing isn't public yet</h2>
+
+<p>
+  I'm a sole maintainer building this in public. Setting commercial
+  pricing too early — before there are enough commercial conversations
+  to know what's reasonable — leads to numbers that are either too high
+  (and lose deals) or too low (and damage long-term sustainability).
+</p>
+
+<p>
+  So instead of putting up a number that I'd have to defend or change,
+  I'd rather talk. Most early commercial users want a few specific
+  things — perpetual licence vs. subscription, single-product vs.
+  organisation-wide, distribution rights vs. internal use — and the
+  right price depends on which combination matches your situation.
+</p>
+
+<h2>What's available right now</h2>
+
+<ul>
+  <li>
+    <strong>If you're building open-source software</strong> compatible
+    with <a href="https://github.com/kronroe/kronroe/blob/main/LICENSE">AGPL-3.0</a>,
+    you can use Kronroe today, free, with no further conversation needed.
+  </li>
+  <li>
+    <strong>If you're building commercial software</strong> and need
+    different terms,
+    <a href="mailto:rebekah@kindlyroe.com?subject=Kronroe%20commercial%20licence">email me</a>.
+    We'll work out a licence that makes sense for your situation. Early
+    customers get founder pricing.
+  </li>
+  <li>
+    <strong>If you're not sure</strong> which applies to you, also email
+    me. AGPL is genuinely viral in some software designs and benign in
+    others, and a 5-minute conversation usually clarifies it.
+  </li>
+</ul>
+
+<h2>What you can expect when pricing lands</h2>
+
+<p>
+  When the commercial pricing is published, it'll likely follow this
+  shape:
+</p>
+
+<ul>
+  <li>A <strong>per-product perpetual licence</strong> for shipping
+  Kronroe embedded in a commercial application</li>
+  <li>An <strong>organisation-wide annual subscription</strong> for
+  internal use across multiple products</li>
+  <li><strong>OEM pricing</strong> for distributing Kronroe inside other
+  developer-facing tools</li>
+  <li><strong>Founder pricing for early customers</strong> who agree to
+  multi-year terms before the public price ships</li>
+</ul>
+
+<p>
+  Existing licensees won't have their terms increased retroactively when
+  public pricing arrives. The
+  <a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md">commercial licence text</a>
+  already exists; only the price is in flux.
+</p>
+
+<div class="cta-card">
+  <h3>Want a commercial licence?</h3>
+  <p>
+    Tell me what you're building and what shape of licence would work.
+    Most early conversations close in a week or two, with founder pricing
+    that beats whatever the public number ends up being.
+  </p>
+  <a class="btn btn-primary" href="mailto:rebekah@kindlyroe.com?subject=Kronroe%20commercial%20licence">Email Rebekah</a>
+</div>
+
+<hr>
+
+<footer>
+  <p>
+    &copy; 2026 Rebekah Cole &middot;
+    <a href="/">Home</a> &middot;
+    <a href="/about/">About</a> &middot;
+    <a href="/privacy/">Privacy</a> &middot;
+    <a href="https://github.com/kronroe/kronroe">GitHub</a>
+  </p>
+</footer>
+
+</div>
+
+</body>
+</html>

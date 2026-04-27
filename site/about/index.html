@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script>/* Redirect Firebase default hostnames to canonical kronroe.dev */
+(function(){var h=location.hostname;if(h==='kronroe.web.app'||h==='kronroe.firebaseapp.com'){location.replace('https://kronroe.dev'+location.pathname+location.search+location.hash);}})();</script>
+<title>About Kronroe — built by Rebekah Cole</title>
+<meta name="description" content="Kronroe is built by one person — Rebekah Cole — as the database engine that AI agent memory and on-device apps actually need. Here's the story behind it."/>
+<meta property="og:title" content="About Kronroe — built by Rebekah Cole"/>
+<meta property="og:description" content="The story behind Kronroe — why a sole maintainer is building an embedded bi-temporal graph database in the open."/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://kronroe.dev/about/"/>
+<meta property="og:image" content="https://kronroe.dev/og-image.png"/>
+<link rel="canonical" href="https://kronroe.dev/about/"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<script defer src="/js/analytics-consent.js"></script>
+<style>
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/fonts/web/jetbrainsmono-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Virgil';
+    src: url('/fonts/web/virgil.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --bg: #FBFAFF;
+    --warm-10: #191726;
+    --warm-7: #4A4559;
+    --warm-5: #6E6980;
+    --violet-6: #7C5CFC;
+    --violet-7: #6344E0;
+    --copper-6: #E87D4A;
+    --cyan-6: #3EC9C9;
+    --lime-6: #8BBF20;
+    --border: #DDD9E8;
+    --surface: #F4F2FA;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--warm-10);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    line-height: 1.7;
+  }
+
+  body { padding: 2.5rem 1.5rem 4rem; }
+
+  .container {
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  .stripe {
+    height: 4px;
+    width: 100%;
+    background: linear-gradient(90deg,
+      var(--violet-6) 0 25%,
+      var(--copper-6) 25% 50%,
+      var(--cyan-6) 50% 75%,
+      var(--lime-6) 75% 100%);
+    border-radius: 2px;
+    margin-bottom: 3rem;
+  }
+
+  .nav-back {
+    display: inline-block;
+    margin-bottom: 2rem;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--warm-5);
+    text-decoration: none;
+  }
+  .nav-back:hover { color: var(--violet-6); }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.85rem;
+    color: var(--warm-5);
+    letter-spacing: 0.06em;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: clamp(2.25rem, 5vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 1.5rem;
+  }
+
+  .lede {
+    font-size: 1.15rem;
+    color: var(--warm-7);
+    line-height: 1.6;
+    margin-bottom: 2.5rem;
+  }
+
+  .lede em { font-style: italic; color: var(--warm-10); }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-top: 3rem;
+    margin-bottom: 1rem;
+    letter-spacing: -0.01em;
+  }
+
+  p { margin-bottom: 1.25rem; color: var(--warm-7); font-size: 1rem; }
+
+  p strong { color: var(--warm-10); }
+
+  .annotation {
+    font-family: 'Virgil', 'Caveat', cursive;
+    font-size: 1.05rem;
+    color: var(--copper-6);
+    margin: 0.5rem 0 2rem;
+    padding-left: 1rem;
+    border-left: 2px solid var(--copper-6);
+  }
+
+  .pull-quote {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--warm-10);
+    line-height: 1.5;
+    margin: 2rem 0 2.5rem;
+    padding: 1.5rem 1.75rem;
+    background: var(--surface);
+    border-left: 3px solid var(--violet-6);
+    border-radius: 0 10px 10px 0;
+  }
+
+  ul {
+    margin: 0 0 1.5rem 1.5rem;
+    color: var(--warm-7);
+  }
+  li { margin-bottom: 0.5rem; }
+
+  a {
+    color: var(--violet-6);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  a:hover { color: var(--violet-7); }
+
+  code {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.85em;
+    background: var(--surface);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    color: var(--warm-10);
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin: 2rem 0 2.5rem;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+  }
+  .stat-label {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--warm-5);
+    margin-bottom: 0.25rem;
+  }
+  .stat-value {
+    font-size: 1rem;
+    color: var(--warm-10);
+    font-weight: 600;
+  }
+
+  .cta-row {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin: 2rem 0 1rem;
+  }
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1.5px solid transparent;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .btn-primary {
+    background: var(--violet-6);
+    color: #fff;
+    border-color: var(--violet-6);
+  }
+  .btn-primary:hover { background: var(--violet-7); border-color: var(--violet-7); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--warm-7);
+    border-color: #C4BFD1;
+  }
+  .btn-secondary:hover {
+    background: var(--surface);
+    color: var(--warm-10);
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 3rem 0 2rem;
+  }
+
+  footer {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--warm-5);
+  }
+  footer a { color: var(--violet-6); }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<a href="/" class="nav-back">&larr; Kronroe</a>
+
+<div class="stripe" aria-hidden="true"></div>
+
+<p class="eyebrow">about</p>
+
+<h1>One person. One engine. Built in the open.</h1>
+
+<p class="lede">
+  Kronroe is an embedded bi-temporal graph database for AI agent memory
+  and mobile/edge applications. It's built by <strong>one person</strong>
+  — me, Rebekah Cole — as the database engine that on-device AI memory
+  actually needs.
+</p>
+
+<p class="annotation">&#8627; not an app-layer patch on something that wasn't built for it</p>
+
+<h2>Why I'm building it</h2>
+
+<p>
+  I started Kronroe because I needed it for <strong>Kindly Roe</strong>,
+  my iOS app. Kindly Roe is a private, on-device companion that
+  remembers context across conversations — and it needs memory that
+  understands time. Not just <em>"is this fact true?"</em> but
+  <em>"when was it true, when did we record it, and what did we
+  believe before that?"</em>
+</p>
+
+<p>
+  I tried to build it on top of existing tools first. Vector databases
+  with timestamps glued on. Graph databases requiring a server. Cloud
+  services that wanted my users' data. Each one made the same trade-off:
+  treat temporal evolution as an application concern, not an engine
+  primitive. Each one broke under the weight of real conversational
+  memory after a few weeks.
+</p>
+
+<div class="pull-quote">
+  The more I built, the more I realised the problem deserved a proper
+  engine, not an app-layer patch.
+</div>
+
+<p>
+  So I started writing it myself. In Rust, because I wanted it to run
+  on iOS without a runtime. With a bi-temporal model from the bottom
+  up, because that's what the problem actually requires. Open source,
+  because the only way embedded databases earn trust is by being
+  inspectable.
+</p>
+
+<h2>What it is, in one paragraph</h2>
+
+<p>
+  Kronroe is the <a href="/blog/why-kronroe/">DuckDB of graph databases</a>.
+  Like DuckDB redesigned the embedded relational engine for analytical
+  workloads, Kronroe redesigns the embedded graph engine for temporal
+  knowledge evolution. It runs in your process — no server, no cloud,
+  no data leaves your device. Every fact carries four timestamps
+  (<em>valid_from</em>, <em>valid_to</em>, <em>recorded_at</em>,
+  <em>expired_at</em>) so you can ask not just <em>what's true?</em>
+  but <em>what was true when?</em> and <em>what did we believe at the
+  time?</em>
+</p>
+
+<p>It ships as:</p>
+
+<ul>
+  <li>A <strong>Rust crate</strong> (<code>kronroe</code>) for native applications</li>
+  <li>A <strong>Python package</strong> (<code>kronroe</code>) via PyO3</li>
+  <li>An <strong>iOS framework</strong> (<code>KronroeFFI.xcframework</code>) for Swift apps</li>
+  <li>An <strong>Android library</strong> (JNI + Kotlin) for native Android</li>
+  <li>A <strong>WebAssembly bundle</strong> for browser apps</li>
+  <li>An <strong>MCP server</strong> with 11 tools for AI agents</li>
+</ul>
+
+<p>
+  All from one codebase, one engine, one set of guarantees. No backend
+  to provision, no cloud account to create, no API key to manage.
+</p>
+
+<h2>Who I am</h2>
+
+<p>
+  I'm Rebekah Cole. I'm a software engineer based in the United Kingdom.
+  I'm the sole maintainer of Kronroe and the founder of Kindly Roe.
+  I write code in Rust, Swift, Python, and TypeScript depending on the
+  problem.
+</p>
+
+<p>
+  I've spent the last few years on the intersection of AI agents,
+  on-device privacy, and personal tools. The thing I keep coming back
+  to is that the genuinely useful AI applications — the ones that
+  remember you, that work without an internet connection, that don't
+  require trusting someone else's cloud — share a common bottleneck:
+  the storage layer doesn't take time seriously. Kronroe is my answer
+  to that.
+</p>
+
+<p>
+  I built this in the open because I think it's the only way embedded
+  databases earn trust. The license is <strong>AGPL-3.0 with a
+  commercial option</strong>, so individual developers can use it for
+  free in open-source projects, and companies who don't want to be
+  bound by AGPL can buy a commercial licence.
+</p>
+
+<h2>Where it is right now</h2>
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-label">Status</div>
+    <div class="stat-value">Phase 0 — public alpha</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Targets</div>
+    <div class="stat-value">Rust, Python, iOS, Android, WASM, MCP</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">License</div>
+    <div class="stat-value">AGPL-3.0 + commercial</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Maintainer</div>
+    <div class="stat-value">Rebekah Cole (UK)</div>
+  </div>
+</div>
+
+<p>
+  The core engine, MCP server, and platform bindings are all working.
+  The full-text search (Kronroe's own lexical engine), vector index
+  (flat cosine), and contradiction detection are shipping. Hybrid
+  retrieval and the uncertainty model are behind feature flags while
+  I tune them.
+</p>
+
+<p>
+  The first user is <a href="https://github.com/kronroe/kronroe">Kronroe
+  itself, built into Kindly Roe</a>. The second will be you, if you
+  want to try it.
+</p>
+
+<h2>How to follow along</h2>
+
+<p>
+  I share build notes through <strong>Kronroe Notes</strong> — a
+  newsletter that lands roughly every two weeks. Technical decisions,
+  what changed in the engine, what I'm thinking about, the occasional
+  deep technical post. <em>No marketing fluff, just the work.</em>
+</p>
+
+<p>You can also:</p>
+
+<ul>
+  <li>Read the <a href="/blog/">blog</a> (long-form posts)</li>
+  <li>Browse the <a href="/docs/">docs</a></li>
+  <li>Star the project on <a href="https://github.com/kronroe/kronroe">GitHub</a></li>
+  <li>Email me directly at <a href="mailto:rebekah@kindlyroe.com">rebekah@kindlyroe.com</a> — I read everything</li>
+</ul>
+
+<div class="cta-row">
+  <a class="btn btn-primary" href="/blog/why-kronroe/">Start with the why</a>
+  <a class="btn btn-secondary" href="/blog/">Read the blog</a>
+  <a class="btn btn-secondary" href="https://github.com/kronroe/kronroe">Browse GitHub</a>
+</div>
+
+<hr>
+
+<footer>
+  <p>
+    &copy; 2026 Rebekah Cole &middot;
+    <a href="/">Home</a> &middot;
+    <a href="/blog/">Blog</a> &middot;
+    <a href="/docs/">Docs</a> &middot;
+    <a href="/privacy/">Privacy</a> &middot;
+    <a href="https://github.com/kronroe/kronroe">GitHub</a>
+  </p>
+</footer>
+
+</div>
+
+</body>
+</html>

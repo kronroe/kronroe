@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script>/* Redirect Firebase default hostnames to canonical kronroe.dev */
+(function(){var h=location.hostname;if(h==='kronroe.web.app'||h==='kronroe.firebaseapp.com'){location.replace('https://kronroe.dev'+location.pathname+location.search+location.hash);}})();</script>
+<title>Privacy &amp; Cookies | Kronroe</title>
+<meta name="description" content="How Kronroe handles personal data, cookies, and analytics. Plain-English version, with the legally precise version where it matters."/>
+<meta property="og:title" content="Privacy &amp; Cookies | Kronroe"/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://kronroe.dev/privacy/"/>
+<link rel="canonical" href="https://kronroe.dev/privacy/"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<script defer src="/js/analytics-consent.js"></script>
+<style>
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/fonts/web/jetbrainsmono-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --bg: #FBFAFF;
+    --warm-10: #191726;
+    --warm-7: #4A4559;
+    --warm-5: #6E6980;
+    --violet-6: #7C5CFC;
+    --violet-7: #6344E0;
+    --copper-6: #E87D4A;
+    --cyan-6: #3EC9C9;
+    --lime-6: #8BBF20;
+    --border: #DDD9E8;
+    --surface: #F4F2FA;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--warm-10);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    line-height: 1.65;
+  }
+
+  body { padding: 2.5rem 1.5rem 4rem; }
+
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  .stripe {
+    height: 4px;
+    width: 100%;
+    background: linear-gradient(90deg,
+      var(--violet-6) 0 25%,
+      var(--copper-6) 25% 50%,
+      var(--cyan-6) 50% 75%,
+      var(--lime-6) 75% 100%);
+    border-radius: 2px;
+    margin-bottom: 3rem;
+  }
+
+  .meta {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.78rem;
+    color: var(--warm-5);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 1rem;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 2.75rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 1rem;
+  }
+
+  .lede {
+    font-size: 1.05rem;
+    color: var(--warm-7);
+    margin-bottom: 2.5rem;
+  }
+
+  h2 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin-top: 3rem;
+    margin-bottom: 1rem;
+    scroll-margin-top: 1rem;
+  }
+
+  h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+    color: var(--warm-7);
+  }
+
+  p { margin-bottom: 1rem; color: var(--warm-7); font-size: 0.95rem; }
+
+  ul, ol {
+    margin: 0 0 1rem 1.5rem;
+    color: var(--warm-7);
+    font-size: 0.95rem;
+  }
+  li { margin-bottom: 0.5rem; }
+
+  a {
+    color: var(--violet-6);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  a:hover { color: var(--violet-7); }
+
+  code {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.85em;
+    background: var(--surface);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    color: var(--warm-10);
+  }
+
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin: 2rem 0 3rem;
+    font-size: 0.88rem;
+  }
+  .toc strong {
+    display: block;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--warm-5);
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+  .toc ul { list-style: none; margin: 0; }
+  .toc li { margin-bottom: 0.25rem; }
+  .toc a { color: var(--warm-7); text-decoration: none; }
+  .toc a:hover { color: var(--violet-6); text-decoration: underline; }
+
+  .summary-box {
+    background: var(--surface);
+    border-left: 3px solid var(--violet-6);
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+    font-size: 0.9rem;
+  }
+  .summary-box strong { color: var(--violet-7); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.88rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--warm-5);
+    font-weight: 600;
+    background: var(--surface);
+  }
+  td code { font-size: 0.78rem; }
+
+  .nav-back {
+    display: inline-block;
+    margin-bottom: 2rem;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--warm-5);
+    text-decoration: none;
+  }
+  .nav-back:hover { color: var(--violet-6); }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 3rem 0 2rem;
+  }
+
+  footer {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--warm-5);
+  }
+  footer a { color: var(--violet-6); }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<a href="/" class="nav-back">&larr; Kronroe</a>
+
+<div class="stripe" aria-hidden="true"></div>
+
+<p class="meta">Last updated: 27 April 2026 &middot; v1.0</p>
+
+<h1>Privacy &amp; cookies</h1>
+
+<p class="lede">
+  Plain-English version, with the legally precise version where it matters.
+  Kronroe is built by one person — Rebekah Cole — and the data practices
+  here reflect that: what's collected is collected because something
+  genuinely needs it, not because someone built an analytics pipeline by
+  default.
+</p>
+
+<div class="toc">
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#summary">1. The short version</a></li>
+    <li><a href="#who">2. Who we are</a></li>
+    <li><a href="#data">3. What data we collect</a></li>
+    <li><a href="#why">4. Why we collect it (legal basis)</a></li>
+    <li><a href="#third-parties">5. Who we share it with</a></li>
+    <li><a href="#cookies">6. Cookies</a></li>
+    <li><a href="#retention">7. How long we keep it</a></li>
+    <li><a href="#rights">8. Your rights</a></li>
+    <li><a href="#international">9. International transfers</a></li>
+    <li><a href="#children">10. Children</a></li>
+    <li><a href="#changes">11. Changes to this policy</a></li>
+    <li><a href="#contact">12. Contact &amp; complaints</a></li>
+  </ul>
+</div>
+
+<h2 id="summary">1. The short version</h2>
+
+<div class="summary-box">
+  <p><strong>If you don't accept cookies:</strong> we collect nothing analytics-related. We don't see who you are, what page you read, or where you came from. Site functionality (loading pages, reading the blog, subscribing to the newsletter) all still works.</p>
+  <p><strong>If you accept analytics cookies:</strong> Google Analytics 4 collects anonymous usage data — pages viewed, traffic sources, rough geography — to help us understand how the site is used.</p>
+  <p><strong>If you accept marketing cookies:</strong> the LinkedIn Insight Tag collects anonymous professional demographic data (job titles, industries) to help us understand our audience.</p>
+  <p><strong>If you subscribe to the newsletter:</strong> your email address goes to Buttondown, our newsletter provider. You can unsubscribe with one click in any email.</p>
+  <p style="margin-bottom:0"><strong>We don't sell, rent, or share data with anyone outside the providers named here.</strong></p>
+</div>
+
+<h2 id="who">2. Who we are</h2>
+
+<p>
+  Kronroe is operated by Rebekah Cole, sole proprietor, based in the
+  United Kingdom. For the purposes of UK GDPR and EU GDPR, Rebekah Cole
+  is the <strong>data controller</strong> for personal data collected
+  through this website.
+</p>
+
+<p>
+  <strong>Contact:</strong> <a href="mailto:rebekah@kindlyroe.com">rebekah@kindlyroe.com</a><br>
+  <strong>Website:</strong> <a href="https://kronroe.dev">kronroe.dev</a>
+</p>
+
+<h2 id="data">3. What data we collect</h2>
+
+<p>The categories of personal data we collect are:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>What's in it</th>
+      <th>When collected</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Newsletter subscriber data</td>
+      <td>Your email address; date you subscribed; date you confirmed; date you unsubscribed (if applicable); a record of consent.</td>
+      <td>Only when you subscribe via a form on this site.</td>
+    </tr>
+    <tr>
+      <td>Cookie consent record</td>
+      <td>Your consent choices (analytics yes/no, marketing yes/no), the version of this policy you consented to, the date you chose, and the date that consent expires (12 months).</td>
+      <td>When you make a choice in the cookie banner. Stored in a cookie on your own device.</td>
+    </tr>
+    <tr>
+      <td>Analytics data (with consent)</td>
+      <td>Anonymous Google Analytics 4 data: pages viewed, time on page, traffic source, browser, rough geography (city level), device type. <strong>No personal identifiers.</strong></td>
+      <td>Only after you accept analytics cookies.</td>
+    </tr>
+    <tr>
+      <td>Marketing data (with consent)</td>
+      <td>Anonymous LinkedIn Insight Tag data: aggregate professional demographics of site visitors (job titles, industries). <strong>No personal identifiers visible to us.</strong></td>
+      <td>Only after you accept marketing cookies.</td>
+    </tr>
+    <tr>
+      <td>Server logs</td>
+      <td>Standard web server logs (IP address, requested URL, timestamp, user agent). Retained briefly by our hosting provider for security and operational purposes.</td>
+      <td>On every request, before any consent decision. Required for the site to function.</td>
+    </tr>
+    <tr>
+      <td>Email correspondence</td>
+      <td>If you email us, we keep that email and our reply.</td>
+      <td>When you email us.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="why">4. Why we collect it (legal basis)</h2>
+
+<p>Under UK and EU GDPR, every piece of personal data we process must have a legal basis. Here are ours:</p>
+
+<ul>
+  <li><strong>Newsletter subscriber data:</strong> Consent (Article 6(1)(a) UK/EU GDPR). You actively chose to subscribe; you can withdraw consent at any time by unsubscribing.</li>
+  <li><strong>Cookie consent record:</strong> Legitimate interest in keeping a record of your consent choices (Article 6(1)(f)). Required by GDPR's accountability principle — without it, we couldn't prove you'd given consent.</li>
+  <li><strong>Analytics &amp; marketing data:</strong> Consent (Article 6(1)(a)). No analytics or marketing data is collected unless you actively accept the relevant cookie category.</li>
+  <li><strong>Server logs:</strong> Legitimate interest in operating, securing, and debugging the website (Article 6(1)(f)).</li>
+  <li><strong>Email correspondence:</strong> Legitimate interest in responding to you (Article 6(1)(f)) and contractual necessity if you've engaged us commercially.</li>
+</ul>
+
+<h2 id="third-parties">5. Who we share it with</h2>
+
+<p>We share data with the following service providers, only as needed for the named purpose:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Provider</th>
+      <th>Purpose</th>
+      <th>Data shared</th>
+      <th>Where it's processed</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="https://buttondown.com/privacy" target="_blank" rel="noopener">Buttondown</a></td>
+      <td>Newsletter delivery</td>
+      <td>Email address; subscription metadata</td>
+      <td>USA</td>
+    </tr>
+    <tr>
+      <td><a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google (Analytics 4)</a></td>
+      <td>Anonymous usage analytics (consent-gated)</td>
+      <td>IP address (anonymised), browser, page views</td>
+      <td>USA / EU</td>
+    </tr>
+    <tr>
+      <td><a href="https://www.linkedin.com/legal/privacy-policy" target="_blank" rel="noopener">LinkedIn (Insight Tag)</a></td>
+      <td>Anonymous demographic analytics (consent-gated)</td>
+      <td>Browser cookies; aggregate visitor data</td>
+      <td>USA / EU</td>
+    </tr>
+    <tr>
+      <td><a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Google Firebase Hosting</a></td>
+      <td>Website hosting</td>
+      <td>Server logs (IP, request)</td>
+      <td>USA / global CDN</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  <strong>We do not sell or rent your data to anyone.</strong>
+  We never share data with advertisers, brokers, or other third parties
+  beyond the operational providers above. The named providers are
+  contractually bound to use your data only as needed to perform their
+  service for us.
+</p>
+
+<h2 id="cookies">6. Cookies</h2>
+
+<p>
+  This site uses three categories of cookies. You're shown a banner on
+  your first visit and can change your choices any time via the
+  <strong>Cookie preferences</strong> link in the footer of every page.
+</p>
+
+<h3>6.1 Necessary cookies</h3>
+<p>
+  These keep the site working. They can't be disabled because the site
+  wouldn't function without them.
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>Cookie</th>
+      <th>Purpose</th>
+      <th>Duration</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>kronroe_consent</code></td>
+      <td>Stores your consent choices (which categories you accepted) plus the policy version and timestamps. Required by GDPR's accountability principle.</td>
+      <td>12 months</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>6.2 Analytics cookies (consent-gated)</h3>
+<p>Set only after you accept analytics. Used to understand how the site is used.</p>
+<table>
+  <thead>
+    <tr>
+      <th>Cookie</th>
+      <th>Provider</th>
+      <th>Purpose</th>
+      <th>Duration</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>_ga</code>, <code>_ga_*</code></td>
+      <td>Google Analytics 4</td>
+      <td>Distinguishes unique visitors (anonymous)</td>
+      <td>2 years</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>6.3 Marketing cookies (consent-gated)</h3>
+<p>Set only after you accept marketing. Used to understand audience demographics.</p>
+<table>
+  <thead>
+    <tr>
+      <th>Cookie</th>
+      <th>Provider</th>
+      <th>Purpose</th>
+      <th>Duration</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>li_sugr</code>, <code>UserMatchHistory</code>, <code>AnalyticsSyncHistory</code>, <code>bcookie</code>, <code>lidc</code>, <code>ln_or</code></td>
+      <td>LinkedIn Insight Tag</td>
+      <td>Anonymous professional demographic measurement</td>
+      <td>3-90 days</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  When you reject a cookie category or withdraw consent, we use Google
+  Consent Mode v2 to tell Google immediately to stop collecting
+  analytics data for you, and we don't load the LinkedIn Insight Tag
+  at all if marketing was rejected.
+</p>
+
+<h2 id="retention">7. How long we keep it</h2>
+
+<ul>
+  <li><strong>Newsletter data:</strong> Until you unsubscribe, plus a short retention period afterward (so we don't accidentally re-add you). You can request immediate erasure at any time.</li>
+  <li><strong>Cookie consent record:</strong> 12 months in the cookie itself. After expiry, you'll be re-prompted on your next visit.</li>
+  <li><strong>Analytics data:</strong> Configured to Google's standard 14-month retention. Aggregated reports persist longer but contain no personal data.</li>
+  <li><strong>Server logs:</strong> Per Firebase Hosting's standard retention (typically days to weeks for operational logs).</li>
+  <li><strong>Email correspondence:</strong> Kept for as long as the relationship is active or there's a legitimate reason to retain it. Generally up to 3 years for support correspondence.</li>
+</ul>
+
+<h2 id="rights">8. Your rights</h2>
+
+<p>
+  Under UK and EU GDPR, you have the following rights regarding your
+  personal data:
+</p>
+
+<ul>
+  <li><strong>Right of access:</strong> ask for a copy of the personal data we hold about you.</li>
+  <li><strong>Right to rectification:</strong> ask us to correct inaccurate data.</li>
+  <li><strong>Right to erasure ("right to be forgotten"):</strong> ask us to delete your data, subject to limited exceptions.</li>
+  <li><strong>Right to restrict processing:</strong> ask us to pause processing while a query is resolved.</li>
+  <li><strong>Right to data portability:</strong> receive your data in a structured, machine-readable format.</li>
+  <li><strong>Right to object:</strong> object to processing based on legitimate interests, including direct marketing.</li>
+  <li><strong>Right to withdraw consent:</strong> at any time, where processing is based on consent.</li>
+  <li><strong>Rights in relation to automated decision-making:</strong> we don't make automated decisions about you with legal or significant effects, so this generally doesn't apply.</li>
+</ul>
+
+<p>
+  To exercise any of these rights, email <a href="mailto:rebekah@kindlyroe.com">rebekah@kindlyroe.com</a>.
+  We aim to respond within 30 days. There's no charge.
+</p>
+
+<p>
+  If you're unhappy with how we've handled your data, you have the
+  right to lodge a complaint with the
+  <a href="https://ico.org.uk" target="_blank" rel="noopener">UK Information Commissioner's Office (ICO)</a>
+  or the data protection authority in your country.
+</p>
+
+<h2 id="international">9. International transfers</h2>
+
+<p>
+  Some of our service providers (Buttondown, Google, LinkedIn) are
+  based in the United States. Where data is transferred outside the
+  UK/EU, we rely on the relevant lawful transfer mechanism:
+</p>
+<ul>
+  <li>The UK and EU adequacy decisions (where they apply)</li>
+  <li>Standard Contractual Clauses for transfers where adequacy doesn't apply</li>
+  <li>The provider's own GDPR-compliant transfer framework</li>
+</ul>
+
+<h2 id="children">10. Children</h2>
+
+<p>
+  Kronroe is a developer tool aimed at adults. We don't knowingly
+  collect personal data from anyone under 16. If you believe a child
+  has subscribed to our newsletter, email
+  <a href="mailto:rebekah@kindlyroe.com">rebekah@kindlyroe.com</a> and
+  we'll delete the record promptly.
+</p>
+
+<h2 id="changes">11. Changes to this policy</h2>
+
+<p>
+  When we make material changes to this policy (changing what data we
+  collect, who it's shared with, or how it's used), we increment the
+  policy version. Your previously-recorded consent automatically becomes
+  invalid and you'll be prompted to re-consent on your next visit.
+</p>
+
+<p>
+  Minor changes (clarifying wording, fixing typos) update the
+  "Last updated" date but don't trigger re-consent.
+</p>
+
+<h2 id="contact">12. Contact &amp; complaints</h2>
+
+<p>
+  Questions, concerns, or rights requests:
+  <a href="mailto:rebekah@kindlyroe.com">rebekah@kindlyroe.com</a>.
+</p>
+
+<p>
+  ICO complaints (UK):
+  <a href="https://ico.org.uk/make-a-complaint/" target="_blank" rel="noopener">ico.org.uk/make-a-complaint</a>.
+</p>
+
+<hr>
+
+<footer>
+  <p>
+    &copy; 2026 Rebekah Cole &middot; Kronroe is dual-licensed under
+    AGPL-3.0 and a commercial licence &middot;
+    <a href="/">Home</a> &middot;
+    <a href="/about/">About</a> &middot;
+    <a href="https://github.com/kronroe/kronroe">GitHub</a>
+  </p>
+</footer>
+
+</div>
+
+</body>
+</html>

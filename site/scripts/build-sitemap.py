@@ -38,6 +38,9 @@ STATIC_PAGES = [
     {"loc": "/", "lastmod": "2026-04-13", "changefreq": "weekly", "priority": "1.0"},
     {"loc": "/docs/", "lastmod": "2026-04-13", "changefreq": "weekly", "priority": "0.9"},
     {"loc": "/blog/", "lastmod": "2026-04-13", "changefreq": "weekly", "priority": "0.8"},
+    {"loc": "/about/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.7"},
+    {"loc": "/pricing/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.7"},
+    {"loc": "/privacy/", "lastmod": "2026-04-27", "changefreq": "yearly", "priority": "0.4"},
 ]
 
 PUBLISHED_TIME_RE = re.compile(

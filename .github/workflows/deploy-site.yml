@@ -64,6 +64,16 @@ jobs:
           if [ -d site/newsletter ]; then
             cp -r site/newsletter site/dist/newsletter
           fi
+          # Copy info pages (about / privacy / pricing)
+          if [ -d site/about ]; then
+            cp -r site/about site/dist/about
+          fi
+          if [ -d site/privacy ]; then
+            cp -r site/privacy site/dist/privacy
+          fi
+          if [ -d site/pricing ]; then
+            cp -r site/pricing site/dist/pricing
+          fi
           # Copy shared JS modules (consent banner, email capture, etc.)
           if [ -d site/js ]; then
             cp -r site/js site/dist/js
