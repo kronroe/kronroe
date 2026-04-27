@@ -60,6 +60,10 @@ jobs:
           if [ -d site/blog ]; then
             cp -r site/blog site/dist/blog
           fi
+          # Copy newsletter landing pages (subscribe / confirmed)
+          if [ -d site/newsletter ]; then
+            cp -r site/newsletter site/dist/newsletter
+          fi
           echo "Assembled site/dist/:"
           ls -la site/dist/
 
