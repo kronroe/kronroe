@@ -42,19 +42,8 @@
         ]
       }
     ],
-    "rewrites": [
-      {
-        "source": "/docs/**",
-        "destination": "/docs/index.html"
-      },
-      {
-        "source": "/blog/**",
-        "destination": "/blog/index.html"
-      },
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
+    "cleanUrls": true,
+    "trailingSlash": true,
+    "appAssociation": "NONE"
   }
 }

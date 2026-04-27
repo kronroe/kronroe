@@ -40,12 +40,16 @@ jobs:
         run: wasm-pack build crates/wasm --target web --out-dir ../../site/public/pkg --no-typescript
         # outputs into site/public/pkg/ — assembled into dist in the next step
 
+      - name: Regenerate sitemap from blog posts
+        run: python3 site/scripts/build-sitemap.py
+
       - name: Assemble static site into dist
         run: |
           set -euo pipefail
           rm -rf site/dist
           mkdir -p site/dist
           cp site/index.html site/dist/
+          cp site/404.html site/dist/
           cp site/og-image.png site/dist/
           cp -r site/public/* site/dist/
           # Copy docs pages (preserving directory structure)

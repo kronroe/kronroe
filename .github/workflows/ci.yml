@@ -218,6 +218,9 @@ jobs:
       - name: Verify static site exists
         run: test -f site/index.html && echo "site/index.html found"
 
+      - name: Verify sitemap is up to date
+        run: python3 site/scripts/build-sitemap.py --check
+
   # ─── Wrapper verification ──────────────────────────────────────────────
 
   wrapper-verification:
