@@ -41,6 +41,18 @@ STATIC_PAGES = [
     {"loc": "/about/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.7"},
     {"loc": "/pricing/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.7"},
     {"loc": "/privacy/", "lastmod": "2026-04-27", "changefreq": "yearly", "priority": "0.4"},
+    # Rendered docs pages — generated from site/docs/**/*.md by
+    # site/scripts/build-docs.py. Listed here so search engines pick
+    # them up directly without needing to crawl from the landing page.
+    {"loc": "/docs/getting-started/what-is-kronroe/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.7"},
+    {"loc": "/docs/getting-started/quick-start-rust/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.7"},
+    {"loc": "/docs/getting-started/quick-start-python/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.7"},
+    {"loc": "/docs/getting-started/quick-start-mcp/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.7"},
+    {"loc": "/docs/concepts/bi-temporal-model/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.7"},
+    {"loc": "/docs/concepts/facts-and-entities/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.7"},
+    {"loc": "/docs/api/core/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.6"},
+    {"loc": "/docs/api/agent-memory/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.6"},
+    {"loc": "/docs/api/mcp-tools/", "lastmod": "2026-04-27", "changefreq": "monthly", "priority": "0.6"},
 ]
 
 PUBLISHED_TIME_RE = re.compile(
