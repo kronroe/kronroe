@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>You're in — welcome to Kronroe Notes</title>
+<meta name="description" content="Subscription confirmed. Welcome to Kronroe Notes."/>
+<meta name="robots" content="noindex"/>
+<link rel="canonical" href="https://kronroe.dev/"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<script defer src="/js/analytics-consent.js"></script>
+<script>
+  // Fire the GA4 conversion event for *confirmed* subscriptions.
+  // Wrapped in a setTimeout so the deferred consent script has time to
+  // load + apply consent state before we push to dataLayer. If consent
+  // was denied, gtag will silently drop the event — that's correct.
+  window.addEventListener('DOMContentLoaded', function () {
+    setTimeout(function () {
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', 'subscribe_confirmed', {
+          method: 'newsletter',
+          currency: 'USD',
+          value: 1, // proxy value — every confirmed subscriber is worth something
+        });
+      }
+    }, 600); // gives consent's wait_for_update (500ms) a chance to settle
+  });
+</script>
+<style>
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/fonts/web/jetbrainsmono-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Virgil';
+    src: url('/fonts/web/virgil.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --bg: #FBFAFF;
+    --warm-10: #191726;
+    --warm-7: #4A4559;
+    --warm-5: #6E6980;
+    --violet-6: #7C5CFC;
+    --violet-7: #6344E0;
+    --copper-6: #E87D4A;
+    --cyan-6: #3EC9C9;
+    --lime-6: #8BBF20;
+    --border: #DDD9E8;
+    --surface: #F4F2FA;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--warm-10);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.5rem;
+    text-align: center;
+  }
+
+  .stripe {
+    height: 4px;
+    width: 100%;
+    max-width: 480px;
+    background: linear-gradient(90deg,
+      var(--violet-6) 0 25%,
+      var(--copper-6) 25% 50%,
+      var(--cyan-6) 50% 75%,
+      var(--lime-6) 75% 100%);
+    border-radius: 2px;
+    margin-bottom: 2.5rem;
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.85rem;
+    color: var(--lime-6);
+    letter-spacing: 0.06em;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  h1 {
+    font-size: clamp(2.25rem, 6vw, 3.5rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 1.25rem;
+  }
+
+  .lede {
+    font-size: 1.05rem;
+    color: var(--warm-7);
+    max-width: 520px;
+    margin: 0 auto 1.5rem;
+  }
+
+  .lede em { font-style: italic; color: var(--warm-10); }
+
+  .annotation {
+    font-family: 'Virgil', 'Caveat', cursive;
+    font-size: 1.05rem;
+    color: var(--copper-6);
+    margin: 0 auto 2.5rem;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 3rem;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1.5px solid transparent;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--violet-6);
+    color: #fff;
+    border-color: var(--violet-6);
+  }
+  .btn-primary:hover { background: var(--violet-7); border-color: var(--violet-7); }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--warm-7);
+    border-color: #C4BFD1;
+  }
+  .btn-secondary:hover {
+    background: var(--surface);
+    color: var(--warm-10);
+  }
+
+  .promise {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.78rem;
+    color: var(--warm-5);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    max-width: 480px;
+    margin: 0 auto;
+    text-align: left;
+    line-height: 1.7;
+  }
+  .promise strong { color: var(--warm-7); font-weight: 600; }
+
+  footer {
+    margin-top: 3rem;
+    font-size: 0.78rem;
+    color: var(--warm-5);
+  }
+  footer a {
+    color: var(--violet-6);
+    text-decoration: none;
+  }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="stripe" aria-hidden="true"></div>
+
+<p class="eyebrow">✓ subscription confirmed</p>
+
+<h1>You're in.</h1>
+
+<p class="lede">
+  Welcome to <em>Kronroe Notes</em>. Build updates land in your inbox
+  every two weeks or so &mdash; what changed in the engine, what I'm
+  thinking about, the occasional deep technical post.
+</p>
+
+<p class="annotation">&#8627; no marketing fluff, just the work</p>
+
+<div class="actions">
+  <a class="btn btn-primary" href="/blog/why-kronroe/">Start with the why</a>
+  <a class="btn btn-secondary" href="/docs/">Browse the docs</a>
+  <a class="btn btn-secondary" href="https://github.com/kronroe/kronroe">Star on GitHub</a>
+</div>
+
+<div class="promise">
+  <strong>What you can expect:</strong> ~26 emails/year, all from
+  rebekah@kindlyroe.com<br>
+  <strong>What you won't get:</strong> sales pitches, list rentals,
+  cross-promotions<br>
+  <strong>Unsubscribe:</strong> one click in any email
+</div>
+
+<footer>
+  <p>&copy; 2026 Kronroe &middot; <a href="https://github.com/kronroe">GitHub</a></p>
+</footer>
+
+</body>
+</html>

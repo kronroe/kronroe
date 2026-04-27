@@ -96,14 +96,65 @@ has no free tier; managed costs ~€9/mo from day one.
 launch newsletter capture with zero ongoing cost until traction
 justifies the spend.
 
-### Buttondown configuration (already done)
+### Buttondown configuration
+
+What's wired in code (already done):
 
 - **Username**: `Kronroe`
 - **Subscribe endpoint**: `https://buttondown.com/api/emails/embed-subscribe/Kronroe`
-- **From email**: `rebekah@kindlyroe.com`
-- **Double opt-in**: enabled
-- **RSS-to-email**: pointed at `https://kronroe.dev/blog/feed.xml`, **draft mode**
-- **Welcome email**: configured with brand voice + key links
+- **Form-submit redirect**: `/newsletter/thanks/` (handled in `email-capture.js`)
+
+What you need to configure in the Buttondown UI:
+
+- **Settings → General → Newsletter name**: `Kronroe Notes`
+- **Settings → General → Description**: see suggested copy below
+- **Settings → Email setup → From email**: `rebekah@kindlyroe.com`
+- **Settings → Email setup → From name**: `Rebekah Cole`
+- **Settings → Subscribers → Confirmation emails**: enable double opt-in
+- **Settings → Subscribing → After subscribing**: `https://kronroe.dev/newsletter/thanks/`
+   *(only used as a fallback for non-JS users — JS handler redirects there directly)*
+- **Settings → Subscribing → After confirming**: `https://kronroe.dev/newsletter/confirmed/`
+   *(this one is critical — Buttondown handles the email-link confirmation server-side and redirects here)*
+- **Automations → RSS feeds**: feed URL `https://kronroe.dev/blog/feed.xml`, mode **Draft**
+- **Automations → Welcome email**: enable + paste in welcome copy
+
+#### Suggested newsletter description
+
+> Build notes from Kronroe — the embedded bi-temporal graph database
+> for AI agent memory and mobile/edge apps. New posts roughly every
+> two weeks: technical decisions, what changed in the engine,
+> occasional deep dives. Built and written by Rebekah Cole.
+
+#### Suggested welcome email
+
+```
+Subject: Welcome to Kronroe Notes — what's next
+
+Hi,
+
+You just confirmed your subscription to Kronroe Notes — build updates
+from the embedded bi-temporal graph database I'm working on in the
+open. Thanks for that.
+
+A few quick links:
+
+→ Why we built Kronroe (long-form):
+  https://kronroe.dev/blog/why-kronroe/
+
+→ The repo:
+  https://github.com/kronroe/kronroe
+
+→ The docs:
+  https://kronroe.dev/docs/
+
+I'll send updates roughly every 2 weeks — what changed in the engine,
+what I'm thinking about, occasional deep technical posts. No marketing
+fluff.
+
+If you ever want to reply, hit me back at rebekah@kindlyroe.com.
+
+— Rebekah
+```
 
 ### What's wired into the site
 

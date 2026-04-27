@@ -71,15 +71,14 @@
         body: body.toString(),
       })
         .then(function () {
-          submitBtn.disabled = false;
           submitBtn.textContent = 'Subscribed ✓';
-          input.value = '';
           if (statusEl) {
-            statusEl.textContent = 'Thanks — check your inbox to confirm.';
+            statusEl.textContent = 'Redirecting…';
             statusEl.setAttribute('data-state', 'success');
           }
 
-          // GA4 conversion event — gated by consent automatically.
+          // GA4 conversion event — consent-gated; gtag silently drops
+          // if denied. We still want the redirect to happen either way.
           if (typeof window.gtag === 'function') {
             window.gtag('event', 'generate_lead', {
               method: 'newsletter',
@@ -88,10 +87,14 @@
             });
           }
 
-          // Reset button label after a moment so the form feels reusable.
+          // Brief pause gives the GA beacon time to leave before the
+          // redirect kills the page. 600ms covers typical beacon RTT
+          // (50-200ms) with a comfortable buffer. After redirect, the
+          // /newsletter/thanks/ page tells users to check their inbox
+          // and watch for spam — better UX than an inline status.
           setTimeout(function () {
-            submitBtn.textContent = submitBtn.dataset.label || 'Subscribe';
-          }, 4000);
+            window.location.href = '/newsletter/thanks/';
+          }, 600);
         })
         .catch(function (_err) {
           submitBtn.disabled = false;
