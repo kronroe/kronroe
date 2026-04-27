@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Blog — Kronroe</title>
+<meta name="description" content="Thoughts on bi-temporal data, AI agent memory, embedded databases, and building Kronroe."/>
+<meta property="og:title" content="Blog — Kronroe"/>
+<meta property="og:description" content="Thoughts on bi-temporal data, AI agent memory, embedded databases, and building Kronroe."/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://kronroe.dev/blog/"/>
+<meta property="og:image" content="https://kronroe.dev/og-image.png"/>
+<meta property="og:site_name" content="Kronroe"/>
+<meta property="article:published_time" content="2026-04-13T00:00:00Z"/>
+<meta property="article:author" content="Rebekah Cole"/>
+<meta property="article:tag" content="bi-temporal data"/>
+<meta property="article:tag" content="AI agent memory"/>
+<meta property="article:tag" content="embedded database"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:image" content="https://kronroe.dev/og-image.png"/>
+<meta name="author" content="Rebekah Cole"/>
+<link rel="canonical" href="https://kronroe.dev/blog/"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="alternate" type="application/rss+xml" title="Kronroe Blog" href="/blog/feed.xml"/>
+<script defer src="/js/analytics-consent.js"></script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  "name": "Kronroe Blog",
+  "description": "Thoughts on bi-temporal data, AI agent memory, embedded databases, and building Kronroe.",
+  "url": "https://kronroe.dev/blog/",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Kronroe",
+    "url": "https://kronroe.dev"
+  },
+  "blogPost": [{
+    "@type": "BlogPosting",
+    "headline": "Why we built Kronroe",
+    "description": "AI agents need memory that understands time. Not a key-value store bolted to a vector database — a purpose-built engine where every fact carries four timestamps.",
+    "datePublished": "2026-04-13",
+    "author": {
+      "@type": "Person",
+      "name": "Rebekah Cole"
+    },
+    "url": "https://kronroe.dev/blog/why-kronroe/",
+    "image": "https://kronroe.dev/og-image.png"
+  }]
+}
+</script>
+<style>
+  /* ── Self-hosted fonts ── */
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin-ext.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/fonts/web/jetbrainsmono-var-latin.woff2') format('woff2');
+    font-weight: 400 600;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Virgil';
+    src: url('/fonts/web/virgil.woff2') format('woff2');
+    font-display: swap;
+  }
+
+  :root {
+    --violet-1: #F8F6FF; --violet-2: #EFEBFF; --violet-3: #DDD5FF;
+    --violet-4: #C4B5FF; --violet-5: #A895FD; --violet-6: #7C5CFC;
+    --violet-7: #6344E0; --violet-8: #4B2DC4; --violet-9: #3A1FA8;
+
+    --copper-1: #FFF8F4; --copper-2: #FFEEE4; --copper-3: #FFD9C5;
+    --copper-5: #F5A07A; --copper-6: #E87D4A; --copper-7: #CB6535;
+
+    --cyan-1: #F0FDFD; --cyan-2: #D9F9F9; --cyan-3: #B0F0F0;
+    --cyan-5: #55D5D5; --cyan-6: #3EC9C9; --cyan-7: #2DAEAE;
+
+    --lime-1: #F7FBE8; --lime-2: #EDF6CD; --lime-3: #DBEDA0;
+    --lime-5: #A5CE38; --lime-6: #8BBF20; --lime-7: #72A010;
+
+    --warm-1: #FBFAFF; --warm-2: #F4F2FA; --warm-3: #EAE7F2;
+    --warm-4: #DDD9E8; --warm-5: #C4BFD1; --warm-6: #9590A3;
+    --warm-7: #6E6980; --warm-8: #4A4559; --warm-9: #2D2940;
+    --warm-10: #191726;
+
+    --bg: var(--warm-1); --surface: var(--warm-2); --surface-alt: var(--warm-3);
+    --border: var(--warm-4); --border-hi: var(--warm-5);
+    --text: var(--warm-9); --text-mid: var(--warm-8);
+    --text-dim: var(--warm-7); --text-muted: var(--warm-6);
+
+    --dark-bg: var(--warm-10); --dark-surface: #211F32;
+    --dark-border: #352F4A; --dark-text: #F4F2FA; --dark-text-mid: #C4BFD1;
+
+    --body: "Plus Jakarta Sans", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+    --hand: "Virgil", ui-monospace, monospace;
+
+    --shadow-sm: 0 1px 3px rgba(45,41,64,0.08);
+    --shadow-md: 0 4px 12px rgba(45,41,64,0.10);
+    --shadow-violet: 0 8px 24px rgba(124,92,252,0.20);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--body); font-weight: 500;
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+
+  a { color: var(--violet-6); text-decoration: none; }
+  a:hover { color: var(--violet-7); }
+
+  /* ── Focus-visible (keyboard accessibility) ── */
+  :focus-visible {
+    outline: 2px solid var(--violet-5);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  .btn-primary:focus-visible { outline-offset: 3px; }
+  .hero-post:focus-visible { outline-offset: 0; border-radius: 14px; }
+  .subscribe-input:focus-visible { outline: none; border-color: var(--violet-5); }
+
+  /* ── Nav ── */
+  .site-header {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--bg); border-bottom: 1.5px solid var(--border);
+  }
+  .mock-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.4rem 2rem; max-width: 1200px; margin: 0 auto;
+  }
+  .mock-nav-logo {
+    font-weight: 600; font-size: 1rem; color: var(--text);
+    display: flex; align-items: center; gap: 0.4rem;
+    text-decoration: none;
+  }
+  .mock-nav-links {
+    display: flex; gap: 1.5rem; list-style: none; align-items: center;
+    font-size: 0.9rem; font-weight: 500;
+  }
+  .mock-nav-links a { color: var(--text-mid); text-decoration: none; }
+  .mock-nav-links a:hover { color: var(--violet-6); }
+  .mock-nav-links .active { color: var(--violet-6); font-weight: 600; }
+  .btn-primary {
+    display: inline-block; padding: 0.45rem 1.1rem; font-size: 0.82rem;
+    background: var(--violet-6); color: #fff; border-radius: 10px;
+    font-weight: 600; font-family: var(--body); text-decoration: none;
+    transition: background 0.15s;
+  }
+  .btn-primary:hover { background: var(--violet-7); color: #fff; }
+
+  /* ── Mobile nav ── */
+  .nav-hamburger { display: none; }
+  .nav-toggle { display: none; }
+  .nav-hamburger-btn {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    gap: 5px; width: 36px; height: 36px; cursor: pointer;
+    background: none; border: none; padding: 0;
+  }
+  .nav-hamburger-btn span {
+    display: block; width: 20px; height: 2px; background: var(--text);
+    border-radius: 2px; transition: transform 0.25s, opacity 0.2s;
+  }
+  .nav-mobile-menu {
+    display: none; position: absolute; top: 100%; right: 1rem;
+    background: var(--bg); border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 0.75rem 1rem;
+    flex-direction: column; gap: 0.5rem; box-shadow: var(--shadow-md);
+  }
+  .nav-mobile-menu a {
+    color: var(--text-mid); text-decoration: none; font-size: 0.9rem; padding: 0.3rem 0;
+  }
+  .nav-toggle:checked ~ .nav-mobile-menu { display: flex; }
+  .nav-toggle:checked ~ .nav-hamburger-btn span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .nav-toggle:checked ~ .nav-hamburger-btn span:nth-child(2) { opacity: 0; }
+  .nav-toggle:checked ~ .nav-hamburger-btn span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  /* ── Logo stripe ── */
+  .logo-stripe {
+    display: flex; height: 3px; border-radius: 2px; overflow: hidden;
+  }
+  .logo-stripe > span { flex: 1; }
+  .logo-stripe > span:nth-child(1) { background: var(--violet-6); }
+  .logo-stripe > span:nth-child(2) { background: var(--copper-6); }
+  .logo-stripe > span:nth-child(3) { background: var(--cyan-6); }
+  .logo-stripe > span:nth-child(4) { background: var(--lime-6); }
+
+  /* ──────────────────────────────────────────────
+     BLOG LAYOUT
+     ────────────────────────────────────────────── */
+  .blog-main {
+    flex: 1; max-width: 900px; margin: 0 auto; padding: 3rem 2rem 2rem;
+    width: 100%;
+  }
+
+  /* ── Page header ── */
+  .blog-header {
+    margin-bottom: 2rem; text-align: center;
+  }
+  .blog-header h1 {
+    font-size: 2.2rem; font-weight: 700; letter-spacing: -0.03em;
+    color: var(--warm-10); margin-bottom: 0.4rem;
+  }
+  .blog-header p {
+    font-size: 1rem; color: var(--text-dim); line-height: 1.5;
+    max-width: 520px; margin: 0 auto;
+  }
+
+  /* ── Category filter bar ── */
+  .category-bar {
+    display: flex; justify-content: center; gap: 0.25rem;
+    margin-bottom: 2.5rem;
+    background: var(--surface); border-radius: 10px; padding: 4px;
+    width: fit-content; margin-left: auto; margin-right: auto;
+  }
+  .category-pill {
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 0.35rem 0.85rem; border-radius: 8px;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--text-dim); transition: all 0.15s;
+  }
+  .category-pill:hover { color: var(--text); background: var(--surface-alt); }
+  .category-pill.active { background: var(--bg); color: var(--text); box-shadow: var(--shadow-sm); }
+  .category-pill::before {
+    content: ''; display: inline-block; width: 6px; height: 6px;
+    border-radius: 50%; margin-right: 0.4rem; vertical-align: middle;
+  }
+  .cat-all::before { background: var(--warm-5); }
+  .cat-thinking::before { background: var(--violet-6); }
+  .cat-building::before { background: var(--cyan-6); }
+  .cat-shipping::before { background: var(--lime-6); }
+  .cat-recording::before { background: var(--copper-6); }
+
+  /* ──────────────────────────────────────────────
+     HERO POST — full-width featured card
+     ────────────────────────────────────────────── */
+  .hero-post {
+    display: block; text-decoration: none; color: inherit;
+    border: 1.5px solid var(--border); border-radius: 14px;
+    overflow: hidden; background: var(--bg);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    margin-bottom: 2rem;
+  }
+  .hero-post:hover {
+    border-color: var(--violet-5); box-shadow: var(--shadow-violet); color: inherit;
+  }
+  .hero-stripe {
+    height: 4px; display: flex;
+  }
+  .hero-stripe.cat-thinking > span { flex: 1; background: var(--violet-6); }
+  .hero-stripe.cat-building > span { flex: 1; background: var(--cyan-6); }
+  .hero-stripe.cat-shipping > span { flex: 1; background: var(--lime-6); }
+  .hero-stripe.cat-recording > span { flex: 1; background: var(--copper-6); }
+  .hero-body {
+    padding: 2rem 2rem 1.75rem;
+  }
+  .hero-byline {
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); margin-bottom: 0.75rem;
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  }
+  .hero-byline .sep { color: var(--warm-5); }
+  .hero-post h2 {
+    font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em;
+    color: var(--warm-10); margin-bottom: 0.5rem; line-height: 1.25;
+  }
+  .hero-annotation {
+    font-family: var(--hand); font-size: 0.88rem;
+    color: var(--violet-6); display: block;
+    margin-bottom: 1rem; transform: rotate(-0.5deg);
+  }
+  .hero-excerpt {
+    font-size: 1rem; color: var(--text-dim); line-height: 1.6;
+    margin-bottom: 1.25rem; max-width: 640px;
+  }
+  .hero-timestamps {
+    display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap;
+  }
+  .timestamp {
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 0.35rem;
+  }
+  .timestamp .dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .ts-valid-from .dot { background: var(--cyan-6); }
+  .ts-valid-from { color: var(--cyan-7); }
+  .ts-valid-to .dot { background: var(--lime-6); }
+  .ts-valid-to { color: var(--lime-7); }
+  .hero-read-more {
+    font-size: 0.88rem; font-weight: 600; color: var(--violet-6);
+  }
+  .hero-post:hover .hero-read-more { color: var(--violet-7); }
+
+  /* ── Section divider ── */
+  .section-divider {
+    display: flex; align-items: center; gap: 1rem; margin: 2rem 0 1.5rem;
+  }
+  .section-divider-line { flex: 1; height: 1px; background: var(--border); }
+  .section-divider-label {
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted);
+  }
+
+  /* ──────────────────────────────────────────────
+     GHOST POSTS — upcoming / teaser cards
+     ────────────────────────────────────────────── */
+  .post-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;
+    margin-bottom: 2.5rem;
+  }
+  .ghost-card {
+    border: 1.5px dashed var(--border); border-radius: 14px;
+    padding: 1.5rem; background: var(--surface);
+    position: relative;
+  }
+  .ghost-stripe {
+    height: 3px; border-radius: 14px 14px 0 0;
+    margin: -1.5rem -1.5rem 1.25rem;
+  }
+  .ghost-stripe.cat-building { background: var(--cyan-3); }
+  .ghost-stripe.cat-thinking { background: var(--violet-3); }
+  .ghost-stripe.cat-shipping { background: var(--lime-3); }
+  .ghost-meta {
+    font-family: var(--mono); font-size: 0.65rem;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-dim); margin-bottom: 0.5rem;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .ghost-meta .dot { width: 5px; height: 5px; border-radius: 50%; }
+  .ghost-card h3 {
+    font-size: 1rem; font-weight: 600; color: var(--text-mid);
+    margin-bottom: 0.3rem;
+  }
+  .ghost-card p {
+    font-size: 0.85rem; color: var(--text-dim); line-height: 1.45;
+  }
+  .ghost-annotation {
+    font-family: var(--hand); font-size: 0.78rem;
+    color: var(--violet-5); margin-top: 0.75rem;
+    transform: rotate(-0.8deg); display: block;
+  }
+
+  /* ──────────────────────────────────────────────
+     STATS BAR
+     ────────────────────────────────────────────── */
+  .stats-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
+    margin-bottom: 2.5rem;
+    padding: 1.25rem; background: var(--surface);
+    border-radius: 14px; border: 1.5px solid var(--border);
+  }
+  .stat {
+    text-align: center;
+  }
+  .stat-number {
+    font-family: var(--mono); font-size: 1.35rem; font-weight: 600;
+    line-height: 1.2; margin-bottom: 0.2rem;
+  }
+  .stat-label {
+    font-family: var(--mono); font-size: 0.62rem;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); line-height: 1.3;
+  }
+  .stat-violet .stat-number { color: var(--violet-6); }
+  .stat-copper .stat-number { color: var(--copper-6); }
+  .stat-cyan .stat-number { color: var(--cyan-6); }
+  .stat-lime .stat-number { color: var(--lime-6); }
+
+  /* ──────────────────────────────────────────────
+     SUBSCRIBE CTA
+     ────────────────────────────────────────────── */
+  .subscribe-card {
+    border: 1.5px solid var(--violet-4); border-radius: 14px;
+    padding: 2rem; text-align: center;
+    background: var(--violet-1); position: relative; overflow: hidden;
+    margin-bottom: 2.5rem;
+  }
+  .subscribe-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 4px; display: flex;
+    background: linear-gradient(90deg,
+      var(--violet-6) 25%, var(--copper-6) 25%,
+      var(--copper-6) 50%, var(--cyan-6) 50%,
+      var(--cyan-6) 75%, var(--lime-6) 75%);
+  }
+  .subscribe-card h3 {
+    font-size: 1.15rem; font-weight: 700; color: var(--warm-10);
+    margin-bottom: 0.4rem;
+  }
+  .subscribe-annotation {
+    font-family: var(--hand); font-size: 0.85rem;
+    color: var(--violet-6); margin-bottom: 1.25rem;
+    display: block;
+  }
+  .subscribe-form {
+    display: flex; gap: 0.5rem; max-width: 420px;
+    margin: 0 auto; align-items: stretch;
+  }
+  .subscribe-input {
+    flex: 1; padding: 0.55rem 0.85rem;
+    border: 1.5px solid var(--violet-3); border-radius: 8px;
+    font-family: var(--body); font-size: 0.88rem;
+    background: var(--bg); color: var(--text);
+    outline: none; transition: border-color 0.15s;
+  }
+  .subscribe-input::placeholder { color: var(--text-muted); }
+  .subscribe-input:focus { border-color: var(--violet-5); }
+  .subscribe-btn {
+    padding: 0.55rem 1.25rem; border: none; border-radius: 8px;
+    background: var(--violet-6); color: #fff;
+    font-family: var(--body); font-size: 0.85rem; font-weight: 600;
+    cursor: pointer; transition: background 0.15s; white-space: nowrap;
+  }
+  .subscribe-btn:hover { background: var(--violet-7); }
+  .subscribe-note {
+    font-size: 0.72rem; color: var(--text-muted);
+    margin-top: 0.75rem;
+  }
+
+  /* ── Footer ── */
+  .mock-footer {
+    background: var(--dark-bg); color: var(--dark-text);
+    padding: 3rem 2rem 1.5rem; margin-top: auto;
+  }
+  .mock-footer-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 2rem;
+  }
+  .footer-brand p { color: var(--dark-text-mid); font-size: 0.85rem; margin-top: 0.75rem; line-height: 1.5; }
+  .footer-col h5 { font-size: 0.72rem; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--dark-text-mid); margin-bottom: 0.75rem; }
+  .footer-col ul { list-style: none; }
+  .footer-col li { margin-bottom: 0.4rem; }
+  .footer-col a { color: var(--dark-text); text-decoration: none; font-size: 0.85rem; }
+  .footer-col a:hover { color: var(--violet-5); }
+  .footer-bottom {
+    max-width: 1200px; margin: 1.5rem auto 0;
+    padding-top: 1rem; border-top: 1px solid var(--dark-border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.78rem; color: var(--dark-text-mid);
+  }
+  .footer-badges { display: flex; gap: 0.5rem; }
+  .footer-badge {
+    font-family: var(--mono); font-size: 0.65rem; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 0.2rem 0.5rem;
+    border: 1px solid var(--dark-border); border-radius: 4px;
+  }
+
+  /* ── Empty state ── */
+  .empty-state {
+    text-align: center; padding: 3rem 1rem; margin: 1rem 0 2rem;
+    border: 1.5px dashed var(--border); border-radius: 14px;
+    background: var(--surface);
+  }
+  .empty-state-text {
+    font-size: 1rem; font-weight: 600; color: var(--text-dim);
+    margin-bottom: 0.4rem;
+  }
+  .empty-state-annotation {
+    font-family: var(--hand); font-size: 0.85rem;
+    color: var(--violet-5);
+  }
+  [data-category].filter-hidden,
+  [data-section].filter-hidden { display: none; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .mock-nav { padding: 0.9rem 1rem; }
+    .mock-nav-links { display: none; }
+    .mock-nav .btn-primary { display: none; }
+    .nav-hamburger { display: block; position: relative; }
+    .blog-main { padding: 2rem 1rem 1.5rem; }
+    .blog-header h1 { font-size: 1.6rem; }
+    .hero-body { padding: 1.5rem; }
+    .hero-post h2 { font-size: 1.35rem; }
+    .post-grid { grid-template-columns: 1fr; }
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    .subscribe-form { flex-direction: column; }
+    .category-bar { flex-wrap: wrap; }
+    .mock-footer-inner { grid-template-columns: 1fr 1fr; }
+    .footer-bottom { flex-direction: column; gap: 0.75rem; text-align: center; }
+  }
+  @media (max-width: 480px) {
+    .mock-footer-inner { grid-template-columns: 1fr; }
+    .stats-bar { grid-template-columns: 1fr 1fr; }
+    .hero-timestamps { flex-direction: column; gap: 0.5rem; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="mock-nav">
+    <a href="/" class="mock-nav-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" style="height:52px; width:auto" aria-label="Kronroe" role="img">
+        <circle cx="40" cy="30" r="14" fill="#3EC9C9"/>
+        <line x1="55" y1="30" x2="97" y2="30" stroke="#3EC9C9" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="112" cy="30" r="12" fill="none" stroke="#8BBF20" stroke-width="3"/>
+        <circle cx="112" cy="30" r="4.5" fill="#8BBF20"/>
+        <circle cx="40" cy="70" r="14" fill="#E87D4A"/>
+        <line x1="55" y1="70" x2="97" y2="70" stroke="#E87D4A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="8 4"/>
+        <circle cx="112" cy="70" r="12" fill="none" stroke="#7C5CFC" stroke-width="3"/>
+        <circle cx="112" cy="70" r="4.5" fill="#7C5CFC"/>
+        <text x="138" y="65" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="700" letter-spacing="-0.8" fill="#191726">Kron</text>
+        <text x="230" y="65" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="700" letter-spacing="-0.8" fill="#7C5CFC">roe</text>
+      </svg>
+    </a>
+    <ul class="mock-nav-links">
+      <li><a href="/docs/">Docs</a></li>
+      <li><a href="/blog/" class="active">Blog</a></li>
+      <li><a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+    </ul>
+    <a href="/docs/" class="btn-primary">Get Started</a>
+    <div class="nav-hamburger">
+      <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation menu"/>
+      <label for="nav-toggle" class="nav-hamburger-btn" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </label>
+      <div class="nav-mobile-menu">
+        <a href="/docs/">Docs</a>
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </div>
+    </div>
+  </nav>
+  <div class="logo-stripe"><span></span><span></span><span></span><span></span></div>
+</header>
+
+<main class="blog-main">
+
+  <!-- ── Page header ── -->
+  <div class="blog-header">
+    <h1>Blog</h1>
+    <p>Thoughts on bi-temporal data, AI agent memory, embedded databases, and building Kronroe.</p>
+  </div>
+
+  <!-- ── Category filter ── -->
+  <div class="category-bar" role="group" aria-label="Filter posts by category">
+    <button type="button" class="category-pill cat-all active" aria-pressed="true">All</button>
+    <button type="button" class="category-pill cat-thinking" aria-pressed="false">Thinking</button>
+    <button type="button" class="category-pill cat-building" aria-pressed="false">Building</button>
+    <button type="button" class="category-pill cat-shipping" aria-pressed="false">Shipping</button>
+    <button type="button" class="category-pill cat-recording" aria-pressed="false">Recording</button>
+  </div>
+
+  <!-- ── Hero post — full-width featured ── -->
+  <a href="/blog/why-kronroe/" class="hero-post" data-category="thinking">
+    <div class="hero-stripe cat-thinking"><span></span></div>
+    <div class="hero-body">
+      <div class="hero-byline">
+        <span>Rebekah Cole</span>
+        <span class="sep">//</span>
+        <span>Thinking</span>
+        <span class="sep">//</span>
+        <span>6 min read</span>
+      </div>
+      <h2>Why we built Kronroe</h2>
+      <span class="hero-annotation">&#8627; the memory problem nobody talks about</span>
+      <p class="hero-excerpt">AI agents need memory that understands time. Not a key-value store bolted to a vector database &mdash; a purpose-built engine where every fact carries four timestamps. Your agent says &ldquo;Alice works at Stripe&rdquo; but she left six months ago. The old value was overwritten. There&rsquo;s no history, no correction trail. Here&rsquo;s why we built something different.</p>
+      <div class="hero-timestamps">
+        <span class="timestamp ts-valid-from"><span class="dot"></span> Published <time datetime="2026-04-13">2026-04-13</time></span>
+        <span class="timestamp ts-valid-to"><span class="dot"></span> Current as of <time datetime="2026-04-13">2026-04-13</time></span>
+        <span class="hero-read-more">Read more &rarr;</span>
+      </div>
+    </div>
+  </a>
+
+  <!-- ── Empty state (hidden by default) ── -->
+  <div class="empty-state" hidden>
+    <p class="empty-state-text">Nothing here yet.</p>
+    <span class="empty-state-annotation">&#8627; check back soon, or subscribe below</span>
+  </div>
+
+  <!-- ── Coming up next ── -->
+  <div class="section-divider" data-section="coming-up">
+    <span class="section-divider-line"></span>
+    <span class="section-divider-label">Coming up</span>
+    <span class="section-divider-line"></span>
+  </div>
+
+  <div class="post-grid" data-section="coming-up">
+    <article class="ghost-card" data-category="building">
+      <div class="ghost-stripe cat-building"></div>
+      <div class="ghost-meta">
+        <span class="dot" style="background:var(--cyan-6)"></span>
+        <span>Building</span>
+      </div>
+      <h3>Why bi-temporal? The case for time-aware data</h3>
+      <p>Two time dimensions sound academic. In practice, they solve problems every AI agent hits on day two.</p>
+      <span class="ghost-annotation">&#8627; researching...</span>
+    </article>
+    <article class="ghost-card" data-category="thinking">
+      <div class="ghost-stripe cat-thinking"></div>
+      <div class="ghost-meta">
+        <span class="dot" style="background:var(--violet-6)"></span>
+        <span>Thinking</span>
+      </div>
+      <h3>How Kindly Roe uses Kronroe</h3>
+      <p>A real iOS app, a real graph database, and the design decisions that made them work together.</p>
+      <span class="ghost-annotation">&#8627; drafting...</span>
+    </article>
+  </div>
+
+  <!-- ── Stats bar ── -->
+  <div class="stats-bar">
+    <div class="stat stat-violet">
+      <div class="stat-number">4</div>
+      <div class="stat-label" aria-label="Timestamp fields">Timestamp<br/>fields</div>
+    </div>
+    <div class="stat stat-copper">
+      <div class="stat-number">&lt; 6 MB</div>
+      <div class="stat-label" aria-label="Binary size">Binary<br/>size</div>
+    </div>
+    <div class="stat stat-cyan">
+      <div class="stat-number">7</div>
+      <div class="stat-label" aria-label="Platform targets">Platform<br/>targets</div>
+    </div>
+    <div class="stat stat-lime">
+      <div class="stat-number">0</div>
+      <div class="stat-label">C dependencies</div>
+    </div>
+  </div>
+
+  <!-- ── Subscribe CTA ── -->
+  <div class="subscribe-card">
+    <h3>Kronroe is early. Follow the build.</h3>
+    <span class="subscribe-annotation">&#8627; get notified when new facts are recorded</span>
+    <form class="subscribe-form" action="/blog/" method="post" onsubmit="return false;">
+      <input type="email" class="subscribe-input" placeholder="you@example.com" aria-label="Email address" required/>
+      <button type="submit" class="subscribe-btn">Subscribe</button>
+    </form>
+    <p class="subscribe-note">1&ndash;2 posts per month. No spam. Unsubscribe anytime.</p>
+  </div>
+
+</main>
+
+<footer class="mock-footer">
+  <div class="mock-footer-inner">
+    <div class="footer-brand">
+      <div class="footer-brand-name">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" style="height:36px; width:auto" aria-label="Kronroe" role="img">
+          <circle cx="19" cy="15" r="11" fill="#5DE0E0"/>
+          <line x1="30" y1="15" x2="54" y2="15" stroke="#5DE0E0" stroke-width="2.3" stroke-linecap="round"/>
+          <circle cx="65" cy="15" r="9.4" fill="none" stroke="#C8F567" stroke-width="2.3"/>
+          <circle cx="65" cy="15" r="3.5" fill="#C8F567"/>
+          <circle cx="19" cy="45" r="11" fill="#F09060"/>
+          <line x1="30" y1="45" x2="54" y2="45" stroke="#F09060" stroke-width="2" stroke-linecap="round" stroke-dasharray="6 3"/>
+          <circle cx="65" cy="45" r="9.4" fill="none" stroke="#9B7EFF" stroke-width="2.3"/>
+          <circle cx="65" cy="45" r="3.5" fill="#9B7EFF"/>
+          <text x="82" y="40" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="26" font-weight="700" letter-spacing="-0.3" fill="#F0ECE4">Kron</text>
+          <text x="138" y="40" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="26" font-weight="700" letter-spacing="-0.3" fill="#9B7EFF">roe</text>
+        </svg>
+      </div>
+      <p>The embedded bi-temporal graph database for AI agent memory and mobile/edge applications.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Product</h5>
+      <ul>
+        <li><a href="/docs/">Documentation</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/crates/mcp-server/README.md" target="_blank" rel="noopener noreferrer">MCP Server</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Developers</h5>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe#readme" target="_blank" rel="noopener noreferrer">Getting Started</a></li>
+        <li><a href="https://crates.io/crates/kronroe" target="_blank" rel="noopener noreferrer">Rust Crate</a></li>
+        <li><a href="https://pypi.org/project/kronroe/" target="_blank" rel="noopener noreferrer">Python Package</a></li>
+        <li><a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Company</h5>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank" rel="noopener noreferrer">Commercial Licence</a></li>
+        <li><a href="mailto:rebekah@kindlyroe.com">Contact</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/CLA.md" target="_blank" rel="noopener noreferrer">CLA</a></li>
+        <li><a href="#" onclick="event.preventDefault(); window.kronroeConsent &amp;&amp; window.kronroeConsent.open();">Cookie preferences</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>&copy; 2026 Kronroe. AGPL-3.0 + Commercial.</p>
+    <div class="footer-badges">
+      <span class="footer-badge">Pure Rust</span>
+      <span class="footer-badge">Zero C deps</span>
+      <span class="footer-badge">Local-first</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Category filter ── */
+  var pills = document.querySelectorAll('.category-pill');
+  var posts = document.querySelectorAll('[data-category]');
+  var sections = document.querySelectorAll('[data-section="coming-up"]');
+  var emptyState = document.querySelector('.empty-state');
+
+  pills.forEach(function (pill) {
+    pill.addEventListener('click', function () {
+      var cat = this.classList.contains('cat-all') ? 'all'
+        : this.classList.contains('cat-thinking') ? 'thinking'
+        : this.classList.contains('cat-building') ? 'building'
+        : this.classList.contains('cat-shipping') ? 'shipping'
+        : this.classList.contains('cat-recording') ? 'recording'
+        : 'all';
+
+      pills.forEach(function (p) {
+        p.classList.remove('active');
+        p.setAttribute('aria-pressed', 'false');
+      });
+      this.classList.add('active');
+      this.setAttribute('aria-pressed', 'true');
+
+      var visibleCount = 0;
+      posts.forEach(function (post) {
+        var show = cat === 'all' || post.getAttribute('data-category') === cat;
+        post.classList.toggle('filter-hidden', !show);
+        if (show) visibleCount++;
+      });
+
+      // Hide "Coming up" section when filtering to a specific category with no ghost matches
+      var ghostVisible = false;
+      document.querySelectorAll('.ghost-card').forEach(function (g) {
+        if (!g.classList.contains('filter-hidden')) ghostVisible = true;
+      });
+      sections.forEach(function (s) {
+        s.classList.toggle('filter-hidden', !ghostVisible);
+      });
+
+      // Show empty state if nothing matches
+      if (emptyState) {
+        emptyState.hidden = visibleCount > 0;
+      }
+    });
+  });
+
+  /* ── Mobile nav — upgrade checkbox to proper aria-expanded ── */
+  var toggle = document.getElementById('nav-toggle');
+  var hamburgerBtn = document.querySelector('.nav-hamburger-btn');
+  var mobileMenu = document.querySelector('.nav-mobile-menu');
+
+  if (toggle && hamburgerBtn && mobileMenu) {
+    hamburgerBtn.setAttribute('role', 'button');
+    hamburgerBtn.setAttribute('aria-expanded', 'false');
+    hamburgerBtn.setAttribute('aria-controls', 'nav-mobile-menu');
+    mobileMenu.id = 'nav-mobile-menu';
+
+    toggle.addEventListener('change', function () {
+      hamburgerBtn.setAttribute('aria-expanded', this.checked ? 'true' : 'false');
+    });
+  }
+
+  /* ── Subscribe form — graceful placeholder until backend is connected ── */
+  var subForm = document.querySelector('.subscribe-form');
+  var subInput = document.querySelector('.subscribe-input');
+  var subBtn = document.querySelector('.subscribe-btn');
+  var subNote = document.querySelector('.subscribe-note');
+
+  if (subForm) {
+    subForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!subInput.value || !subInput.validity.valid) return;
+      subInput.disabled = true;
+      subBtn.disabled = true;
+      subBtn.textContent = 'Subscribed';
+      subNote.textContent = 'Thanks! We\u2019ll email you when new posts go live.';
+      subForm.style.opacity = '0.7';
+    });
+  }
+})();
+</script>
+</body>
+</html>

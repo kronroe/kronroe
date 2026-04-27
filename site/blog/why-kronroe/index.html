@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Why we built Kronroe — Kronroe Blog</title>
+<meta name="description" content="AI agents need memory that understands time. Not a key-value store bolted to a vector database — a purpose-built engine where every fact carries four timestamps."/>
+<meta property="og:title" content="Why we built Kronroe"/>
+<meta property="og:description" content="AI agents need memory that understands time. A purpose-built engine where every fact carries four timestamps."/>
+<meta property="og:type" content="article"/>
+<meta property="og:url" content="https://kronroe.dev/blog/why-kronroe/"/>
+<meta property="og:image" content="https://kronroe.dev/blog/why-kronroe/og-image.png"/>
+<meta property="og:site_name" content="Kronroe"/>
+<meta property="article:published_time" content="2026-04-13T00:00:00Z"/>
+<meta property="article:author" content="Rebekah Cole"/>
+<meta property="article:tag" content="bi-temporal data"/>
+<meta property="article:tag" content="AI agent memory"/>
+<meta property="article:tag" content="embedded database"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="Why we built Kronroe"/>
+<meta name="twitter:description" content="AI agents need memory that understands time. A purpose-built engine where every fact carries four timestamps."/>
+<meta name="twitter:image" content="https://kronroe.dev/blog/why-kronroe/og-image.png"/>
+<meta name="author" content="Rebekah Cole"/>
+<link rel="canonical" href="https://kronroe.dev/blog/why-kronroe/"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="alternate" type="application/rss+xml" title="Kronroe Blog" href="/blog/feed.xml"/>
+<script defer src="/js/analytics-consent.js"></script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Why we built Kronroe",
+  "description": "AI agents need memory that understands time. Not a key-value store bolted to a vector database — a purpose-built engine where every fact carries four timestamps.",
+  "datePublished": "2026-04-13",
+  "dateModified": "2026-04-13",
+  "author": {
+    "@type": "Person",
+    "name": "Rebekah Cole",
+    "url": "https://kronroe.dev"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Kronroe",
+    "url": "https://kronroe.dev"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://kronroe.dev/blog/why-kronroe/"
+  },
+  "image": "https://kronroe.dev/blog/why-kronroe/og-image.png",
+  "wordCount": 1200,
+  "articleSection": "Thinking"
+}
+</script>
+<style>
+  /* ── Self-hosted fonts ── */
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Plus Jakarta Sans';
+    src: url('/fonts/web/plusjakartasans-var-latin-ext.woff2') format('woff2');
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: url('/fonts/web/jetbrainsmono-var-latin.woff2') format('woff2');
+    font-weight: 400 600;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Virgil';
+    src: url('/fonts/web/virgil.woff2') format('woff2');
+    font-display: swap;
+  }
+
+  :root {
+    --violet-1: #F8F6FF; --violet-2: #EFEBFF; --violet-3: #DDD5FF;
+    --violet-4: #C4B5FF; --violet-5: #A895FD; --violet-6: #7C5CFC;
+    --violet-7: #6344E0; --violet-8: #4B2DC4; --violet-9: #3A1FA8;
+
+    --copper-1: #FFF8F4; --copper-2: #FFEEE4; --copper-3: #FFD9C5;
+    --copper-5: #F5A07A; --copper-6: #E87D4A; --copper-7: #CB6535;
+
+    --cyan-1: #F0FDFD; --cyan-2: #D9F9F9; --cyan-3: #B0F0F0;
+    --cyan-5: #55D5D5; --cyan-6: #3EC9C9; --cyan-7: #2DAEAE;
+
+    --lime-1: #F7FBE8; --lime-2: #EDF6CD; --lime-3: #DBEDA0;
+    --lime-5: #A5CE38; --lime-6: #8BBF20; --lime-7: #72A010;
+
+    --warm-1: #FBFAFF; --warm-2: #F4F2FA; --warm-3: #EAE7F2;
+    --warm-4: #DDD9E8; --warm-5: #C4BFD1; --warm-6: #9590A3;
+    --warm-7: #6E6980; --warm-8: #4A4559; --warm-9: #2D2940;
+    --warm-10: #191726;
+
+    --bg: var(--warm-1); --surface: var(--warm-2); --surface-alt: var(--warm-3);
+    --border: var(--warm-4); --border-hi: var(--warm-5);
+    --text: var(--warm-9); --text-mid: var(--warm-8);
+    --text-dim: var(--warm-7); --text-muted: var(--warm-6);
+
+    --dark-bg: var(--warm-10); --dark-surface: #211F32;
+    --dark-border: #352F4A; --dark-text: #F4F2FA; --dark-text-mid: #C4BFD1;
+
+    --body: "Plus Jakarta Sans", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+    --hand: "Virgil", ui-monospace, monospace;
+
+    --shadow-sm: 0 1px 3px rgba(45,41,64,0.08);
+    --shadow-md: 0 4px 12px rgba(45,41,64,0.10);
+    --shadow-violet: 0 8px 24px rgba(124,92,252,0.20);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--body); font-weight: 500;
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+
+  a { color: var(--violet-6); text-decoration: none; }
+  a:hover { color: var(--violet-7); }
+
+  /* ── Focus-visible (keyboard accessibility) ── */
+  :focus-visible {
+    outline: 2px solid var(--violet-5);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  .btn-primary:focus-visible { outline-offset: 3px; }
+
+  /* ── Nav ── */
+  .site-header {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--bg); border-bottom: 1.5px solid var(--border);
+  }
+  .mock-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.4rem 2rem; max-width: 1200px; margin: 0 auto;
+  }
+  .mock-nav-logo {
+    font-weight: 600; font-size: 1rem; color: var(--text);
+    display: flex; align-items: center; gap: 0.4rem;
+    text-decoration: none;
+  }
+  .mock-nav-links {
+    display: flex; gap: 1.5rem; list-style: none; align-items: center;
+    font-size: 0.9rem; font-weight: 500;
+  }
+  .mock-nav-links a { color: var(--text-mid); text-decoration: none; }
+  .mock-nav-links a:hover { color: var(--violet-6); }
+  .mock-nav-links .active { color: var(--violet-6); font-weight: 600; }
+  .btn-primary {
+    display: inline-block; padding: 0.45rem 1.1rem; font-size: 0.82rem;
+    background: var(--violet-6); color: #fff; border-radius: 10px;
+    font-weight: 600; font-family: var(--body); text-decoration: none;
+    transition: background 0.15s;
+  }
+  .btn-primary:hover { background: var(--violet-7); color: #fff; }
+
+  /* ── Mobile nav ── */
+  .nav-hamburger { display: none; }
+  .nav-toggle { display: none; }
+  .nav-hamburger-btn {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    gap: 5px; width: 36px; height: 36px; cursor: pointer;
+    background: none; border: none; padding: 0;
+  }
+  .nav-hamburger-btn span {
+    display: block; width: 20px; height: 2px; background: var(--text);
+    border-radius: 2px; transition: transform 0.25s, opacity 0.2s;
+  }
+  .nav-mobile-menu {
+    display: none; position: absolute; top: 100%; right: 1rem;
+    background: var(--bg); border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 0.75rem 1rem;
+    flex-direction: column; gap: 0.5rem; box-shadow: var(--shadow-md);
+  }
+  .nav-mobile-menu a {
+    color: var(--text-mid); text-decoration: none; font-size: 0.9rem; padding: 0.3rem 0;
+  }
+  .nav-toggle:checked ~ .nav-mobile-menu { display: flex; }
+  .nav-toggle:checked ~ .nav-hamburger-btn span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .nav-toggle:checked ~ .nav-hamburger-btn span:nth-child(2) { opacity: 0; }
+  .nav-toggle:checked ~ .nav-hamburger-btn span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  /* ── Logo stripe ── */
+  .logo-stripe {
+    display: flex; height: 3px; border-radius: 2px; overflow: hidden;
+  }
+  .logo-stripe > span { flex: 1; }
+  .logo-stripe > span:nth-child(1) { background: var(--violet-6); }
+  .logo-stripe > span:nth-child(2) { background: var(--copper-6); }
+  .logo-stripe > span:nth-child(3) { background: var(--cyan-6); }
+  .logo-stripe > span:nth-child(4) { background: var(--lime-6); }
+
+  /* ──────────────────────────────────────────────
+     ARTICLE LAYOUT
+     ────────────────────────────────────────────── */
+  .article-main {
+    flex: 1; max-width: 720px; margin: 0 auto; padding: 2.5rem 2rem 2rem;
+    width: 100%;
+  }
+
+  /* ── Back link ── */
+  .article-back {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    font-family: var(--mono); font-size: 0.72rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); text-decoration: none;
+    margin-bottom: 2rem;
+    transition: color 0.15s;
+  }
+  .article-back:hover { color: var(--violet-6); }
+  .article-back svg { width: 14px; height: 14px; }
+
+  /* ── Article header ── */
+  .article-header {
+    margin-bottom: 2.5rem;
+    padding-bottom: 2rem;
+    border-bottom: 1.5px solid var(--border);
+  }
+  .article-category {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--violet-7); margin-bottom: 1rem;
+  }
+  .article-category .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--violet-6);
+  }
+  .article-header h1 {
+    font-size: 2.4rem; font-weight: 700; letter-spacing: -0.03em;
+    color: var(--warm-10); line-height: 1.2; margin-bottom: 0.75rem;
+  }
+  .article-subtitle {
+    font-size: 1.15rem; color: var(--text-dim); line-height: 1.55;
+    max-width: 600px;
+  }
+  .article-annotation {
+    font-family: var(--hand); font-size: 0.88rem;
+    color: var(--violet-6); display: block;
+    margin-top: 1rem; transform: rotate(-0.5deg);
+  }
+  .article-meta {
+    display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+    margin-top: 1.25rem;
+  }
+  .article-meta-item {
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 0.35rem;
+  }
+  .meta-author { color: var(--text-mid); }
+  .meta-date { color: var(--cyan-7); }
+  .meta-date .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan-6); }
+  .meta-read { color: var(--text-muted); }
+  .meta-sep { color: var(--warm-5); }
+
+  /* ── Prose ── */
+  .article-prose {
+    font-size: 1.05rem; line-height: 1.75; color: var(--text);
+  }
+  .article-prose > * + * { margin-top: 1.5rem; }
+
+  .article-prose h2 {
+    font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em;
+    color: var(--warm-10); margin-top: 2.5rem; margin-bottom: 0.25rem;
+    line-height: 1.3;
+  }
+  .article-prose h3 {
+    font-size: 1.15rem; font-weight: 600; color: var(--warm-10);
+    margin-top: 2rem; margin-bottom: 0.25rem;
+  }
+  .article-prose p { }
+  .article-prose strong { font-weight: 600; color: var(--warm-10); }
+  .article-prose em { font-style: italic; }
+
+  .article-prose a {
+    color: var(--violet-6); text-decoration: underline;
+    text-underline-offset: 2px; text-decoration-thickness: 1.5px;
+    text-decoration-color: var(--violet-3);
+    transition: text-decoration-color 0.15s;
+  }
+  .article-prose a:hover { text-decoration-color: var(--violet-6); }
+
+  /* ── Blockquotes ── */
+  .article-prose blockquote {
+    border-left: 3px solid var(--violet-5);
+    padding: 0.75rem 1.25rem;
+    background: var(--violet-1);
+    border-radius: 0 8px 8px 0;
+    color: var(--text-mid);
+    font-style: italic;
+  }
+  .article-prose blockquote p { margin-top: 0; }
+
+  /* ── Lists ── */
+  .article-prose ul, .article-prose ol {
+    padding-left: 1.5rem;
+  }
+  .article-prose li { margin-top: 0.5rem; }
+  .article-prose li::marker { color: var(--violet-5); }
+
+  /* ── Code ── */
+  .article-prose code {
+    font-family: var(--mono); font-size: 0.88em;
+    background: var(--surface); padding: 0.15em 0.4em;
+    border-radius: 4px; color: var(--violet-8);
+    border: 1px solid var(--border);
+  }
+  .article-prose pre {
+    background: var(--warm-10); color: var(--dark-text);
+    padding: 1.25rem 1.5rem; border-radius: 10px;
+    overflow-x: auto; font-size: 0.85rem; line-height: 1.6;
+    border: 1.5px solid var(--dark-border);
+  }
+  .article-prose pre code {
+    background: none; padding: 0; border: none;
+    color: inherit; font-size: inherit;
+  }
+
+  /* ── Annotation callout ── */
+  .prose-annotation {
+    font-family: var(--hand); font-size: 0.88rem;
+    color: var(--violet-6); display: block;
+    transform: rotate(-0.5deg);
+    margin-top: 0.25rem;
+  }
+
+  /* ── Fact table ── */
+  .fact-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.9rem; margin-top: 1.5rem;
+  }
+  .fact-table th {
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); text-align: left;
+    padding: 0.6rem 0.75rem; border-bottom: 2px solid var(--border);
+  }
+  .fact-table td {
+    padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border);
+    color: var(--text-mid); vertical-align: top;
+  }
+  .fact-table code {
+    font-family: var(--mono); font-size: 0.82em;
+    background: var(--surface); padding: 0.1em 0.35em;
+    border-radius: 3px; color: var(--violet-8);
+    border: 1px solid var(--border);
+  }
+  .fact-table .ts-label {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    font-family: var(--mono); font-size: 0.78rem; font-weight: 600;
+  }
+  .ts-cyan { color: var(--cyan-7); }
+  .ts-lime { color: var(--lime-7); }
+  .ts-copper { color: var(--copper-7); }
+  .ts-violet { color: var(--violet-7); }
+
+  /* ── Horizontal rule ── */
+  .article-prose hr {
+    border: none; height: 4px; border-radius: 2px;
+    margin: 2.5rem 0;
+    display: flex; overflow: hidden;
+    background: linear-gradient(90deg,
+      var(--violet-6) 25%, var(--copper-6) 25%,
+      var(--copper-6) 50%, var(--cyan-6) 50%,
+      var(--cyan-6) 75%, var(--lime-6) 75%);
+  }
+
+  /* ── Article footer ── */
+  .article-footer {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1.5px solid var(--border);
+  }
+  .article-footer-nav {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 2.5rem;
+  }
+  .article-footer-back {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    font-family: var(--mono); font-size: 0.72rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); text-decoration: none;
+    transition: color 0.15s;
+  }
+  .article-footer-back:hover { color: var(--violet-6); }
+
+  /* ── Subscribe CTA ── */
+  .subscribe-card {
+    border: 1.5px solid var(--violet-4); border-radius: 14px;
+    padding: 2rem; text-align: center;
+    background: var(--violet-1); position: relative; overflow: hidden;
+    margin-bottom: 2.5rem;
+  }
+  .subscribe-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 4px; display: flex;
+    background: linear-gradient(90deg,
+      var(--violet-6) 25%, var(--copper-6) 25%,
+      var(--copper-6) 50%, var(--cyan-6) 50%,
+      var(--cyan-6) 75%, var(--lime-6) 75%);
+  }
+  .subscribe-card h3 {
+    font-size: 1.15rem; font-weight: 700; color: var(--warm-10);
+    margin-bottom: 0.4rem;
+  }
+  .subscribe-annotation {
+    font-family: var(--hand); font-size: 0.85rem;
+    color: var(--violet-6); margin-bottom: 1.25rem;
+    display: block;
+  }
+  .subscribe-form {
+    display: flex; gap: 0.5rem; max-width: 420px;
+    margin: 0 auto; align-items: stretch;
+  }
+  .subscribe-input {
+    flex: 1; padding: 0.55rem 0.85rem;
+    border: 1.5px solid var(--violet-3); border-radius: 8px;
+    font-family: var(--body); font-size: 0.88rem;
+    background: var(--bg); color: var(--text);
+    outline: none; transition: border-color 0.15s;
+  }
+  .subscribe-input::placeholder { color: var(--text-muted); }
+  .subscribe-input:focus { border-color: var(--violet-5); }
+  .subscribe-input:focus-visible { outline: none; border-color: var(--violet-5); }
+  .subscribe-btn {
+    padding: 0.55rem 1.25rem; border: none; border-radius: 8px;
+    background: var(--violet-6); color: #fff;
+    font-family: var(--body); font-size: 0.85rem; font-weight: 600;
+    cursor: pointer; transition: background 0.15s; white-space: nowrap;
+  }
+  .subscribe-btn:hover { background: var(--violet-7); }
+  .subscribe-note {
+    font-size: 0.72rem; color: var(--text-muted);
+    margin-top: 0.75rem;
+  }
+
+  /* ── Footer ── */
+  .mock-footer {
+    background: var(--dark-bg); color: var(--dark-text);
+    padding: 3rem 2rem 1.5rem; margin-top: auto;
+  }
+  .mock-footer-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 2rem;
+  }
+  .footer-brand p { color: var(--dark-text-mid); font-size: 0.85rem; margin-top: 0.75rem; line-height: 1.5; }
+  .footer-col h5 { font-size: 0.72rem; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--dark-text-mid); margin-bottom: 0.75rem; }
+  .footer-col ul { list-style: none; }
+  .footer-col li { margin-bottom: 0.4rem; }
+  .footer-col a { color: var(--dark-text); text-decoration: none; font-size: 0.85rem; }
+  .footer-col a:hover { color: var(--violet-5); }
+  .footer-bottom {
+    max-width: 1200px; margin: 1.5rem auto 0;
+    padding-top: 1rem; border-top: 1px solid var(--dark-border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.78rem; color: var(--dark-text-mid);
+  }
+  .footer-badges { display: flex; gap: 0.5rem; }
+  .footer-badge {
+    font-family: var(--mono); font-size: 0.65rem; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 0.2rem 0.5rem;
+    border: 1px solid var(--dark-border); border-radius: 4px;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .mock-nav { padding: 0.9rem 1rem; }
+    .mock-nav-links { display: none; }
+    .mock-nav .btn-primary { display: none; }
+    .nav-hamburger { display: block; position: relative; }
+    .article-main { padding: 1.5rem 1rem 1.5rem; }
+    .article-header h1 { font-size: 1.75rem; }
+    .article-prose { font-size: 1rem; }
+    .article-prose h2 { font-size: 1.3rem; }
+    .article-prose pre { padding: 1rem; font-size: 0.78rem; }
+    .fact-table { font-size: 0.82rem; }
+    .subscribe-form { flex-direction: column; }
+    .mock-footer-inner { grid-template-columns: 1fr 1fr; }
+    .footer-bottom { flex-direction: column; gap: 0.75rem; text-align: center; }
+  }
+  @media (max-width: 480px) {
+    .mock-footer-inner { grid-template-columns: 1fr; }
+    .article-meta { flex-direction: column; gap: 0.5rem; align-items: flex-start; }
+    .meta-sep { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="mock-nav">
+    <a href="/" class="mock-nav-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" style="height:52px; width:auto" aria-label="Kronroe" role="img">
+        <circle cx="40" cy="30" r="14" fill="#3EC9C9"/>
+        <line x1="55" y1="30" x2="97" y2="30" stroke="#3EC9C9" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="112" cy="30" r="12" fill="none" stroke="#8BBF20" stroke-width="3"/>
+        <circle cx="112" cy="30" r="4.5" fill="#8BBF20"/>
+        <circle cx="40" cy="70" r="14" fill="#E87D4A"/>
+        <line x1="55" y1="70" x2="97" y2="70" stroke="#E87D4A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="8 4"/>
+        <circle cx="112" cy="70" r="12" fill="none" stroke="#7C5CFC" stroke-width="3"/>
+        <circle cx="112" cy="70" r="4.5" fill="#7C5CFC"/>
+        <text x="138" y="65" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="700" letter-spacing="-0.8" fill="#191726">Kron</text>
+        <text x="230" y="65" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="700" letter-spacing="-0.8" fill="#7C5CFC">roe</text>
+      </svg>
+    </a>
+    <ul class="mock-nav-links">
+      <li><a href="/docs/">Docs</a></li>
+      <li><a href="/blog/" class="active">Blog</a></li>
+      <li><a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+    </ul>
+    <a href="/docs/" class="btn-primary">Get Started</a>
+    <div class="nav-hamburger">
+      <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation menu"/>
+      <label for="nav-toggle" class="nav-hamburger-btn" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </label>
+      <div class="nav-mobile-menu">
+        <a href="/docs/">Docs</a>
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </div>
+    </div>
+  </nav>
+  <div class="logo-stripe"><span></span><span></span><span></span><span></span></div>
+</header>
+
+<main class="article-main">
+
+  <!-- ── Back link ── -->
+  <a href="/blog/" class="article-back">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3L5 8l5 5"/></svg>
+    All posts
+  </a>
+
+  <!-- ── Article header ── -->
+  <header class="article-header">
+    <div class="article-category">
+      <span class="dot"></span>
+      Thinking
+    </div>
+    <h1>Why we built Kronroe</h1>
+    <p class="article-subtitle">AI agents need memory that understands time. Not a key-value store bolted to a vector database &mdash; a purpose-built engine where every fact carries four timestamps.</p>
+    <span class="article-annotation">&#8627; the memory problem nobody talks about</span>
+    <div class="article-meta">
+      <span class="article-meta-item meta-author">Rebekah Cole</span>
+      <span class="meta-sep">//</span>
+      <span class="article-meta-item meta-date">
+        <span class="dot"></span>
+        <time datetime="2026-04-13">13 Apr 2026</time>
+      </span>
+      <span class="meta-sep">//</span>
+      <span class="article-meta-item meta-read">6 min read</span>
+    </div>
+  </header>
+
+  <!-- ── Article body ── -->
+  <article class="article-prose">
+
+    <p>Your agent says <strong>&ldquo;Alice works at Stripe.&rdquo;</strong> But Alice left six months ago. The old value was overwritten. There&rsquo;s no history, no correction trail, no way to ask &ldquo;what did we believe last Tuesday?&rdquo;</p>
+
+    <p>This is the memory problem nobody talks about. Not retrieval quality. Not embedding models. The problem is that most agent memory systems treat facts like cache entries &mdash; mutable, ephemeral, and fundamentally timeless.</p>
+
+    <h2>The overwrite trap</h2>
+
+    <p>Most memory solutions for AI agents follow the same pattern: store a fact, and when it changes, overwrite it. A key-value store. A vector database with upsert. A graph database where you mutate the edge.</p>
+
+    <p>This works fine until it doesn&rsquo;t. Consider an agent managing a sales pipeline:</p>
+
+    <ul>
+      <li>Monday: &ldquo;Alice works at Stripe.&rdquo;</li>
+      <li>Thursday: &ldquo;Alice works at Figma.&rdquo;</li>
+      <li>Friday: &ldquo;Wait &mdash; when did Alice leave Stripe?&rdquo;</li>
+    </ul>
+
+    <p>If you overwrote Monday&rsquo;s fact on Thursday, you can&rsquo;t answer Friday&rsquo;s question. The information is gone. Not archived, not versioned &mdash; just gone.</p>
+
+    <span class="prose-annotation">&#8627; this happens in production. constantly.</span>
+
+    <p>And it gets worse. What if Thursday&rsquo;s update was wrong? What if someone typed &ldquo;Figma&rdquo; when they meant &ldquo;Firma&rdquo;? Now you&rsquo;ve lost the truth <em>and</em> introduced an error you can&rsquo;t trace.</p>
+
+    <h2>What bi-temporal means</h2>
+
+    <p>Kronroe uses the <strong>bi-temporal model</strong> &mdash; a concept from database research (TSQL-2) that tracks two independent time dimensions on every fact:</p>
+
+    <table class="fact-table">
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Dimension</th>
+          <th>What it captures</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="ts-label ts-cyan"><span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--cyan-6);display:inline-block"></span> valid_from</span></td>
+          <td>Valid time</td>
+          <td>When the fact became true in the real world</td>
+        </tr>
+        <tr>
+          <td><span class="ts-label ts-lime"><span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--lime-6);display:inline-block"></span> valid_to</span></td>
+          <td>Valid time</td>
+          <td>When it stopped being true (<code>None</code> = still current)</td>
+        </tr>
+        <tr>
+          <td><span class="ts-label ts-copper"><span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--copper-6);display:inline-block"></span> recorded_at</span></td>
+          <td>Transaction time</td>
+          <td>When we first stored this fact</td>
+        </tr>
+        <tr>
+          <td><span class="ts-label ts-violet"><span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--violet-6);display:inline-block"></span> expired_at</span></td>
+          <td>Transaction time</td>
+          <td>When we superseded it (<code>None</code> = still the active record)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Valid time</strong> is about the world: when was Alice actually at Stripe? <strong>Transaction time</strong> is about the database: when did we learn this, and when did we correct it?</p>
+
+    <p>With both dimensions, you can answer questions that are impossible in a single-timeline system:</p>
+
+    <ul>
+      <li>&ldquo;Where does Alice work <em>now</em>?&rdquo; &mdash; current valid time</li>
+      <li>&ldquo;Where did Alice work in January?&rdquo; &mdash; historical valid time</li>
+      <li>&ldquo;What did we <em>believe</em> about Alice last Tuesday?&rdquo; &mdash; historical transaction time</li>
+      <li>&ldquo;When did we first learn Alice moved?&rdquo; &mdash; the correction trail</li>
+    </ul>
+
+    <span class="prose-annotation">&#8627; four timestamps. four questions. one engine.</span>
+
+    <h2>Why not bolt it on?</h2>
+
+    <p>You could add timestamps to any database. Plenty of people do. But there&rsquo;s a fundamental difference between timestamps as application metadata and timestamps as an engine primitive.</p>
+
+    <p>When bi-temporality is an engine feature:</p>
+
+    <ul>
+      <li><strong>Queries are temporal by default.</strong> You don&rsquo;t write <code>WHERE valid_to IS NULL</code> on every query &mdash; the engine understands &ldquo;current&rdquo; vs. &ldquo;as-of.&rdquo;</li>
+      <li><strong>Corrections are first-class.</strong> Updating a fact doesn&rsquo;t mutate the row. It records a new version and timestamps the old one as superseded.</li>
+      <li><strong>Contradiction detection works.</strong> The engine can see two facts with overlapping valid-time windows and the same predicate, and flag the conflict automatically.</li>
+      <li><strong>Uncertainty decays naturally.</strong> Kronroe computes effective confidence at query time, combining base confidence, source authority, and age-based decay per predicate half-life.</li>
+    </ul>
+
+    <p>None of this works if time is just a column you added to your schema.</p>
+
+    <h2>The DuckDB analogy</h2>
+
+    <p>DuckDB didn&rsquo;t try to make SQLite better at analytics. It redesigned the engine &mdash; columnar storage, vectorised execution, zero external dependencies &mdash; for a different workload.</p>
+
+    <p>Kronroe takes the same approach for temporal knowledge. The engine is designed from scratch for facts that change over time:</p>
+
+    <ul>
+      <li><strong>Embedded.</strong> No server, no network, no Docker. A Rust library you link into your app.</li>
+      <li><strong>Pure Rust.</strong> Zero C dependencies. Compiles to iOS, Android, WASM, and every desktop platform.</li>
+      <li><strong>Append-only storage.</strong> Facts are never mutated in place. Every version is preserved.</li>
+      <li><strong>Under 6 MB.</strong> Small enough for mobile, fast enough for on-device AI.</li>
+    </ul>
+
+    <hr/>
+
+    <h2>Two markets, one engine</h2>
+
+    <p>We built Kronroe for two audiences that need the same thing:</p>
+
+    <h3>1. AI agent memory</h3>
+
+    <p>Agents need to remember, correct, and reason over time. The current stack &mdash; a vector DB for retrieval, a separate store for &ldquo;memory,&rdquo; maybe a graph for relationships &mdash; is fragile. Kronroe unifies all three: full-text search, vector similarity, and a temporal property graph in one embedded engine.</p>
+
+    <p>No server. No infra. Runs in-process, works offline, and every fact is automatically bi-temporal.</p>
+
+    <h3>2. Mobile and edge</h3>
+
+    <p>iOS and Android apps that need relationship graphs &mdash; social features, recommendation engines, local-first knowledge bases &mdash; currently have no good embedded option. SQLite doesn&rsquo;t model graphs. Neo4j requires a server. Kronroe runs natively on both platforms as a static library (iOS) or JNI dynamic library (Android).</p>
+
+    <span class="prose-annotation">&#8627; we eat our own cooking &mdash; Kindly Roe (our iOS app) uses Kronroe for its on-device graph</span>
+
+    <h2>What comes next</h2>
+
+    <p>Kronroe is early. The engine works. The MCP server exposes 11 tools for agent integration. Python bindings are on PyPI. iOS and Android targets compile and pass tests.</p>
+
+    <p>We&rsquo;re building in the open &mdash; the <a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">source is on GitHub</a> under AGPL-3.0 (with a commercial licence for apps that need it).</p>
+
+    <p>If you&rsquo;re building an AI agent that needs to remember things properly, or a mobile app that needs an embedded graph, we&rsquo;d love for you to try it. Start with the <a href="/docs/">docs</a>, install the <a href="https://pypi.org/project/kronroe/" target="_blank" rel="noopener noreferrer">Python package</a>, or drop the MCP server into your agent&rsquo;s tool loop.</p>
+
+    <p>Facts change. Your database should know that.</p>
+
+  </article>
+
+  <!-- ── Article footer ── -->
+  <div class="article-footer">
+    <nav class="article-footer-nav">
+      <a href="/blog/" class="article-footer-back">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3L5 8l5 5"/></svg>
+        All posts
+      </a>
+    </nav>
+
+    <!-- ── Subscribe CTA ── -->
+    <div class="subscribe-card">
+      <h3>Kronroe is early. Follow the build.</h3>
+      <span class="subscribe-annotation">&#8627; get notified when new facts are recorded</span>
+      <form class="subscribe-form" action="/blog/" method="post" onsubmit="return false;">
+        <input type="email" class="subscribe-input" placeholder="you@example.com" aria-label="Email address" required/>
+        <button type="submit" class="subscribe-btn">Subscribe</button>
+      </form>
+      <p class="subscribe-note">1&ndash;2 posts per month. No spam. Unsubscribe anytime.</p>
+    </div>
+  </div>
+
+</main>
+
+<footer class="mock-footer">
+  <div class="mock-footer-inner">
+    <div class="footer-brand">
+      <div class="footer-brand-name">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" style="height:36px; width:auto" aria-label="Kronroe" role="img">
+          <circle cx="19" cy="15" r="11" fill="#5DE0E0"/>
+          <line x1="30" y1="15" x2="54" y2="15" stroke="#5DE0E0" stroke-width="2.3" stroke-linecap="round"/>
+          <circle cx="65" cy="15" r="9.4" fill="none" stroke="#C8F567" stroke-width="2.3"/>
+          <circle cx="65" cy="15" r="3.5" fill="#C8F567"/>
+          <circle cx="19" cy="45" r="11" fill="#F09060"/>
+          <line x1="30" y1="45" x2="54" y2="45" stroke="#F09060" stroke-width="2" stroke-linecap="round" stroke-dasharray="6 3"/>
+          <circle cx="65" cy="45" r="9.4" fill="none" stroke="#9B7EFF" stroke-width="2.3"/>
+          <circle cx="65" cy="45" r="3.5" fill="#9B7EFF"/>
+          <text x="82" y="40" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="26" font-weight="700" letter-spacing="-0.3" fill="#F0ECE4">Kron</text>
+          <text x="138" y="40" font-family="'Plus Jakarta Sans','Inter','Helvetica Neue',Arial,sans-serif" font-size="26" font-weight="700" letter-spacing="-0.3" fill="#9B7EFF">roe</text>
+        </svg>
+      </div>
+      <p>The embedded bi-temporal graph database for AI agent memory and mobile/edge applications.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Product</h5>
+      <ul>
+        <li><a href="/docs/">Documentation</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/crates/mcp-server/README.md" target="_blank" rel="noopener noreferrer">MCP Server</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Developers</h5>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe#readme" target="_blank" rel="noopener noreferrer">Getting Started</a></li>
+        <li><a href="https://crates.io/crates/kronroe" target="_blank" rel="noopener noreferrer">Rust Crate</a></li>
+        <li><a href="https://pypi.org/project/kronroe/" target="_blank" rel="noopener noreferrer">Python Package</a></li>
+        <li><a href="https://github.com/kronroe/kronroe" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Company</h5>
+      <ul>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/LICENCE-COMMERCIAL.md" target="_blank" rel="noopener noreferrer">Commercial Licence</a></li>
+        <li><a href="mailto:rebekah@kindlyroe.com">Contact</a></li>
+        <li><a href="https://github.com/kronroe/kronroe/blob/main/CLA.md" target="_blank" rel="noopener noreferrer">CLA</a></li>
+        <li><a href="#" onclick="event.preventDefault(); window.kronroeConsent &amp;&amp; window.kronroeConsent.open();">Cookie preferences</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>&copy; 2026 Kronroe. AGPL-3.0 + Commercial.</p>
+    <div class="footer-badges">
+      <span class="footer-badge">Pure Rust</span>
+      <span class="footer-badge">Zero C deps</span>
+      <span class="footer-badge">Local-first</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Mobile nav — upgrade checkbox to proper aria-expanded ── */
+  var toggle = document.getElementById('nav-toggle');
+  var hamburgerBtn = document.querySelector('.nav-hamburger-btn');
+  var mobileMenu = document.querySelector('.nav-mobile-menu');
+
+  if (toggle && hamburgerBtn && mobileMenu) {
+    hamburgerBtn.setAttribute('role', 'button');
+    hamburgerBtn.setAttribute('aria-expanded', 'false');
+    hamburgerBtn.setAttribute('aria-controls', 'nav-mobile-menu');
+    mobileMenu.id = 'nav-mobile-menu';
+
+    toggle.addEventListener('change', function () {
+      hamburgerBtn.setAttribute('aria-expanded', this.checked ? 'true' : 'false');
+    });
+  }
+
+  /* ── Subscribe form — graceful placeholder until backend is connected ── */
+  var subForm = document.querySelector('.subscribe-form');
+  var subInput = document.querySelector('.subscribe-input');
+  var subBtn = document.querySelector('.subscribe-btn');
+  var subNote = document.querySelector('.subscribe-note');
+
+  if (subForm) {
+    subForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!subInput.value || !subInput.validity.valid) return;
+      subInput.disabled = true;
+      subBtn.disabled = true;
+      subBtn.textContent = 'Subscribed';
+      subNote.textContent = 'Thanks! We\u2019ll email you when new posts go live.';
+      subForm.style.opacity = '0.7';
+    });
+  }
+})();
+</script>
+</body>
+</html>
