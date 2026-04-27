@@ -64,6 +64,10 @@ jobs:
           if [ -d site/newsletter ]; then
             cp -r site/newsletter site/dist/newsletter
           fi
+          # Copy shared JS modules (consent banner, email capture, etc.)
+          if [ -d site/js ]; then
+            cp -r site/js site/dist/js
+          fi
           echo "Assembled site/dist/:"
           ls -la site/dist/
 
@@ -73,6 +77,45 @@ jobs:
           test -f site/dist/index.html || { echo "ERROR: index.html missing from dist"; exit 1; }
           grep -q "Kronroe" site/dist/index.html || { echo "ERROR: index.html missing Kronroe content"; exit 1; }
           echo "Smoke test passed"
+
+      - name: Verify all referenced static assets exist in dist
+        # Prevents the classic "ship a page that references /js/foo.js but
+        # forget to copy site/js/ into site/dist/" bug. Greps every HTML
+        # file in dist for src/href attributes and confirms the referenced
+        # local files exist on disk. Skips external URLs and data: URIs.
+        run: |
+          set -euo pipefail
+          missing=0
+          while IFS= read -r html; do
+            # Pull every local src/href from <script>, <link>, <img> tags
+            while IFS= read -r ref; do
+              # Skip empty, external, or data: refs
+              case "$ref" in
+                ""|http*|//*|data:*|mailto:*|tel:*|\#*) continue ;;
+              esac
+              # Strip query string and fragment for filesystem lookup
+              path="${ref%%\?*}"
+              path="${path%%#*}"
+              # Normalise: leading "/" → relative to dist root
+              case "$path" in
+                /*) full="site/dist${path}" ;;
+                *)  full="$(dirname "$html")/${path}" ;;
+              esac
+              # Directory references (e.g. href="/blog/") map to index.html
+              if [ -d "$full" ]; then
+                full="${full%/}/index.html"
+              fi
+              if [ ! -f "$full" ]; then
+                echo "MISSING: $html references $ref → $full not found"
+                missing=$((missing+1))
+              fi
+            done < <(grep -oE '(src|href)="[^"]+"' "$html" | sed -E 's/^(src|href)="([^"]+)"$/\2/')
+          done < <(find site/dist -name '*.html' -type f)
+          if [ "$missing" -gt 0 ]; then
+            echo "ERROR: $missing referenced asset(s) missing from dist" >&2
+            exit 1
+          fi
+          echo "All referenced static assets present in dist"
 
       - name: Deploy to Firebase Hosting
         id: deploy
