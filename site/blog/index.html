@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script>/* Redirect Firebase default hostnames to canonical kronroe.dev — runs synchronously before render to avoid flashing wrong-domain content */
+(function(){var h=location.hostname;if(h==='kronroe.web.app'||h==='kronroe.firebaseapp.com'){location.replace('https://kronroe.dev'+location.pathname+location.search+location.hash);}})();</script>
 <title>Blog — Kronroe</title>
 <meta name="description" content="Thoughts on bi-temporal data, AI agent memory, embedded databases, and building Kronroe."/>
 <meta property="og:title" content="Blog — Kronroe"/>

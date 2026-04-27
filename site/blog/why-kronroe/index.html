@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script>/* Redirect Firebase default hostnames to canonical kronroe.dev — runs synchronously before render to avoid flashing wrong-domain content */
+(function(){var h=location.hostname;if(h==='kronroe.web.app'||h==='kronroe.firebaseapp.com'){location.replace('https://kronroe.dev'+location.pathname+location.search+location.hash);}})();</script>
 <title>Why we built Kronroe — Kronroe Blog</title>
 <meta name="description" content="AI agents need memory that understands time. Not a key-value store bolted to a vector database — a purpose-built engine where every fact carries four timestamps."/>
 <meta property="og:title" content="Why we built Kronroe"/>
