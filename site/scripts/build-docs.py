@@ -245,6 +245,308 @@ def parse_doc(md_path: Path, md: MarkdownIt) -> Doc:
     )
 
 
+# ─── Corpus pipeline (Phase 3b.1) ─────────────────────────────
+#
+# Builds a per-section embedding corpus consumed by the
+# `kronroe-docs-api` runtime (Phase 3b.2). The corpus is the data
+# Phase 3 promises to expose at /api/docs/recall and similar.
+#
+# Why split at H2 rather than per-doc:
+#   * 9 docs is too few for useful semantic recall — every query
+#     would recall the same handful of giant blobs, defeating the
+#     "find the precise relevant passage" property of vector search.
+#   * Each H2 in our corpus is naturally one self-contained idea
+#     (a method on the API, a concept, a setup step) — exactly the
+#     unit a query like "how do I correct a fact" wants to land on.
+#
+# Why fenced-code-block awareness matters:
+#   * `quick-start-python.md` has lines starting with `# ` that
+#     aren't headings — they're Python comments inside fenced code
+#     blocks (`# Basic assertion`, `# With confidence score`).
+#     A naive line-based heading splitter creates ghost sections
+#     from these. The state machine below tracks fence depth.
+
+@dataclass
+class Section:
+    """One H2-bounded chunk of a doc. Phase 3b.1 emits these into
+    `corpus.json`; Phase 3b.2 loads them as Kronroe facts with
+    embeddings.
+
+    The `id` follows the URL — `<doc_path>/<anchor>` for H2 sections
+    and `<doc_path>/intro` for the doc's preamble (everything between
+    the H1 and the first H2). Globally unique, human-readable for
+    debugging, and trivially derives the canonical URL by appending
+    `#<anchor>` (or no fragment for `intro`).
+    """
+
+    id: str
+    doc_path: str  # e.g. "concepts/bi-temporal-model"
+    doc_url: str  # e.g. "/docs/concepts/bi-temporal-model/"
+    doc_title: str  # e.g. "Bi-Temporal Model"
+    category: str  # e.g. "Concepts"
+    heading: str  # e.g. "Two Time Dimensions" — or "" for intro
+    anchor: str  # slug of heading — or "" for intro
+    body: str  # plain markdown text of the section, headings excluded
+    symbols: list[str] = field(default_factory=list)
+
+
+def split_doc_into_sections(doc: Doc) -> list[Section]:
+    """Walk `doc.body_md` and emit one Section per H2 block, plus
+    one for the doc's preamble (the lede paragraph between H1 and the
+    first H2 — usually the doc's most valuable summary text).
+
+    The walk is line-by-line with a simple fenced-code-block depth
+    counter — enter a fence when we see a line that's exactly
+    `` ``` `` (optionally followed by a language tag), exit when we
+    see another such line. Heading detection only fires when fence
+    depth is 0.
+    """
+    lines = doc.body_md.split("\n")
+    fence_open = False
+    sections: list[Section] = []
+
+    # Buffer for the current section. The "intro" section starts
+    # implicitly at line 1 (after the H1).
+    current_heading = ""  # empty = intro section
+    current_anchor = ""
+    buffer: list[str] = []
+
+    def flush(heading: str, anchor: str, body_lines: list[str]) -> None:
+        body = "\n".join(body_lines).strip()
+        if not body:
+            # Skip empty sections — happens when a doc has no preamble
+            # before its first H2, or two H2s back-to-back.
+            return
+        anchor_part = anchor if anchor else "intro"
+        sections.append(
+            Section(
+                id=f"{doc.rel_path}/{anchor_part}",
+                doc_path=doc.rel_path,
+                doc_url=doc.url,
+                doc_title=doc.title,
+                category=doc.category_title,
+                heading=heading,
+                anchor=anchor,
+                body=body,
+            )
+        )
+
+    for line in lines:
+        stripped = line.lstrip()
+
+        # Fenced code-block boundary detection. Real fences are
+        # exactly 3+ backticks at the start of a line (after
+        # optional indentation), optionally followed by a language
+        # tag. Inline backticks like `foo` aren't fences.
+        if stripped.startswith("```"):
+            fence_open = not fence_open
+            buffer.append(line)
+            continue
+
+        if fence_open:
+            buffer.append(line)
+            continue
+
+        # Skip the doc's H1 line (we've already extracted it as
+        # doc.title and it would be the only "section heading"
+        # before the intro otherwise).
+        if line.startswith("# ") and not buffer and not sections and not current_heading:
+            continue
+
+        # H2 boundary outside a code fence — emit the previous
+        # section and start a new one.
+        if line.startswith("## "):
+            flush(current_heading, current_anchor, buffer)
+            current_heading = line[3:].strip()
+            current_anchor = slugify(current_heading)
+            buffer = []
+            continue
+
+        buffer.append(line)
+
+    # Final flush at EOF.
+    flush(current_heading, current_anchor, buffer)
+    return sections
+
+
+# Curated allowlist of Kronroe API symbols that appear in the docs.
+# Sourced from `CLAUDE.md`'s "Key Types" tables. The point isn't to
+# be exhaustive — it's to flag the strings that uniquely refer to a
+# Kronroe surface, so `/api/docs/symbols/<name>` resolves cleanly.
+#
+# Anything not on this list is ignored even if backtick-wrapped
+# (e.g. random `created_at` references in prose). This keeps the
+# extracted symbol set high-precision rather than high-recall.
+KRONROE_SYMBOL_ALLOWLIST: set[str] = {
+    # Core types
+    "TemporalGraph", "AgentMemory", "KronroeDb", "Fact", "FactId",
+    "FactIdParseError", "Value", "KronroeError", "KronroeTimestamp",
+    # Hybrid + temporal
+    "HybridSearchParams", "TemporalIntent", "TemporalOperator",
+    # Contradiction model
+    "Contradiction", "PredicateCardinality", "ConflictPolicy",
+    # Uncertainty model
+    "PredicateVolatility", "SourceWeight", "EffectiveConfidence",
+    # AgentMemory ergonomics
+    "AssertParams", "RecallOptions", "RecallScore",
+    "ConfidenceFilterMode",
+    # Error infrastructure
+    "ErrorCode", "ErrorContext", "OptionContext",
+    # Value variants — useful for symbol queries on graph edges
+    "Text", "Number", "Boolean", "Entity",
+    # KronroeError variants — appear bare in docs prose ("returns NotFound")
+    # so the symbol resolver can land on the right page when an agent
+    # asks about a specific error mode.
+    "NotFound", "Storage", "Serialization", "InvalidFactId",
+    "InvalidEmbedding", "ContradictionRejected", "SchemaMismatch",
+    # TemporalIntent variants (backticked everywhere in agent-memory docs)
+    "Timeless", "CurrentState", "HistoricalPoint", "HistoricalInterval",
+    # TemporalOperator variants
+    "Current", "AsOf", "Before", "By", "During", "After", "Unknown",
+    # PredicateCardinality variants
+    "Singleton", "MultiValued",
+    # ConflictPolicy variants
+    "Allow", "Warn", "Reject",
+    # ConfidenceFilterMode variants
+    "Base", "Effective",
+    # TemporalGraph methods (the most commonly cross-referenced)
+    "open", "open_in_memory", "assert_fact",
+    "assert_fact_with_confidence", "assert_fact_with_source",
+    "assert_fact_with_embedding", "assert_fact_idempotent",
+    "assert_fact_checked", "current_facts", "facts_at",
+    "all_facts_about", "fact_by_id", "correct_fact",
+    "invalidate_fact", "search", "search_by_vector",
+    "search_hybrid",
+    # AgentMemory methods
+    "remember", "recall", "recall_scored", "recall_with_options",
+    "assemble_context", "assert_with_confidence",
+    "assert_with_source", "facts_about",
+    # MCP tools (also section headings in api/mcp-tools.md)
+    "what_changed", "memory_health", "recall_for_task",
+}
+
+
+# Two-stage extraction: first find every backtick-delimited segment
+# (single-line, since triple-backtick fences span multiple lines and
+# would be matched by their fences instead), then pull every
+# identifier substring within. This handles the cases the simpler
+# `\`(\w+)\`` regex misses:
+#
+#   `Value::Entity("acme-corp")`    → captures Value AND Entity
+#   `ConfidenceFilterMode::Effective` → captures both
+#   `assert_fact("a", "b")`         → captures assert_fact (the args
+#                                      are filtered out by the allowlist)
+#
+# Found during the Phase 3b.1 audit — the simpler regex silently
+# missed every `Foo::Bar`-style symbol reference in our docs.
+_BACKTICKED_RE = re.compile(r"`([^`\n]+)`")
+_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def extract_symbols(body: str) -> list[str]:
+    """Find all Kronroe API symbols mentioned in a section body.
+
+    Two-stage scan: find every backtick-delimited segment, then
+    extract every identifier within that intersects with our curated
+    allowlist. De-duplicated and stable-ordered (insertion order) so
+    the output is deterministic and `corpus.json` doesn't churn
+    between builds.
+    """
+    seen: dict[str, None] = {}
+    for backticked in _BACKTICKED_RE.findall(body):
+        for token in _IDENT_RE.findall(backticked):
+            if token in KRONROE_SYMBOL_ALLOWLIST and token not in seen:
+                seen[token] = None
+    return list(seen)
+
+
+def embed_section_bodies(bodies: list[str]) -> list[list[float]]:
+    """Compute embeddings for a list of section bodies using
+    `fastembed-python` with the same model the Rust runtime uses
+    (`sentence-transformers/all-MiniLM-L6-v2`, 384-dim).
+
+    Imported lazily so that running `build-docs.py` without the
+    `--corpus` flag doesn't require `fastembed` to be installed.
+    The Rust side's `fastembed-rs` and Python's `fastembed` use the
+    same upstream ONNX model files, so embeddings are essentially
+    bit-identical between sides — the dot-product cosine similarity
+    won't drift from build-time to query-time.
+
+    Returns float32 lists rather than numpy arrays so JSON
+    serialisation is straightforward and the output file size is
+    half what float64 would produce.
+    """
+    # Lazy import — keeps default builds free of the ML stack.
+    from fastembed import TextEmbedding
+
+    model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    raw = list(model.embed(bodies))  # numpy arrays, dtype=float64
+
+    out: list[list[float]] = []
+    for v in raw:
+        # Cast to float32 (4 bytes/value vs 8) before listification.
+        out.append([float(x) for x in v.astype("float32")])
+    return out
+
+
+def render_corpus(docs_flat: list[Doc]) -> dict[str, Any]:
+    """Build the corpus.json payload — the contract between this
+    script and the `kronroe-docs-api` runtime.
+
+    Schema:
+        {
+          "build_id":  ISO8601 UTC timestamp,
+          "model":     model name (frozen for the lifetime of a build),
+          "dim":       embedding dimensionality,
+          "sections":  [
+            { id, doc_path, doc_url, doc_title, category,
+              heading, anchor, body, symbols, embedding },
+            ...
+          ]
+        }
+
+    Phase 3b.2 turns each section into a small set of Kronroe facts;
+    `embedding` becomes the vector for `assert_fact_with_embedding`,
+    and `symbols` become graph edges via `Value::Entity(name)`.
+    """
+    import datetime
+
+    all_sections: list[Section] = []
+    for doc in docs_flat:
+        all_sections.extend(split_doc_into_sections(doc))
+
+    for section in all_sections:
+        section.symbols = extract_symbols(section.body)
+
+    embeddings = embed_section_bodies([s.body for s in all_sections])
+    if not embeddings:
+        raise RuntimeError("embedder returned no vectors")
+    dim = len(embeddings[0])
+
+    return {
+        "build_id": datetime.datetime.now(datetime.timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z"),
+        "model": "sentence-transformers/all-MiniLM-L6-v2",
+        "dim": dim,
+        "sections": [
+            {
+                "id": s.id,
+                "doc_path": s.doc_path,
+                "doc_url": s.doc_url,
+                "doc_title": s.doc_title,
+                "category": s.category,
+                "heading": s.heading,
+                "anchor": s.anchor,
+                "body": s.body,
+                "symbols": s.symbols,
+                "embedding": e,
+            }
+            for s, e in zip(all_sections, embeddings)
+        ],
+    }
+
+
 # ─── Sidebar ──────────────────────────────────────────────────
 
 # Order in which categories appear in the sidebar.
@@ -682,8 +984,28 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
 
 # ─── Main build ───────────────────────────────────────────────
 
-def build(check: bool = False) -> int:
-    """Render all markdown to HTML. Returns exit code (0 ok, 1 drift)."""
+def build(check: bool = False, corpus: bool = False) -> int:
+    """Render all markdown to HTML. Returns exit code (0 ok, 1 drift).
+
+    If `corpus=True`, additionally generates `corpus.json` with
+    per-section embeddings. This is the Phase 3b.1 output consumed
+    by `kronroe-docs-api`. Skipped by default because:
+
+      * It requires `fastembed-python` (a heavy ML dependency).
+      * It downloads a ~80MB ONNX model on first run.
+      * CI doesn't need the corpus — only the deploy workflow does.
+
+    Combine flags as needed:
+      build()                               # HTML + .md + llms.txt
+      build(corpus=True)                    # the above + corpus.json
+      build(check=True)                     # drift-check the HTML
+      build(check=True, corpus=True)        # drift-check including corpus
+
+    Drift checks on corpus are intentionally skipped — embedding
+    output is non-deterministic at the float-bit level across
+    different runtimes, so a strict equality check would false-
+    positive. The corpus is regenerated on every deploy instead.
+    """
     if not DOCS_SRC.is_dir():
         print(f"error: {DOCS_SRC.relative_to(ROOT)} not found", file=sys.stderr)
         return 1
@@ -792,12 +1114,33 @@ def build(check: bool = False) -> int:
     llms_txt_path.write_text(llms_txt_content, encoding="utf-8")
     llms_full_txt_path.write_text(llms_full_txt_content, encoding="utf-8")
 
+    # Phase 3b.1: per-section embedding corpus consumed by
+    # `kronroe-docs-api`. Lives at /docs/corpus.json on production
+    # (also publicly accessible to any agent that wants the raw
+    # embeddings without going through the API).
+    corpus_section_count = 0
+    if corpus:
+        corpus_payload = render_corpus(docs_flat)
+        corpus_section_count = len(corpus_payload["sections"])
+        corpus_path = OUTPUT / "corpus.json"
+        # `separators=(",", ":")` shaves ~25% off the file size by
+        # dropping pretty-printing whitespace. The file is for
+        # machine consumption, not human reading — humans should
+        # use the API endpoints instead.
+        corpus_path.write_text(
+            json.dumps(corpus_payload, separators=(",", ":")),
+            encoding="utf-8",
+        )
+
     page_count = sum(1 for p in pages if p.suffix == ".html")
     md_count = sum(1 for p in pages if p.suffix == ".md")
-    print(
+    summary = (
         f"wrote {page_count} HTML page(s), {md_count} markdown companion(s), "
-        f"+ search index + llms.txt + llms-full.txt → {OUTPUT.relative_to(ROOT)}"
+        f"+ search index + llms.txt + llms-full.txt"
     )
+    if corpus:
+        summary += f" + corpus.json ({corpus_section_count} sections)"
+    print(f"{summary} → {OUTPUT.relative_to(ROOT)}")
     return 0
 
 
@@ -808,8 +1151,18 @@ def main() -> int:
         action="store_true",
         help="Exit 1 if any page would change (CI drift detection).",
     )
+    parser.add_argument(
+        "--corpus",
+        action="store_true",
+        help=(
+            "Additionally generate corpus.json with per-section embeddings "
+            "(consumed by kronroe-docs-api). Requires `fastembed` + downloads "
+            "a ~80MB ONNX model on first run. Off by default so CI builds "
+            "stay lightweight; deploy workflows pass --corpus."
+        ),
+    )
     args = parser.parse_args()
-    return build(check=args.check)
+    return build(check=args.check, corpus=args.corpus)
 
 
 if __name__ == "__main__":

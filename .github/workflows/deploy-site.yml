@@ -41,18 +41,26 @@ jobs:
         # outputs into site/public/pkg/ — assembled into dist in the next step
 
       - name: Set up Python deps for docs + sitemap
+        # `fastembed` is needed for `--corpus` (Phase 3b.1). It pulls
+        # in onnxruntime + tokenizers + ~80MB ONNX model on first run;
+        # the model gets cached to ~/.cache/huggingface across runs
+        # via the rust-cache action's broader cache scope. CI's docs
+        # build (in ci.yml) deliberately omits fastembed to keep
+        # CI fast — only deploy regenerates the corpus.
         run: |
           python3 -m venv site/scripts/.venv
           site/scripts/.venv/bin/pip install --quiet \
-            markdown-it-py mdit-py-plugins pygments
+            markdown-it-py mdit-py-plugins pygments fastembed
 
       - name: Regenerate sitemap from blog posts
         run: python3 site/scripts/build-sitemap.py
 
-      - name: Build docs from markdown
+      - name: Build docs from markdown (with embedding corpus)
         # Renders site/docs/**/*.md → site/docs-built/<...>/index.html
         # using the Kronroe design system (see site/scripts/build-docs.py).
-        run: site/scripts/.venv/bin/python site/scripts/build-docs.py
+        # `--corpus` additionally emits corpus.json — per-section
+        # embeddings consumed by kronroe-docs-api (Phase 3b.2).
+        run: site/scripts/.venv/bin/python site/scripts/build-docs.py --corpus
 
       - name: Assemble static site into dist
         run: |

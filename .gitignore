@@ -88,3 +88,7 @@ site/fonts/
 
 # Playwright CLI cache
 .playwright-cli/
+
+
+# fastembed model cache (created at repo root by site/scripts/build-docs.py --corpus)
+.fastembed_cache/

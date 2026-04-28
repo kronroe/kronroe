@@ -233,6 +233,15 @@ jobs:
         # gitignored — the build always re-runs in deploy.
         run: site/scripts/.venv/bin/python site/scripts/build-docs.py
 
+      - name: Run section splitter + symbol extractor regression tests
+        # Locks in the splitter and symbol-extractor invariants
+        # against pathological cases (fenced ## lines, unclosed
+        # fences, module-path notation, enum variants, etc.) that
+        # don't appear in the real corpus today but will be
+        # encountered as docs grow. See `site/scripts/test_build_docs.py`
+        # for the rationale on each test case.
+        run: site/scripts/.venv/bin/python site/scripts/test_build_docs.py
+
   # ─── Wrapper verification ──────────────────────────────────────────────
 
   wrapper-verification:
