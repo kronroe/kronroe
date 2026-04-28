@@ -1,0 +1,45 @@
+[package]
+name = "kronroe-docs-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "HTTP API serving the Kronroe docs as a queryable, bi-temporal memory system"
+homepage = "https://kronroe.dev"
+readme = "README.md"
+keywords = ["kronroe", "docs", "api", "agent-memory"]
+publish = false  # Internal service binary, not for crates.io
+
+[[bin]]
+name = "kronroe-docs-api"
+path = "src/main.rs"
+
+[dependencies]
+# Kronroe core with vector search enabled. We rely on flat-cosine
+# similarity (the only vector backend Phase 0 ships) for semantic
+# recall. Full-text search isn't enabled here — the docs API doesn't
+# need it; semantic retrieval is the whole point.
+kronroe = { version = "0.3.1", path = "../core", features = ["vector"] }
+
+# HTTP framework. axum 0.7+ has stable APIs and good Tower middleware
+# support for things like CORS / rate-limiting that Phase 3b will add.
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# Embedding model — fastembed-rs runs ONNX-format models locally.
+# At spike scale we ship the smallest reasonable model; Phase 3b can
+# revisit if quality is insufficient. Pinned with `default-features =
+# false` so we get to choose the ONNX runtime backend explicitly.
+fastembed = "4"
+
+# Serialization + tracing — standard infra. anyhow for spike-grade
+# error handling (Phase 3b will move to a typed error enum + axum's
+# IntoResponse).
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
