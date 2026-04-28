@@ -69,9 +69,17 @@ jobs:
           # not the source markdown/directories.
           mkdir -p site/dist/docs
           cp site/docs/index.html site/dist/docs/index.html
-          # Overlay the rendered docs pages + assets from build-docs.py
+          # Overlay the rendered docs pages + assets from build-docs.py.
+          # Phase 2: site/docs-built/_root/ holds files that should land
+          # at the site root (llms.txt, llms-full.txt) — lift those out
+          # before copying the rest into /docs/.
           if [ -d site/docs-built ]; then
-            cp -r site/docs-built/. site/dist/docs/
+            if [ -d site/docs-built/_root ]; then
+              cp site/docs-built/_root/*.txt site/dist/
+            fi
+            # Now copy everything except _root/ into /docs/.
+            (cd site/docs-built && find . -mindepth 1 -maxdepth 1 \
+              ! -name '_root' -exec cp -r {} ../dist/docs/ \;)
           fi
           # Copy blog pages
           if [ -d site/blog ]; then

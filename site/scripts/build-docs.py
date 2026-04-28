@@ -310,6 +310,170 @@ def render_toc(headings: list[Heading]) -> str:
     )
 
 
+# ─── Agent-readable formats (Phase 2) ─────────────────────────
+#
+# Three outputs designed for LLMs and AI agents — emitted alongside
+# the human-facing HTML so the same canonical URLs can serve both.
+#
+#   * llms.txt  — site root index, per llmstxt.org spec. Title +
+#     description + grouped list of doc URLs (pointing at the .md
+#     companion files for clean ingestion).
+#
+#   * llms-full.txt — site root concatenation of all docs as plain
+#     markdown for LLMs that want to ingest everything in one fetch.
+#
+#   * /docs/<path>/index.md — companion file alongside every rendered
+#     index.html. Lets agents fetch the same URL with `.md` appended
+#     and get the source markdown without HTML chrome.
+#
+# Phase 3 (separate plan) adds a structured query API + MCP server
+# on top of these primitives.
+
+LLMSTXT_DESCRIPTION = (
+    "Kronroe is an embedded bi-temporal property graph database for AI "
+    "agent memory and mobile/edge applications. It treats temporal facts "
+    "as a first-class engine primitive — every fact carries four "
+    "timestamps tracking both real-world validity and database "
+    "transaction time. Runs on-device with no server, no cloud, no "
+    "data leaving the user's machine. Ships as Rust crate, Python "
+    "package, iOS framework, Android library, WASM bundle, and MCP "
+    "server, all from one codebase."
+)
+
+
+def render_llms_txt(by_cat: dict[str, list[Doc]]) -> str:
+    """Generate the root /llms.txt file per llmstxt.org spec.
+
+    Format: `# Title` then `> Description` blockquote, then sections
+    (`## Category`) with bullet links to each doc's `.md` companion.
+    Pointing at .md (not .html) gives LLM crawlers clean markdown
+    they don't have to strip HTML from.
+    """
+    lines = [
+        "# Kronroe",
+        "",
+        f"> {LLMSTXT_DESCRIPTION}",
+        "",
+        "## Site links",
+        "",
+        "- [Homepage](https://kronroe.dev/): What Kronroe is and why it exists",
+        "- [About](https://kronroe.dev/about/): One-person engine, built in the open",
+        "- [Blog](https://kronroe.dev/blog/): Build notes, technical decisions",
+        "- [Pricing](https://kronroe.dev/pricing/): AGPL-3.0 + commercial licence",
+        "- [GitHub](https://github.com/kronroe/kronroe): Source code",
+        "",
+    ]
+
+    for cat_slug, docs_in_cat in by_cat.items():
+        cat_title = category_title_from_slug(cat_slug) if cat_slug else "Other"
+        lines.append(f"## {cat_title}")
+        lines.append("")
+        for doc in docs_in_cat:
+            md_url = f"https://kronroe.dev{doc.url}index.md"
+            summary = doc.description or ""
+            if len(summary) > 160:
+                summary = summary[:157].rstrip() + "..."
+            lines.append(f"- [{doc.title}]({md_url}): {summary}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_llms_full_txt(docs_flat: list[Doc]) -> str:
+    """Generate /llms-full.txt — every doc concatenated as plain markdown.
+
+    Each doc separated by `\\n---\\n` with a header noting the URL,
+    category, and title. LLMs that want to ingest the whole docs
+    corpus in one fetch can grab this file.
+    """
+    parts: list[str] = []
+    parts.append("# Kronroe — full documentation\n")
+    parts.append(
+        "Concatenated source markdown of every doc page on kronroe.dev. "
+        "For programmatic / LLM ingestion. The canonical home for each "
+        "doc is at `https://kronroe.dev/docs/<...>/`. The plain markdown "
+        "for any single doc is also available at "
+        "`https://kronroe.dev/docs/<...>/index.md`.\n"
+    )
+
+    for doc in docs_flat:
+        parts.append("\n---\n")
+        parts.append(
+            f"## {doc.category_title} → {doc.title}\n"
+            f"\n"
+            f"URL: https://kronroe.dev{doc.url}\n"
+            f"Markdown: https://kronroe.dev{doc.url}index.md\n"
+            f"\n"
+        )
+        # Trim the original H1 from each doc's markdown to avoid duplication
+        # — the line above already renders title + URL.
+        body = re.sub(r"^# .*?\n+", "", doc.body_md, count=1, flags=re.MULTILINE)
+        parts.append(body.rstrip() + "\n")
+
+    return "".join(parts).strip() + "\n"
+
+
+def render_doc_md_companion(doc: Doc) -> str:
+    """Return the markdown bytes to write at /docs/<path>/index.md.
+
+    Includes a small frontmatter-style preamble identifying the doc,
+    then the original markdown source unchanged. Frontmatter helps
+    agents parse without having to infer metadata from the body.
+    """
+    preamble = (
+        f"---\n"
+        f"title: {doc.title}\n"
+        f"category: {doc.category_title}\n"
+        f"url: https://kronroe.dev{doc.url}\n"
+        f"format: markdown\n"
+        f"---\n\n"
+    )
+    return preamble + doc.body_md
+
+
+def render_jsonld(doc: Doc) -> str:
+    """Build a TechArticle JSON-LD block for a doc's <head>.
+
+    Helps both Google's AI Overviews and LLM crawlers correctly
+    classify the page. Schema.org `TechArticle` is the right type for
+    technical documentation.
+    """
+    payload = {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": doc.title,
+        "description": doc.description,
+        "url": f"https://kronroe.dev{doc.url}",
+        "inLanguage": "en",
+        "isPartOf": {
+            "@type": "TechArticle",
+            "name": "Kronroe Documentation",
+            "url": "https://kronroe.dev/docs/",
+        },
+        "author": {
+            "@type": "Person",
+            "name": "Rebekah Cole",
+            "url": "https://kronroe.dev/about/",
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "Kronroe",
+            "url": "https://kronroe.dev/",
+            "logo": {
+                "@type": "ImageObject",
+                "url": "https://kronroe.dev/og-image.png",
+            },
+        },
+        "articleSection": doc.category_title or "Documentation",
+        "keywords": [h.text for h in doc.headings] or [doc.title],
+    }
+    return (
+        '<script type="application/ld+json">'
+        + json.dumps(payload, indent=2)
+        + "</script>"
+    )
+
+
 # ─── Prev / Next ──────────────────────────────────────────────
 
 def prev_next(docs_flat: list[Doc], current: Doc) -> tuple[Doc | None, Doc | None]:
@@ -384,10 +548,12 @@ def render_page(
         description=html_escape(doc.description),
         url=doc.url,
         category=html_escape(doc.category_title or "Docs"),
+        md_url=f"{doc.url}index.md",
         sidebar=sidebar,
         body=doc.body_html,
         toc=toc,
         pagenav=pagenav,
+        jsonld=render_jsonld(doc),
     )
 
 
@@ -418,10 +584,12 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:image" content="https://kronroe.dev/og-image.png"/>
 <link rel="canonical" href="https://kronroe.dev{url}"/>
+<link rel="alternate" type="text/markdown" href="{md_url}" title="Markdown source"/>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
 <link rel="stylesheet" href="/docs/_assets/docs.css"/>
 <script defer src="/js/analytics-consent.js"></script>
 <script defer src="/docs/_assets/docs.js"></script>
+{jsonld}
 </head>
 <body class="kr-docs-body">
 
@@ -512,7 +680,7 @@ def build(check: bool = False) -> int:
     for cat in by_cat.values():
         docs_flat.extend(cat)
 
-    # Render every page.
+    # Render every page (HTML + .md companion).
     pages: dict[Path, str] = {}
     for doc in docs:
         sidebar = render_sidebar(by_cat, doc)
@@ -523,15 +691,40 @@ def build(check: bool = False) -> int:
         out_path = OUTPUT / doc.rel_path / "index.html"
         pages[out_path] = html
 
-    # Search index.
+        # Phase 2: companion markdown file at /docs/<path>/index.md
+        # served alongside the HTML so agents can fetch raw source.
+        md_path = OUTPUT / doc.rel_path / "index.md"
+        pages[md_path] = render_doc_md_companion(doc)
+
+    # Search index (Phase 1: client-side keyword scoring).
     search_index = build_search_index(docs)
     search_index_path = OUTPUT / "_assets" / "search.json"
     search_index_text = json.dumps({"docs": search_index}, indent=2)
 
+    # Phase 2: agent-readable site-root files.
+    # These get copied to site/dist/ root by the deploy workflow,
+    # not /docs/. The build emits them at OUTPUT / "_root" / ... so
+    # the deploy step knows what to lift to the site root.
+    llms_txt_path = OUTPUT / "_root" / "llms.txt"
+    llms_full_txt_path = OUTPUT / "_root" / "llms-full.txt"
+    llms_txt_content = render_llms_txt(by_cat)
+    llms_full_txt_content = render_llms_full_txt(docs_flat)
+
+    # Files we need to write (or compare against in --check mode):
+    # - Per-doc HTML + .md companions (already collected in `pages`)
+    # - Search index (search_index_path)
+    # - Site-root agent files (llms.txt + llms-full.txt) — written under
+    #   OUTPUT/_root/ so the deploy step can lift them to site/dist/.
+    extra_outputs = [
+        (search_index_path, search_index_text),
+        (llms_txt_path, llms_txt_content),
+        (llms_full_txt_path, llms_full_txt_content),
+    ]
+
     if check:
-        # In --check mode, compare every output file against what's on disk.
         drift = 0
-        for path, content in pages.items():
+        all_files = list(pages.items()) + extra_outputs
+        for path, content in all_files:
             existing = path.read_text(encoding="utf-8") if path.exists() else ""
             if existing != content:
                 print(
@@ -539,15 +732,6 @@ def build(check: bool = False) -> int:
                     file=sys.stderr,
                 )
                 drift += 1
-        existing_index = (
-            search_index_path.read_text(encoding="utf-8") if search_index_path.exists() else ""
-        )
-        if existing_index != search_index_text:
-            print(
-                f"drift: {search_index_path.relative_to(ROOT)} would change",
-                file=sys.stderr,
-            )
-            drift += 1
         if drift:
             print(
                 f"error: {drift} file(s) out of date — "
@@ -555,7 +739,9 @@ def build(check: bool = False) -> int:
                 file=sys.stderr,
             )
             return 1
-        print(f"ok: {len(pages)} page(s) and search index up to date")
+        print(
+            f"ok: {len(pages)} page(s) + search index + agent files up to date"
+        )
         return 0
 
     # Fresh build: clear output dir, then write everything.
@@ -579,7 +765,17 @@ def build(check: bool = False) -> int:
     # Write search index.
     search_index_path.write_text(search_index_text, encoding="utf-8")
 
-    print(f"wrote {len(pages)} page(s) → {OUTPUT.relative_to(ROOT)}")
+    # Write Phase 2 agent-readable site-root files.
+    llms_txt_path.parent.mkdir(parents=True, exist_ok=True)
+    llms_txt_path.write_text(llms_txt_content, encoding="utf-8")
+    llms_full_txt_path.write_text(llms_full_txt_content, encoding="utf-8")
+
+    page_count = sum(1 for p in pages if p.suffix == ".html")
+    md_count = sum(1 for p in pages if p.suffix == ".md")
+    print(
+        f"wrote {page_count} HTML page(s), {md_count} markdown companion(s), "
+        f"+ search index + llms.txt + llms-full.txt → {OUTPUT.relative_to(ROOT)}"
+    )
     return 0
 
 
