@@ -138,7 +138,12 @@ fn bootstrap() -> anyhow::Result<AppState> {
         .ok_or_else(|| anyhow::anyhow!("embedder returned no vectors"))?;
 
     let now = KronroeTimestamp::now_utc();
-    for (section, vector) in TEST_CORPUS.iter().zip(embeddings.into_iter()) {
+    // `Iterator::zip` accepts `IntoIterator` directly, so the explicit
+    // `.into_iter()` is redundant. Clippy's `useless_conversion` lint
+    // (which CI promotes to a hard error via `-D warnings`) catches
+    // it. Semantics are unchanged: `embeddings` (a `Vec<Vec<f32>>`)
+    // is consumed by value, yielding owned vectors.
+    for (section, vector) in TEST_CORPUS.iter().zip(embeddings) {
         graph.assert_fact_with_embedding(
             section.subject,
             section.predicate,
