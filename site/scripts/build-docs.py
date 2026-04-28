@@ -413,19 +413,41 @@ def render_llms_full_txt(docs_flat: list[Doc]) -> str:
     return "".join(parts).strip() + "\n"
 
 
+def yaml_quote(value: str) -> str:
+    """Wrap a string in YAML double-quotes with `"` and `\\` escaped.
+
+    Required for any frontmatter value that might contain a colon
+    (`Quick Start: Rust` is the canonical case in our corpus), `#`,
+    `&`, `*`, `!`, `|`, `>`, leading whitespace, or other YAML-special
+    characters. Quoting unconditionally is safer than trying to detect
+    "is this string ambiguous to a YAML parser?" — that's a long list
+    that grows over time as new fields get added.
+
+    YAML's double-quoted form recognises `\\"` and `\\\\` escape
+    sequences; we escape both to preserve the original string verbatim.
+    """
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 def render_doc_md_companion(doc: Doc) -> str:
     """Return the markdown bytes to write at /docs/<path>/index.md.
 
     Includes a small frontmatter-style preamble identifying the doc,
     then the original markdown source unchanged. Frontmatter helps
     agents parse without having to infer metadata from the body.
+
+    All values are YAML-quoted because doc titles routinely contain
+    characters that are YAML-special (notably `:` in titles like
+    "Quick Start: Rust") — unquoted, those produce invalid YAML that
+    parsers either reject or misinterpret.
     """
     preamble = (
         f"---\n"
-        f"title: {doc.title}\n"
-        f"category: {doc.category_title}\n"
-        f"url: https://kronroe.dev{doc.url}\n"
-        f"format: markdown\n"
+        f"title: {yaml_quote(doc.title)}\n"
+        f"category: {yaml_quote(doc.category_title)}\n"
+        f"url: {yaml_quote(f'https://kronroe.dev{doc.url}')}\n"
+        f"format: {yaml_quote('markdown')}\n"
         f"---\n\n"
     )
     return preamble + doc.body_md
