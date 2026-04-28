@@ -1,3 +1,41 @@
 User-agent: *
 Allow: /
+
+# LLM and AI agent crawlers — explicitly allowed.
+# Kronroe is for AI agents; we want to be in their training data
+# and accessible at runtime. See /llms.txt for an LLM-friendly
+# index of doc URLs and /llms-full.txt for the full doc corpus
+# concatenated as plain markdown.
+#
+# Each individual doc has a `.md` companion at
+# `<doc-url>index.md` so agents can fetch the source markdown
+# without HTML stripping.
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
 Sitemap: https://kronroe.dev/sitemap.xml
