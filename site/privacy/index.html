@@ -220,6 +220,23 @@
     color: var(--warm-5);
   }
   footer a { color: var(--violet-6); }
+
+  /* Narrow-viewport: privacy-policy tables have 3-4 columns of dense
+     content (cookie name, provider, purpose, duration). At 375px wide
+     each cell would be ~80px and text wraps to one word per line —
+     unreadable. Make the table itself horizontally scrollable on
+     small viewports with a minimum legible content width. */
+  @media (max-width: 600px) {
+    table {
+      display: block;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      /* Keep the actual table semantics for screen readers via a tbody
+         that retains its natural table layout inside the scroller. */
+    }
+    table thead, table tbody { display: table; min-width: 480px; width: 100%; }
+    th, td { padding: 0.55rem 0.7rem; font-size: 0.85rem; }
+  }
 </style>
 </head>
 <body>

@@ -153,7 +153,20 @@
     '#kr-consent-modal .kr-details{margin-top:.75rem;border-top:1px dashed #DDD9E8;padding-top:.75rem;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.72rem;color:#6E6980;line-height:1.5;word-break:break-word}',
     '#kr-consent-modal .kr-details strong{color:#4A4559;font-weight:600}',
     '#kr-consent-modal .kr-foot{padding:1.25rem 1.75rem 1.75rem;display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end;border-top:1px solid #DDD9E8;margin-top:1rem}',
-    '@media (max-width:520px){#kr-consent-banner{flex-direction:column;align-items:stretch}#kr-consent-banner .kr-btns{justify-content:stretch}#kr-consent-banner .kr-btns button{flex:1}}'
+    // Mobile: stack the banner vertically and override `.kr-text`'s
+    // `flex: 1 1 320px` (which is correct for row layout but in column
+    // flex turns the 320px into a forced *height* — was producing a
+    // huge empty gap between the body text and the buttons, leaving
+    // the banner at ~440px = 54% of viewport on a 375x812 phone).
+    // Padding also tightened so the banner stays under ~25% of viewport
+    // on the smallest phones.
+    '@media (max-width:520px){'
+      + '#kr-consent-banner{flex-direction:column;align-items:stretch;padding:.95rem 1.15rem;gap:.75rem}'
+      + '#kr-consent-banner .kr-text{flex:0 0 auto}'
+      + '#kr-consent-banner .kr-body{font-size:.82rem;line-height:1.45}'
+      + '#kr-consent-banner .kr-btns{justify-content:stretch}'
+      + '#kr-consent-banner .kr-btns button{flex:1;font-size:.82rem;padding:.55rem .6rem}'
+      + '}'
   ].join('');
 
   function injectStyles() {

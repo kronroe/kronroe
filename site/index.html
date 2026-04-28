@@ -2070,6 +2070,13 @@
   @media (max-width: 640px) {
     .stats-row { grid-template-columns: 1fr; }
     .mock-footer-inner { grid-template-columns: 1fr; }
+    /* Footer-bottom: stack © + badges instead of single row, and let
+       badges wrap to multi-line if 3 don't fit. Without these rules
+       the badges share a row with the © text and squash — "Zero C deps"
+       wraps mid-badge to "Zero / C deps" which looks unprofessional. */
+    .footer-bottom { flex-direction: column; gap: 1rem; align-items: flex-start; }
+    .footer-badges { flex-wrap: wrap; }
+    .footer-badge { white-space: nowrap; }
     .ds-section { padding: 2rem 1rem; }
     .site-header-shell { padding: 0.9rem 0.75rem 1.1rem; }
     .divider--wide { margin: 0 0.75rem; }
